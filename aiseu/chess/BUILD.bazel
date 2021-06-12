@@ -1,0 +1,26 @@
+cc_library(
+    name = "chess",
+    srcs = [
+        "board.cc",
+        "game.cc",
+        "notation.cc",
+    ],
+    hdrs = [
+        "board.h",
+        "game.h",
+        "notation.h",
+    ],
+    deps = [
+        "@abseil//absl/base",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "chess-test",
+    srcs = ["chess_test.cc"],
+    deps = [
+        "@googletest//:gtest_main",
+        "//aiseu/chess:chess",
+    ],
+)
