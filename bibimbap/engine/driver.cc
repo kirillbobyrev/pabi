@@ -10,7 +10,7 @@ ABSL_FLAG(std::string, input_file, "commands.uci",
 
 int main(int argc, char *argv[]) {
   const std::string kUsageMessage =
-      "Run Aiseu Chess Engine on a set of UCI commands";
+      "Run bibimbap Chess Engine on a set of UCI commands";
   absl::SetProgramUsageMessage(kUsageMessage);
   absl::ParseCommandLine(argc, argv);
 }

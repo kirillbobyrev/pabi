@@ -1,5 +1,5 @@
-#ifndef AISEU_CHESS_BOARD_H_
-#define AISEU_CHESS_BOARD_H_
+#ifndef BIBIMBAP_CHESS_BOARD_H_
+#define BIBIMBAP_CHESS_BOARD_H_
 
 #include <array>
 #include <cstdint>
@@ -7,7 +7,7 @@
 #include <ostream>
 #include <string_view>
 
-namespace aiseu::chess {
+namespace bibimbap::chess {
 
 enum class Side : std::uint8_t {
   kWhite = 0,
@@ -35,7 +35,7 @@ class Board {
  public:
   // Draws the board and pieces in the algebraic format (KQRBNKP for white and
   // kqrbnkp for black).
-  // NOTE: Implementations are located in aiseu/chess/notation.cc.
+  // NOTE: Implementations are located in bibimbap/chess/notation.cc.
   virtual void Dump(std::ostream &os) const = 0;
   virtual void Dump() const = 0;
   // Draws the board with pieces in the figurine format (uses Unicode piece
@@ -104,6 +104,6 @@ class PieceCentricBoard : public Board {
   PieceSet white_pieces_ = PieceSet(Side::kBlack);
 };
 
-}  // namespace aiseu::chess
+}  // namespace bibimbap::chess
 
-#endif  // AISEU_CHESS_BOARD_H_
+#endif  // BIBIMBAP_CHESS_BOARD_H_

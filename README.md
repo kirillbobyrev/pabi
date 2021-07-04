@@ -1,3 +1,3 @@
-# Aiseu
+# bibimbap
 
-An experimental chess engine.
+Experimental chess engine.

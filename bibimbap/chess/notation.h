@@ -1,5 +1,5 @@
-#ifndef AISEU_CHESS_NOTATION_H_
-#define AISEU_CHESS_NOTATION_H_
+#ifndef BIBIMBAP_CHESS_NOTATION_H_
+#define BIBIMBAP_CHESS_NOTATION_H_
 
 #include <cstdint>
 #include <memory>
@@ -9,7 +9,9 @@
 #include "board.h"
 #include "game.h"
 
-namespace aiseu::chess {
+namespace bibimbap::chess {
+
+class Game;
 
 // Converts chess board files to numerical representation.
 //
@@ -25,6 +27,6 @@ Position AlgebraicPosition(std::string_view position);
 // http://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm#c9.7.2
 Game ReadFEN();
 
-}  // namespace aiseu::chess
+}  // namespace bibimbap::chess
 
-#endif  // AISEU_CHESS_NOTATION_H_
+#endif  // BIBIMBAP_CHESS_NOTATION_H_

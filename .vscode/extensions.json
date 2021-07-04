@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "davidanson.vscode-markdownlint",
+    "editorconfig.editorconfig",
+    "jeff-hykin.better-cpp-syntax",
+    "llvm-vs-code-extensions.vscode-clangd",
+    "ms-vscode.cmake-tools",
+    "shardulm94.trailing-spaces",
+    "streetsidesoftware.code-spell-checker",
+    "twxs.cmake",
+    "yzhang.markdown-all-in-one",
+  ]
+}

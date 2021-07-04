@@ -1,11 +1,12 @@
-#define AISEU_CHESS_GAME_H_
+#ifndef BIBIMBAP_CHESS_GAME_H_
+#define BIBIMBAP_CHESS_GAME_H_
 
 #include <cstdint>
 #include <memory>
 
-#include "aiseu/chess/board.h"
+#include "bibimbap/chess/board.h"
 
-namespace aiseu::chess {
+namespace bibimbap::chess {
 
 enum class GameResult : std::int8_t {
   kDraw = 0,
@@ -14,19 +15,19 @@ enum class GameResult : std::int8_t {
 };
 
 class Game {
- public:
+public:
   // Creates the new game with the default starting position.
   Game() = default;
 
- private:
+private:
   std::uint16_t fullmove_number_ = 0;
 
   Side active_player_ = Side::kWhite;
 
-  bool white_king_side_castle_availible_ = false;
-  bool white_queen_side_castle_availible_ = false;
-  bool black_king_side_castle_availible_ = false;
-  bool black_queen_side_castle_availible_ = false;
+  bool white_king_side_castle_available_ = false;
+  bool white_queen_side_castle_available_ = false;
+  bool black_king_side_castle_available_ = false;
+  bool black_queen_side_castle_available_ = false;
 
   // TODO(kirillbobyrev): This is a part of 50 move rule...
   // https://en.wikipedia.org/wiki/Fifty-move_rule
@@ -41,6 +42,6 @@ class Game {
   std::unique_ptr<Board> board_;
 };
 
-}  // namespace aiseu::chess
+} // namespace bibimbap::chess
 
-#endif  // AISEU_CHESS_GAME_H_
+#endif  // BIBIMBAP_CHESS_GAME_H_

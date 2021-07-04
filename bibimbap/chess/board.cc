@@ -4,7 +4,7 @@
 
 #include "notation.h"
 
-namespace aiseu::chess {
+namespace bibimbap::chess {
 
 PieceSet::PieceSet(Side owner) : owner_(owner) {
   if (owner == Side::kWhite) {
@@ -26,9 +26,13 @@ void PieceCentricBoard::DumpFigurine() const {
   Dump(os);
 }
 
+void PieceCentricBoard::DumpFigurine(std::ostream &os) const { Dump(os); }
+
 void PieceCentricBoard::DumpFEN() const {
   std::ostream os(std::cout.rdbuf());
   Dump(os);
 }
 
-}  // namespace aiseu::chess
+void PieceCentricBoard::DumpFEN(std::ostream &os) const { Dump(os); }
+
+} // namespace bibimbap::chess

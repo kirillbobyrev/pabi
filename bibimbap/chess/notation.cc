@@ -1,11 +1,9 @@
-#include "aiseu/chess/notation.h"
-
 #include <cassert>
 
-#include "absl/base/macros.h"
-#include "aiseu/chess/board.h"
+#include "bibimbap/chess/notation.h"
+#include "bibimbap/chess/board.h"
 
-namespace aiseu::chess {
+namespace bibimbap::chess {
 
 namespace {
 
@@ -35,23 +33,23 @@ const std::unordered_map<PieceKind, char> kBlackPieceToFigurine = {
     {PieceKind::kKnight, u'\u2658'}, {PieceKind::kPawn, u'\u2659'},
 };
 
-}  // namespace
+} // namespace
 
 // TODO(kirillbobyrev): Make these two functions constexpr for better
 // performance? Likely to result in k(Color)PieceTo(Algebraic|Figurine) being
 // exposed in the header.
 std::uint8_t FileToNumeric(char file) {
-  ABSL_ASSERT('a' <= file && file <= 'h');
+  assert('a' <= file && file <= 'h');
   return static_cast<std::int8_t>(file - 'a');
 }
 
 Position AlgebraicPosition(std::string_view position) {
-  ABSL_ASSERT(position.size() == 2);
-  ABSL_ASSERT('1' <= position[1] && position[1] <= '8');
+  assert(position.size() == 2);
+  assert('1' <= position[1] && position[1] <= '8');
   return Position{.file = FileToNumeric(position[0]),
                   .rank = static_cast<std::uint8_t>(position[1] - '0')};
 }
 
 void PieceCentricBoard::Dump(std::ostream &os) const {}
 
-}  // namespace aiseu::chess
+} // namespace bibimbap::chess
