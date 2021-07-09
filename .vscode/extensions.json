@@ -1,13 +1,12 @@
 {
   "recommendations": [
+    "bungcip.better-toml",
     "davidanson.vscode-markdownlint",
-    "editorconfig.editorconfig",
-    "jeff-hykin.better-cpp-syntax",
-    "llvm-vs-code-extensions.vscode-clangd",
-    "ms-vscode.cmake-tools",
-    "shardulm94.trailing-spaces",
+    "matklad.rust-analyzer",
+    "redhat.vscode-yaml",
+    "serayuzgur.crates",
     "streetsidesoftware.code-spell-checker",
-    "twxs.cmake",
     "yzhang.markdown-all-in-one",
+    "editorconfig.editorconfig"
   ]
 }

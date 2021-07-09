@@ -1,0 +1,29 @@
+---
+name: Test Coverage Measurement
+on: [push, pull_request]
+jobs:
+  lints:
+    name: Test Coverage Measurement
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-tarpaulin
+          version: latest
+      - name: Cargo tarpaulin
+        uses: actions-rs/cargo@v1
+        with:
+          command: tarpaulin
+          args: --out Xml
+      - name: Upload the report to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          fail_ci_if_error: true

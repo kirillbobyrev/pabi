@@ -1,48 +1,16 @@
-.*.swp
+# Rust
+/target
+
+# Visual Studio Code
 .vscode/*
-compile_commands.json
-build/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
 
-# Prerequisites
-*.d
+# Local History for Visual Studio Code
+.history/
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-.cache/*
-
-/bazel.iml
-# Ignore all bazel-* symlinks. There is no full list since this can change
-# based on the name of the directory bazel is cloned into.
-/bazel-*
-# Bazelisk version file
-.bazelversion
-# User-specific .bazelrc
-user.bazelrc
+# tarpaulin test coverage reports
+cobertura.xml

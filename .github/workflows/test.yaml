@@ -1,0 +1,36 @@
+---
+name: Test Suite
+on: [push, pull_request]
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        toolchain: [stable]
+        experimental: [false]
+        include:
+          - os: ubuntu-latest
+            toolchain: nightly
+            experimental: true
+          - os: macos-latest
+            toolchain: stable
+            experimental: true
+          - os: macos-latest
+            toolchain: nightly
+            experimental: true
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Install ${{ matrix.toolchain }} toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
