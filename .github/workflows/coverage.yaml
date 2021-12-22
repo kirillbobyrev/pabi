@@ -1,6 +1,7 @@
 ---
 name: Test Coverage Measurement
-on: [push, pull_request]
+# TODO: Extend to pull requests and report the diff.
+on: [push]
 jobs:
   lints:
     name: Test Coverage Measurement

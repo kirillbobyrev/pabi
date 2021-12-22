@@ -1,3 +1,3 @@
-# bibimbap
+# Pabi (밥)
 
-Experimental chess engine.
+Hobby chess engine.
