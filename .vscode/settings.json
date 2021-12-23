@@ -1,6 +1,14 @@
 {
   "cSpell.words": [
+    "bitand",
+    "bitboard",
+    "bitor",
+    "bitxor",
+    "clippy",
+    "doctest",
+    "itertools",
     "pabi",
+    "queenside",
     "readline",
     "repr",
     "rustfmt",

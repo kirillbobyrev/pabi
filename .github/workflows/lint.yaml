@@ -1,9 +1,9 @@
 ---
-name: Lints
+name: Lint
 on: [push, pull_request]
 jobs:
-  lints:
-    name: Lints
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources

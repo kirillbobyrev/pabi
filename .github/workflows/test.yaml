@@ -32,7 +32,5 @@ jobs:
           override: true
       - name: Run cargo test
         uses: actions-rs/cargo@v1
-        env:
-          RUST_LOG: debug
         with:
           command: test

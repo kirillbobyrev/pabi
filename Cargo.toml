@@ -16,11 +16,13 @@ version = "0.0.0"
 
 [dependencies]
 clap = {version = "3.0.0-rc.7", features = ["derive", "wrap_help"]}
-env_logger = "0.9"
-log = "0.4"
+itertools = "0.10"
 nom = "7.1"
 rustyline = "9.0"
+strum = {version = "0.23", features = ["derive"]}
 sysinfo = "0.22"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [dev-dependencies]
 criterion = "0.3"

@@ -1,10 +1,10 @@
 ---
-name: Test Coverage Measurement
+name: Test Coverage
 # TODO: Extend to pull requests and report the diff.
 on: [push]
 jobs:
-  lints:
-    name: Test Coverage Measurement
+  coverage:
+    name: Test Coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources

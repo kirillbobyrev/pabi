@@ -2,7 +2,7 @@
 name: Build
 on: [push, pull_request]
 jobs:
-  test:
+  build:
     name: Test Suite
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}

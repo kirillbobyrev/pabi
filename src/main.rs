@@ -1,9 +1,10 @@
 use clap::Parser;
 use rustyline::error::ReadlineError;
+use tracing_subscriber;
 
 fn main() {
     // E.g. `RUST_LOG=info ./pabi` to set the logging level through shell environment.
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     pabi::log_system_info();
     let _opts = pabi::Opts::parse();
     // TODO: Implement command completer.
