@@ -2,10 +2,12 @@
   "cSpell.words": [
     "bitand",
     "bitboard",
+    "bitboards",
     "bitor",
     "bitxor",
     "clippy",
     "doctest",
+    "halfmove",
     "itertools",
     "pabi",
     "queenside",
@@ -13,6 +15,7 @@
     "repr",
     "rustfmt",
     "rustyline",
+    "Stockfish",
     "sysinfo"
   ]
 }

@@ -6,7 +6,9 @@ use tracing::info;
 
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
-pub struct Opts {}
+pub struct Opts {
+    pub fen_position: String,
+}
 
 /// Prints information about the host system.
 pub fn log_system_info() {

@@ -1,11 +1,17 @@
+# Some options here require nightly.
 edition = "2021"
-comment_width = 80
 format_code_in_doc_comments = true
+format_macro_matchers = true
 format_strings = true
+group_imports = "StdExternalCrate"
+hex_literal_case = "Upper"
+imports_granularity = "Module"
 imports_layout = "HorizontalVertical"
-merge_imports = true
+match_block_trailing_comma = true
 newline_style = "Unix"
 normalize_comments = true
 normalize_doc_attributes = true
+reorder_impl_items = true
 wrap_comments = true
+use_field_init_shorthand = true
 # TODO: license_template_path
