@@ -1,3 +1,4 @@
+//! Pabi is a hobby chess engine.
 pub mod board;
 
 use clap::Parser;
@@ -7,7 +8,7 @@ use tracing::info;
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 pub struct Opts {
-    pub fen_position: String,
+    pub fen: String,
 }
 
 /// Prints information about the host system.

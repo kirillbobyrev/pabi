@@ -1,6 +1,16 @@
-//! [Bitboard][1]-based implementation of the chess board.
+//! [Bitboard]-based piece-centric implementation of the chess board. This is
+//! the "back-end" of the chess engine, efficient board representation is
+//! crucial for performance.
 //!
-//! [1]: https://www.chessprogramming.org/Bitboards
+//! Bitboard representation utilizes the fact that modern processors operate on
+//! 64 bit integers, and the bit operations can be performed simultaneously.
+//! This results in very efficient calculation of possible attack vectors and
+//! other meaningful features that are calculated to evaluate a position on the
+//! board. The disadvantage is complexity that comes with bitboard
+//! implementation and inefficiency of some operations like "get piece type on
+//! given square" (efficiently handled by Square-centric board implementations).
+//!
+//! [Bitboard]: https://www.chessprogramming.org/Bitboards
 
 use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor};
 use std::{fmt, mem};
@@ -10,6 +20,8 @@ use itertools::Itertools;
 const BOARD_WIDTH: u8 = 8;
 const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 
+/// Represents a column (vertical row) of the chessboard. In chess notation, it
+/// is normally represented with a lowercase letter.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum File {
@@ -24,12 +36,15 @@ pub enum File {
 }
 
 impl From<u8> for File {
+    /// Input has to be a number in [0; 7] range.
     fn from(file: u8) -> Self {
         debug_assert!(file < 8);
         unsafe { mem::transmute(file) }
     }
 }
 
+/// Represents a horizontal row of the chessboard. In chess notation, it is
+/// represented with a number.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum Rank {
@@ -44,6 +59,7 @@ pub enum Rank {
 }
 
 impl From<u8> for Rank {
+    /// Input has to be a number in [0; 7] range.
     fn from(rank: u8) -> Self {
         debug_assert!(rank < 8);
         unsafe { mem::transmute(rank) }
@@ -65,7 +81,7 @@ impl From<u8> for Rank {
 /// assert_eq!(Square::H8 as u8, 63);
 /// ```
 ///
-/// [`Square`] is a compact representation using only one byte.
+/// Square is a compact representation using only one byte.
 ///
 /// ```
 /// use pabi::board::Square;
@@ -85,6 +101,10 @@ pub enum Square {
 }
 
 impl Square {
+    pub fn new(file: File, rank: Rank) -> Self {
+        Self::from(file as u8 + (rank as u8) * 7)
+    }
+
     fn file(&self) -> File {
         File::from(*self as u8 % 8)
     }
@@ -95,20 +115,20 @@ impl Square {
 }
 
 impl From<u8> for Square {
-    /// Creates a square given its position on the board (0 through 63).
+    /// Creates a square given its position on the board (input has to be within
+    /// [0; 63] range).
     fn from(position: u8) -> Self {
         debug_assert!(position < 64);
         unsafe { mem::transmute(position) }
     }
 }
 
-/// Each bit represents one of 64 squares of the chess board. Mirroring [Square]
-/// semantics, the least significant bit corresponds to A1, and the most
-/// significant bit - to H8. Therefore, each [Square] can be converted into
-/// [Bitboard] with a single bit being set at square's position. However,
-/// [Bitboard] does not always correspond to a single square, e.g. it can be
-/// used to represent all pawns, both rooks/bishops/knights or multiple queens.
-/// See [BitboardSet] for more information.
+/// Represents a set of squares and provides operations (e.g. AND, OR, XOR) over
+/// these sets. Each bit corresponds to one of 64 squares of the chess board.
+///
+/// Mirroring [Square] semantics, the least significant bit corresponds to A1,
+/// and the most significant bit - to H8. See [BitboardSet] for more
+/// information.
 ///
 /// ```
 /// use pabi::board::{Bitboard, Square};
@@ -119,7 +139,8 @@ impl From<u8> for Square {
 /// assert_eq!(Bitboard::from(Square::H8).data(), 1u64 << 63);
 /// ```
 ///
-/// [Bitboard] is a wrapper around [u64] and takes 8 only bytes.
+/// Bitboard is a wrapper around [u64] and takes only 8 bytes. Defaults to empty
+/// set.
 ///
 /// ```
 /// use std::mem;
@@ -128,8 +149,7 @@ impl From<u8> for Square {
 ///
 /// assert_eq!(std::mem::size_of::<Bitboard>(), 8);
 /// ```
-
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct Bitboard {
     data: u64,
 }
@@ -144,12 +164,8 @@ impl Bitboard {
         Self { data: u64::MAX }
     }
 
-    pub fn empty() -> Self {
-        Self { data: 0 }
-    }
-
     fn with_squares(squares: &[Square]) -> Self {
-        let mut result = Bitboard::empty();
+        let mut result = Default::default();
         for square in squares {
             result |= Bitboard::from(square.clone());
         }
@@ -230,13 +246,17 @@ impl fmt::Debug for Bitboard {
     }
 }
 
-/// Piece-centric representation of all material owned by a player.
+/// Piece-centric representation of all material owned by one player. Uses
+/// [Bitboard] to store a set of squares occupied by each piece.
+///
+/// Defaults to empty board.
 // TODO: Caching all() and either replacing it or adding to the set might
 // improve performance. This is what lc0 does:
 // https://github.com/LeelaChessZero/lc0/blob/d2e372e59cd9188315d5c02a20e0bdce88033bc5/src/chess/board.h
 // Note: There are other formats, e.g. array-based. It might be nice to test
 // them out but I doubt it will be faster (Rust arrays have bounds checking) or
 // more convenient (Rust has pattern matching).
+#[derive(Copy, Clone, Default)]
 pub struct BitboardSet {
     king: Bitboard,
     queen: Bitboard,
@@ -293,12 +313,12 @@ impl BitboardSet {
     }
 }
 
-/// Track the ability to [castle][1] each side (kingside is often referred to as
+/// Track the ability to [castle] each side (kingside is often referred to as
 /// O-O or OO, queenside -- O-O-O or OOO). When the king moves, player loses
 /// ability to castle both sides, when the rook moves, player loses ability to
 /// castle its corresponding side.
 ///
-/// [1]: https://www.chessprogramming.org/Castling
+/// [castle]: https://www.chessprogramming.org/Castling
 pub enum CastlingRights {
     None,
     OnlyKingside,
@@ -306,18 +326,20 @@ pub enum CastlingRights {
     Both,
 }
 
-/// State of the chess game: the board (position), half-move counters and
-/// castling rights.
+/// State of the chess game: position, half-move counters and castling rights.
+/// It can be (de)serialized from/into [Forsyth-Edwards Notation] (FEN).
+///
+/// [Forsyth-Edwards Notation]: https://www.chessprogramming.org/Forsyth-Edwards_Notation
 // Note: This stores information about pieces in BitboardSets. Stockfish and
 // many other engines maintain both piece- and square-centric representations at
 // once.
 // TODO: Check if this yields any benefits.
-pub struct Position {
+pub struct Board {
     white_pieces: BitboardSet,
     black_pieces: BitboardSet,
     white_castling: CastlingRights,
     black_castling: CastlingRights,
-    /// [[Halfmove][^ply] Clock][1] keeps track of the number of (half-)moves
+    /// [Halfmove[^ply] Clock][1] keeps track of the number of (half-)moves
     /// since the last capture or pawn move and is used to enforce
     /// fifty[^fifty]-move draw rule.
     ///
@@ -329,7 +351,7 @@ pub struct Position {
     halfmove_clock: u8,
 }
 
-impl Position {
+impl Board {
     pub fn new() -> Self {
         Self {
             white_pieces: BitboardSet::new_white(),
@@ -340,10 +362,7 @@ impl Position {
         }
     }
 
-    /// Parses [Position] from Forsyth-Edwards Notation.
-    ///
-    /// [1]: https://www.chessprogramming.org/Forsyth-Edwards_Notation
-    pub fn from_fen(fen: &str) -> Result<Self, ()> {
+    pub fn parse_fen(fen: &str) -> Result<Self, ()> {
         todo!();
     }
 
@@ -351,6 +370,12 @@ impl Position {
         todo!();
     }
 
+    fn material_imbalance() {
+        todo!();
+    }
+
+    // IMPORTANT: This is slow because of the bitboard representation and
+    // shouldn't be used in performance-critical scenarios.
     fn at(&self, square: Square) -> Option<Piece> {
         if self.white_pieces.all().is_set(square) {
             let owner = Player::White;
@@ -396,8 +421,9 @@ impl Position {
     }
 }
 
-impl fmt::Debug for Position {
+impl fmt::Debug for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        todo!();
         for square in Square::A1 as u8..Square::H8 as u8 {
             let square: Square = square.into();
         }
@@ -443,16 +469,16 @@ impl Piece {
     // black.
     fn algebraic_symbol(&self) -> char {
         let result = match &self.kind {
-            PieceKind::King => 'K',
-            PieceKind::Queen => 'Q',
-            PieceKind::Rook => 'R',
-            PieceKind::Bishop => 'B',
-            PieceKind::Knight => 'K',
-            PieceKind::Pawn => 'P',
+            PieceKind::King => 'k',
+            PieceKind::Queen => 'q',
+            PieceKind::Rook => 'r',
+            PieceKind::Bishop => 'b',
+            PieceKind::Knight => 'k',
+            PieceKind::Pawn => 'p',
         };
         match &self.owner {
-            Player::White => result,
-            Player::Black => result.to_ascii_lowercase(),
+            Player::White => result.to_ascii_uppercase(),
+            Player::Black => result,
         }
     }
 }
@@ -465,11 +491,11 @@ impl fmt::Display for Piece {
 
 #[cfg(test)]
 mod test {
-    use super::BitboardSet;
+    use super::{Bitboard, BitboardSet};
 
     #[test]
-    fn bitboard() {
-        // Create starting position.
+    fn bitboard_basics() {
+        // Create a starting position.
         let white = BitboardSet::new_white();
         let black = BitboardSet::new_black();
 
@@ -494,18 +520,99 @@ mod test {
         // Check few positions manually.
         assert_eq!(white.queen.data, 1 << 3);
         assert_eq!(black.queen.data, 1 << (3 + 8 * 7));
+    }
 
-        // Check the debug output for few bitboards.
+    #[test]
+    // Check the debug output for few bitboards.
+    fn bitboard_dump() {
+        #[rustfmt::skip]
+        assert_eq!(
+            format!("{:?}", Bitboard::default()),
+            "00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000"
+        );
+        #[rustfmt::skip]
+        assert_eq!(
+            format!("{:?}", Bitboard::full()),
+            "11111111\n\
+             11111111\n\
+             11111111\n\
+             11111111\n\
+             11111111\n\
+             11111111\n\
+             11111111\n\
+             11111111"
+        );
+
+        let white = BitboardSet::new_white();
+        let black = BitboardSet::new_black();
+
+        #[rustfmt::skip]
+        assert_eq!(
+            format!("{:?}", black.all()),
+            "11111111\n\
+             11111111\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000"
+        );
+        #[rustfmt::skip]
+        assert_eq!(
+            format!("{:?}", white.all() | black.all()),
+            "11111111\n\
+             11111111\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             11111111\n\
+             11111111"
+        );
+
+        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", white.king),
-            "00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00001000"
-        )
+            "00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00001000"
+        );
+        #[rustfmt::skip]
+        assert_eq!(
+            format!("{:?}", black.pawns),
+            "00000000\n\
+             11111111\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000"
+        );
+        #[rustfmt::skip]
+        assert_eq!(
+            format!("{:?}", black.knights),
+            "01000010\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000"
+        );
     }
 }

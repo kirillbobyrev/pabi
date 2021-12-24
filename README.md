@@ -6,4 +6,6 @@
 [![Build documentation](https://github.com/kirillbobyrev/pabi/actions/workflows/docs.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/docs.yaml)
 [![Test Coverage](https://github.com/kirillbobyrev/pabi/actions/workflows/coverage.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/coverage.yaml)
 
+[![Lines of Code](https://tokei.rs/b1/github/kirillbobyrev/pabi)](https://github.com/kirillbobyrev/pabi)
+
 Hobby chess engine.
