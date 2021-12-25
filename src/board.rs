@@ -23,7 +23,8 @@ const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 /// Represents a column (vertical row) of the chessboard. In chess notation, it
 /// is normally represented with a lowercase letter.
 #[repr(u8)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(missing_docs)]
 pub enum File {
     A,
     B,
@@ -38,15 +39,17 @@ pub enum File {
 impl From<u8> for File {
     /// Input has to be a number in [0; 7] range.
     fn from(file: u8) -> Self {
-        debug_assert!(file < 8);
+        assert!(file < 8);
         unsafe { mem::transmute(file) }
     }
 }
 
 /// Represents a horizontal row of the chessboard. In chess notation, it is
-/// represented with a number.
+/// represented with a number. The implementation assumes zero-based values
+/// (i.e. rank 1 would be 0).
 #[repr(u8)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(missing_docs)]
 pub enum Rank {
     One,
     Two,
@@ -61,7 +64,7 @@ pub enum Rank {
 impl From<u8> for Rank {
     /// Input has to be a number in [0; 7] range.
     fn from(rank: u8) -> Self {
-        debug_assert!(rank < 8);
+        assert!(rank < 8);
         unsafe { mem::transmute(rank) }
     }
 }
@@ -89,6 +92,7 @@ impl From<u8> for Rank {
 ///
 /// assert_eq!(std::mem::size_of::<Square>(), 1);
 /// ```
+#[allow(missing_docs)]
 pub enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
@@ -432,11 +436,18 @@ impl fmt::Debug for Board {
     }
 }
 
+/// A standard game of chess is played between two players: White (having the
+/// advantage of the first turn) and Black.
+#[allow(missing_docs)]
 pub enum Player {
     White,
     Black,
 }
 
+/// Standard [chess pieces].
+///
+/// [chess pieces]: https://en.wikipedia.org/wiki/Chess_piece
+#[allow(missing_docs)]
 pub enum PieceKind {
     King,
     Queen,
@@ -460,6 +471,7 @@ impl PieceKind {
     }
 }
 
+/// Represents a specific piece owned by a player.
 pub struct Piece {
     owner: Player,
     kind: PieceKind,
@@ -492,7 +504,55 @@ impl fmt::Display for Piece {
 
 #[cfg(test)]
 mod test {
-    use super::{Bitboard, BitboardSet};
+    use super::{Bitboard, BitboardSet, File, Rank, BOARD_WIDTH};
+
+    #[test]
+    fn rank() {
+        let ranks: Vec<_> = (0..BOARD_WIDTH).map(|rank| Rank::from(rank)).collect();
+        assert_eq!(
+            ranks,
+            vec![
+                Rank::One,
+                Rank::Two,
+                Rank::Three,
+                Rank::Four,
+                Rank::Five,
+                Rank::Six,
+                Rank::Seven,
+                Rank::Eight,
+            ]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: rank < 8")]
+    fn invalid_rank() {
+        let _ = Rank::from(BOARD_WIDTH);
+    }
+
+    #[test]
+    fn file() {
+        let files: Vec<_> = (0..BOARD_WIDTH).map(|file| File::from(file)).collect();
+        assert_eq!(
+            files,
+            vec![
+                File::A,
+                File::B,
+                File::C,
+                File::D,
+                File::E,
+                File::F,
+                File::G,
+                File::H,
+            ]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: file < 8")]
+    fn invalid_file() {
+        let _ = File::from(BOARD_WIDTH);
+    }
 
     #[test]
     fn bitboard_basics() {

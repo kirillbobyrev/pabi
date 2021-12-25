@@ -1,8 +1,4 @@
-//! [Perft] (*per*formance *t*esting) is a technique for checking correctness of
-//! move generation (tested functions are generate move, make move and unmake
-//! move).
-//!
-//! [Perft]: https://www.chessprogramming.org/Perft
+//! Perft benchmarks runner.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
@@ -18,9 +14,5 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("fib 20", |b| b.iter(|| fibonacci(black_box(20))));
 }
 
-fn perft() {
-    todo!();
-}
-
-criterion_group!(benches, criterion_benchmark);
-criterion_main!(benches);
+criterion_group!(perft, criterion_benchmark);
+criterion_main!(perft);
