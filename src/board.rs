@@ -123,8 +123,9 @@ impl From<u8> for Square {
     }
 }
 
-/// Represents a set of squares and provides operations (e.g. AND, OR, XOR) over
-/// these sets. Each bit corresponds to one of 64 squares of the chess board.
+/// Represents a set of squares and provides common operations (e.g. AND, OR,
+/// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
+/// board.
 ///
 /// Mirroring [Square] semantics, the least significant bit corresponds to A1,
 /// and the most significant bit - to H8. See [BitboardSet] for more
