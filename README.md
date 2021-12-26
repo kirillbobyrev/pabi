@@ -12,7 +12,7 @@
 [![Build docs](https://github.com/kirillbobyrev/pabi/actions/workflows/docs.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/docs.yaml)
 [![Test Coverage](https://github.com/kirillbobyrev/pabi/actions/workflows/coverage.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/coverage.yaml)
 
-Pabi (밥 --- "rice" in Korean) is a modern hobby chess engine.
+Pabi (밥 - "rice" in Korean) is a modern hobby chess engine.
 
 ## Goals
 
@@ -66,7 +66,7 @@ of candidates.
 
 Pabi strives to be __strong__. It should participate in [Computer Chess Rating
 Lists] (CCRL) and ultimately, if and when it reaches 3000+ ELO strength, in
-Chess.com [Computer Chess Championship][^CCCC] (CCCC). As such, it should be
+Chess.com [Computer Chess Championship] (CCCC)[^CCCC]. As such, it should be
 fine-tuned for the time formats (mainly Blitz and Rapid) that are popular in
 these rating lists and designed to perform well against other engines.
 Performance and good time-management are crucial for doing well in
@@ -173,5 +173,6 @@ project.
 [1.0.0]: https://github.com/kirillbobyrev/pabi/milestone/2
 [2.0.0]: https://github.com/kirillbobyrev/pabi/milestone/3
 
-[^CCCC]: Details on CCCC hardware and format:
-  <https://www.chess.com/news/view/announcing-the-new-computer-chess-championship>
+[^cccc]:
+    More technical and format details on CCCC:
+    <https://www.chess.com/news/view/announcing-the-new-computer-chess-championship>
