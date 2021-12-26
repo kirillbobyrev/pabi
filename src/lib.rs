@@ -1,3 +1,8 @@
+//! Modern and high-quality chess engine. See [README] for information about
+//! design and implementtaiton goals.
+//!
+//! [README]: https://github.com/kirillbobyrev/pabi/blob/main/README.md
+
 // TODO: Move most of those to deny.
 #![warn(
     missing_docs,
@@ -27,6 +32,7 @@
     rustdoc::bare_urls
 )]
 
+pub mod bitboard;
 pub mod board;
 pub mod perft;
 

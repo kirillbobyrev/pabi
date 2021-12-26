@@ -7,6 +7,6 @@ fn main() {
     let opts = Opts::parse();
     tracing_subscriber::fmt::init();
     pabi::log_system_info();
-    let board = Board::parse_fen(&opts.fen);
-    println!("Read position: {:?}", &board);
+    let board = Board::from_fen(&opts.fen);
+    // println!("Read position: {:?}", &board);
 }

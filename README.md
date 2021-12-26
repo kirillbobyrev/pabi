@@ -20,20 +20,20 @@ Pabi is inspired by a number of existing chess and go engines. Many of these
 amazing and strong engines were started over a decade ago: they are hard to
 understand, use and modify.
 
-In contrast, Pabi strives to be *modern* and *high-quality* chess engine
+In contrast, Pabi strives to be __modern__ and __high-quality__ chess engine
 focusing on standard chess (as opposed to Fisher Random and other notable
 variations).
 
-*Modern* means that it uses up-to-date [Rust] toolchain, is targeting new
-processor architectures, uses latest developments in the domains of
-programming tooling and (possibly) Machine Learning.
+__Modern__ means that it uses up-to-date [Rust] toolchain, is targeting new
+processor architectures, uses latest developments in the domains of programming
+tooling and (possibly) Machine Learning.
 
-*High-quality* means that Pabi will take full advantage of
+__High-quality__ means that Pabi will take full advantage of
 
 - Unit testing and integration testing: the majority of the codebase is
   well-tested and the HEAD is in the functional state. Also, advanced
   testing techniques such as [Property Testing] are used.
-- Performance testing and benchmarking: pabi should be *fast*. Each change
+- Performance testing and benchmarking: pabi should be __fast__. Each change
   should be tested and confirmed to not cause any performance regressions.
 - Continuous quality assurance: GitHub has awesome infrastructure. [GitHub
   Actions] make it possible to test, benchmark and warn on
@@ -42,7 +42,7 @@ programming tooling and (possibly) Machine Learning.
 - Documentation: [rustdoc] has awesome features, e.g. warning on
   unudocumented code and testing example code in the documentation.
 
-Pabi strives to be *user-* and *developer-friendly*.
+Pabi strives to be __user-__ and __developer-friendly__.
 
 - Building/downloading it should be straightforward. Anyone willing to try
   it out can either run it locally (possibly in the [Web UI]) or on Lichess
@@ -57,19 +57,19 @@ Pabi strives to be *user-* and *developer-friendly*.
   making their impact obvious in combination with CI and automated checks
   run in each Pull Request.
 
-Pabi strives to provide a *platform* for exploration. Testing new ideas is
+Pabi strives to provide a __platform__ for exploration. Testing new ideas is
 only valuable if the outcome if such tests can be well understood and can be
-interpreted. There are plenty of interesting ideas to be tried (e.g.
-different evaluation network architecture, different training methods and
-network distillation/quantization as means of compression). See [Resources]
-for a list of candidates.
+interpreted. There are plenty of interesting ideas to be tried (e.g. different
+evaluation network architecture, different training methods and network
+distillation/quantization as means of compression). See [Resources] for a list
+of candidates.
 
-Pabi strives to be *strong*. It should participate in [Computer Chess Rating
+Pabi strives to be __strong__. It should participate in [Computer Chess Rating
 Lists] (CCRL) and ultimately, if and when it reaches 3000+ ELO strength, in
-Chess.com [Computer Chess Championship][^CCCC] (CCCC). As such, it
-should be fine-tuned for the time formats (mainly Blitz and Rapid) that are
-popular in these rating lists and designed to perform well against other
-engines. Performance and good time-management are crucial for doing well in
+Chess.com [Computer Chess Championship][^CCCC] (CCCC). As such, it should be
+fine-tuned for the time formats (mainly Blitz and Rapid) that are popular in
+these rating lists and designed to perform well against other engines.
+Performance and good time-management are crucial for doing well in
 time-pressure scenarios.
 
 These goals are indeed very ambitions and only time will tell if they will
@@ -106,30 +106,29 @@ building my own is a great way to
   Programming Wiki and elsewhere are hard to follow without enough
   context/dedication to study, Pabi can illustrate some of the important
   concepts.
-- Try Rust: Rust seems to be great for a pre-AlphaGo era engine
-  implementation (heuristic-based position evaluation). It is feature-rich,
-  fast, modern and convenient programming language for systems programming.
-  In a way, it feels like a natrual fit for such projects because it helps
-  enforce good engineering practices into the development process. I would
-  guess that it might be easier to fix some of the shortcomings of existing
-  engines and/or prevent them. However, the language is still not as widely
-  adopted as C or C++. As the result, some of the infrastructure is not as
-  mature yet: Machine Learning infrastructure ([Are We Learning Yet?]) is a
-  notable example. Initially, this was the reason for my concerns because if
-  I decide to go with the Neural Network-based evaluation, lack of
-  infrastructure would make it complicated. However, the fashion is using
-  [NNUE] and it can be used even in the absense of any ML infrastructure
-  (through hard-coding the network in code, which is usually done in C or
-  C++ engines). For more sophisticated techniques, I can use [Pytorch Rust
-  bindings] and either split training (e.g. into a Python module) and
-  inference (engine real-time evaluation), or implement both in Rust (though
-  that would be more challenging). In the end, Rust is an amazing language
-  with tons of crates that simplify the development process (I don't have to
-  reimplement most basic things like Command-Line arguments parsing etc in
-  the fashion of C and C++ projects where pulling a dependency is painful)
+- Try Rust: Rust seems to be great for a pre-AlphaGo era engine implementation
+  (heuristic-based position evaluation). It is feature-rich, fast, modern and
+  convenient programming language for systems programming. In a way, it feels
+  like a natrual fit for such projects because it enforces good engineering
+  practices into the development process. I would guess that it might be easier
+  to fix some of the shortcomings of existing engines and/or prevent them.
+  However, the language is still not as widely adopted as C or C++. As the
+  result, some of the infrastructure is not as mature yet: Machine Learning
+  infrastructure ([Are We Learning Yet?]) is a notable example. Initially, this
+  was the reason for my concerns because if I decide to go with the Neural
+  Network-based evaluation, lack of infrastructure would make it complicated.
+  However, the fashion is using [NNUE] and it can be used even in the absense
+  of any ML infrastructure (through hard-coding the network in code, which is
+  usually done in C or C++ engines). For more sophisticated techniques, I can
+  use [Pytorch Rust bindings] and either split training (e.g. into a Python
+  module) and inference (engine real-time evaluation), or implement both in
+  Rust (though that would be more challenging). In the end, Rust is an amazing
+  language with tons of crates that simplify the development process (I don't
+  have to reimplement most basic things like Command-Line arguments parsing etc
+  in the fashion of C and C++ projects where pulling a dependency is painful)
   and very strong engines can be implemented even in languages seemingly not
-  well-suited for it (e.g. [Ceres]). In the end, this is an interesting test
-  to put Rust as a production-ready programming language through!
+  well-suited for it (e.g. [Ceres]). In the end, this is an interesting test to
+  put Rust as a production-ready programming language through!
 - Come up with new ideas: I feel like I have some expertise in fields of
   Compilers, Machine Learning and Reinforcement Learning that might allow me
   to come up with new ideas and potentially contribute novel approaches.
@@ -140,9 +139,15 @@ The project is currently in pre-0.1.0 stage. Therefore, planning is hard and
 might significantly change depending on my availability and interest in the
 project.
 
-- [0.1.0]
-- [1.0.0]
-- [2.0.0]
+- [0.1.0] should be the skeleton of a chess engine. Most important features are
+  implemented or drafted, the performance testing is put in-place. There is a
+  Command-Line Interface for interacting with the engine, debugging it and
+  trying it out.
+- [1.0.0]: Pabi is a conventional pre [AlphaGo] era chess engine. It uses
+  heuristtics + MCTS for evaluattion and search. It can be played locally or
+  online, although its strengh is not State-of-The-Art yet.
+- [2.0.0] is the ultimate goal. Reinforcement Learning is used to increase
+  strength and possibly compete with strong human players and other engines.
 
 [Rust]: https://www.rust-lang.org/
 [Property Testing]: https://en.wikipedia.org/wiki/Property_testing
@@ -158,6 +163,7 @@ project.
 [Computer Chess Rating Lists]: http://ccrl.chessdom.com/
 [Computer Chess Championship]: https://www.chess.com/computer-chess-championship
 [Reinforcement Learning: An Introduction]: http://incompleteideas.net/book/the-book.html
+[AlphaGo]: https://en.wikipedia.org/wiki/AlphaGo
 [Are We Learning Yet?]: https://www.arewelearningyet.com/
 [NNUE]: https://www.chessprogramming.org/NNUE
 [Pytorch Rust bindings]: https://github.com/LaurentMazare/tch-rs
@@ -167,5 +173,5 @@ project.
 [1.0.0]: https://github.com/kirillbobyrev/pabi/milestone/2
 [2.0.0]: https://github.com/kirillbobyrev/pabi/milestone/3
 
-[^CCCC]: More details on CCCC environment:
-    <https://www.chess.com/news/view/announcing-the-new-computer-chess-championship>
+[^CCCC]: Details on CCCC hardware and format:
+  <https://www.chess.com/news/view/announcing-the-new-computer-chess-championship>
