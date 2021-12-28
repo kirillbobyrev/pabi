@@ -24,7 +24,7 @@ include = [
 
 
 [dependencies]
-clap = {version = "3.0.0-rc.8", features = ["derive", "wrap_help"]}
+clap = {version = "3.0.0-rc.9", features = ["derive", "wrap_help"]}
 itertools = "0.10"
 rustyline = "9.0"
 sysinfo = "0.22"
