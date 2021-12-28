@@ -1,11 +1,11 @@
-//! Bitboard representation for [Board]. Bitboard utilizes the fact that modern
-//! processors operate on 64 bit integers, and the bit operations can be
-//! performed simultaneously. This results in very efficient calculation of
-//! possible attack vectors and other meaningful features that are calculated to
-//! evaluate a position on the board. The disadvantage is complexity that comes
-//! with bitboard implementation and inefficiency of some operations like "get
-//! piece type on given square" (efficiently handled by Square-centric board
-//! implementations).
+//! Bitboard representation for [crate::board::Board]. Bitboard utilizes the
+//! fact that modern processors operate on 64 bit integers, and the bit
+//! operations can be performed simultaneously. This results in very efficient
+//! calculation of possible attack vectors and other meaningful features that
+//! are calculated to evaluate a position on the board. The disadvantage is
+//! complexity that comes with bitboard implementation and inefficiency of some
+//! operations like "get piece type on given square" (efficiently handled by
+//! Square-centric board implementations).
 //!
 //! [Bitboard]: https://www.chessprogramming.org/Bitboards
 
@@ -14,49 +14,28 @@ use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor};
 
 use itertools::Itertools;
 
-use crate::board::{Square, BOARD_SIZE, BOARD_WIDTH};
+use crate::board::{PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 
-#[derive(Copy, Clone, Default)]
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
 /// board.
 ///
-/// Mirroring [Square] semantics, the least significant bit corresponds to A1,
-/// and the most significant bit - to H8. [BitboardSet] is the primary user of
-/// the bitboard.
+/// Mirroring [crate::board::Square] semantics, the least significant bit
+/// corresponds to A1, and the most significant bit - to H8. [BitboardSet] is
+/// the primary user of the bitboard.
 ///
-/// ```
-/// use pabi::board::Square;
-/// use pabi::bitboard::Bitboard;
-///
-/// assert_eq!(Bitboard::from(Square::A1).data(), 1);
-/// assert_eq!(Bitboard::from(Square::B1).data(), 2);
-/// assert_eq!(Bitboard::from(Square::D1).data(), 8);
-/// assert_eq!(Bitboard::from(Square::H8).data(), 1u64 << 63);
-/// ```
-///
-/// Bitboard is a wrapper around [u64] and takes only 8 bytes. Defaults to empty
-/// set.
-///
-/// ```
-/// use std::mem;
-///
-/// use pabi::bitboard::Bitboard;
-///
-/// assert_eq!(std::mem::size_of::<Bitboard>(), 8);
-/// ```
-pub struct Bitboard {
-    data: u64,
-}
+/// Bitboard is a wrapper around [u64].
+// TODO: Use https://docs.rs/bitflags/latest/bitflags/
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
+pub struct Bitboard(u64);
 
 impl Bitboard {
-    // TODO: Conceal this and only provide debug strings for doctest.
     pub fn data(&self) -> u64 {
-        self.data
+        self.0
     }
 
     pub fn full() -> Self {
-        Self { data: u64::MAX }
+        Self(u64::MAX)
     }
 
     pub(crate) fn with_squares(squares: &[Square]) -> Self {
@@ -68,7 +47,7 @@ impl Bitboard {
     }
 
     pub(crate) fn is_set(&self, square: Square) -> bool {
-        (self.data & (1u64 << square as u8)) > 0
+        (self.data() & (1u64 << square as u8)) > 0
     }
 }
 
@@ -76,15 +55,13 @@ impl BitOr for Bitboard {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        Self {
-            data: self.data.bitor(rhs.data),
-        }
+        Self(self.data().bitor(rhs.data()))
     }
 }
 
 impl BitOrAssign for Bitboard {
     fn bitor_assign(&mut self, rhs: Self) {
-        self.data.bitor_assign(rhs.data);
+        self.0.bitor_assign(rhs.data());
     }
 }
 
@@ -92,9 +69,7 @@ impl BitAnd for Bitboard {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        Self {
-            data: self.data.bitand(rhs.data),
-        }
+        Self(self.data().bitand(rhs.data()))
     }
 }
 
@@ -102,9 +77,7 @@ impl BitXor for Bitboard {
     type Output = Self;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
-        Self {
-            data: self.data.bitxor(rhs.data),
-        }
+        Self(self.data().bitxor(rhs.data()))
     }
 }
 
@@ -116,7 +89,7 @@ impl From<Square> for Bitboard {
 
 impl From<u64> for Bitboard {
     fn from(data: u64) -> Self {
-        Bitboard { data }
+        Bitboard(data)
     }
 }
 
@@ -126,7 +99,7 @@ impl fmt::Debug for Bitboard {
         write!(
             f,
             "{}",
-            format!("{:#066b}", self.data)
+            format!("{:#066b}", self.data())
                 .chars()
                 .rev()
                 .take(BOARD_SIZE as usize)
@@ -141,24 +114,22 @@ impl fmt::Debug for Bitboard {
     }
 }
 
-#[derive(Copy, Clone, Default)]
 /// Piece-centric representation of all material owned by one player. Uses
-/// [Bitboard] to store a set of squares occupied by each piece.
+/// [Bitboard] to store a set of squares occupied by each piece. The main user
+/// is [crate::board::Board].
 ///
 /// Defaults to empty board.
 // TODO: Caching all() and either replacing it or adding to the set might
 // improve performance. This is what lc0 does:
 // https://github.com/LeelaChessZero/lc0/blob/d2e372e59cd9188315d5c02a20e0bdce88033bc5/src/chess/board.h
-// Note: There are other formats, e.g. array-based. It might be nice to test
-// them out but I doubt it will be faster (Rust arrays have bounds checking) or
-// more convenient (Rust has pattern matching).
-pub struct BitboardSet {
-    king: Bitboard,
-    queen: Bitboard,
-    rooks: Bitboard,
-    bishops: Bitboard,
-    knights: Bitboard,
-    pawns: Bitboard,
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
+pub(crate) struct BitboardSet {
+    pub(crate) king: Bitboard,
+    pub(crate) queen: Bitboard,
+    pub(crate) rooks: Bitboard,
+    pub(crate) bishops: Bitboard,
+    pub(crate) knights: Bitboard,
+    pub(crate) pawns: Bitboard,
 }
 
 impl BitboardSet {
@@ -206,44 +177,96 @@ impl BitboardSet {
     pub(crate) fn all(&self) -> Bitboard {
         self.king | self.queen | self.rooks | self.bishops | self.knights | self.pawns
     }
+
+    pub(crate) fn bitboard_for(&mut self, piece: PieceKind) -> &mut Bitboard {
+        match piece {
+            PieceKind::King => &mut self.king,
+            PieceKind::Queen => &mut self.queen,
+            PieceKind::Rook => &mut self.rooks,
+            PieceKind::Bishop => &mut self.bishops,
+            PieceKind::Knight => &mut self.knights,
+            PieceKind::Pawn => &mut self.pawns,
+        }
+    }
+
+    pub(crate) fn at(&self, square: Square) -> Option<PieceKind> {
+        if self.all().is_set(square) {
+            let mut kind = PieceKind::Pawn;
+            if self.king.is_set(square) {
+                kind = PieceKind::King;
+            }
+            if self.queen.is_set(square) {
+                kind = PieceKind::Queen;
+            }
+            if self.rooks.is_set(square) {
+                kind = PieceKind::Rook;
+            }
+            if self.bishops.is_set(square) {
+                kind = PieceKind::Bishop;
+            }
+            if self.knights.is_set(square) {
+                kind = PieceKind::Knight;
+            }
+            return Some(kind);
+        }
+        None
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::{Bitboard, BitboardSet};
+    use crate::board::Square;
 
     #[test]
-    fn bitboard_basics() {
+    fn basics() {
+        assert_eq!(std::mem::size_of::<Bitboard>(), 8);
+        assert_eq!(Bitboard::full().data(), u64::MAX);
+        assert_eq!(Bitboard::default().data(), u64::MIN);
+
+        assert_eq!(Bitboard::from(Square::A1).data(), 1);
+        assert_eq!(Bitboard::from(Square::B1).data(), 2);
+        assert_eq!(Bitboard::from(Square::D1).data(), 8);
+        assert_eq!(Bitboard::from(Square::H8).data(), 1u64 << 63);
+
+        assert_eq!(
+            Bitboard::from(Square::D1) | Bitboard::from(Square::B1),
+            Bitboard::from(0b10 | 0b1000)
+        );
+    }
+
+    #[test]
+    fn set_basics() {
         // Create a starting position.
         let white = BitboardSet::new_white();
         let black = BitboardSet::new_black();
 
         // Check that each player has 16 pieces.
-        assert_eq!(white.all().data.count_ones(), 16);
-        assert_eq!(black.all().data.count_ones(), 16);
+        assert_eq!(white.all().data().count_ones(), 16);
+        assert_eq!(black.all().data().count_ones(), 16);
         // Check that each player has correct number of pieces (previous check
         // was not enough to confirm there are no overlaps).
-        assert_eq!(white.king.data.count_ones(), 1);
-        assert_eq!(black.king.data.count_ones(), 1);
-        assert_eq!(white.queen.data.count_ones(), 1);
-        assert_eq!(black.queen.data.count_ones(), 1);
-        assert_eq!(white.rooks.data.count_ones(), 2);
-        assert_eq!(black.rooks.data.count_ones(), 2);
-        assert_eq!(white.bishops.data.count_ones(), 2);
-        assert_eq!(black.bishops.data.count_ones(), 2);
-        assert_eq!(white.knights.data.count_ones(), 2);
-        assert_eq!(black.knights.data.count_ones(), 2);
-        assert_eq!(white.pawns.data.count_ones(), 8);
-        assert_eq!(black.pawns.data.count_ones(), 8);
+        assert_eq!(white.king.data().count_ones(), 1);
+        assert_eq!(black.king.data().count_ones(), 1);
+        assert_eq!(white.queen.data().count_ones(), 1);
+        assert_eq!(black.queen.data().count_ones(), 1);
+        assert_eq!(white.rooks.data().count_ones(), 2);
+        assert_eq!(black.rooks.data().count_ones(), 2);
+        assert_eq!(white.bishops.data().count_ones(), 2);
+        assert_eq!(black.bishops.data().count_ones(), 2);
+        assert_eq!(white.knights.data().count_ones(), 2);
+        assert_eq!(black.knights.data().count_ones(), 2);
+        assert_eq!(white.pawns.data().count_ones(), 8);
+        assert_eq!(black.pawns.data().count_ones(), 8);
 
         // Check few positions manually.
-        assert_eq!(white.queen.data, 1 << 3);
-        assert_eq!(black.queen.data, 1 << (3 + 8 * 7));
+        assert_eq!(white.queen.data(), 1 << 3);
+        assert_eq!(black.queen.data(), 1 << (3 + 8 * 7));
     }
 
     #[test]
     // Check the debug output for few bitboards.
-    fn bitboard_dump() {
+    fn dump() {
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Bitboard::default()),
@@ -268,7 +291,22 @@ mod test {
              11111111\n\
              11111111"
         );
+        #[rustfmt::skip]
+        assert_eq!(
+            format!("{:?}", Bitboard::from(Square::G5) | Bitboard::from(Square::B8)),
+            "01000000\n\
+             00000000\n\
+             00000000\n\
+             00000010\n\
+             00000000\n\
+             00000000\n\
+             00000000\n\
+             00000000"
+        );
+    }
 
+    #[test]
+    fn set_dump() {
         let white = BitboardSet::new_white();
         let black = BitboardSet::new_black();
 
