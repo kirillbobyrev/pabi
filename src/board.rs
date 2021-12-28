@@ -93,7 +93,7 @@ impl TryFrom<char> for Rank {
     type Error = ParseError;
     fn try_from(rank: char) -> Result<Self, Self::Error> {
         match rank {
-            '1'..='8' => Ok(Self::from(rank as u8 - '0' as u8)),
+            '1'..='8' => Ok(Self::from(rank as u8 - '0' as u8 - 1)),
             _ => Err(ParseError(format!("Unknown rank: {}", rank))),
         }
     }
