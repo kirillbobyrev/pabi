@@ -14,18 +14,19 @@ use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor};
 
 use itertools::Itertools;
 
-use crate::board::{PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
+use crate::core::{PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
 /// board.
 ///
-/// Mirroring [crate::board::Square] semantics, the least significant bit
+/// Mirroring [crate::core::Square] semantics, the least significant bit
 /// corresponds to A1, and the most significant bit - to H8. [BitboardSet] is
 /// the primary user of the bitboard.
 ///
 /// Bitboard is a wrapper around [u64].
 // TODO: Use https://docs.rs/bitflags/latest/bitflags/
+// TODO: Implement "from_debug" to parse 8x8 bit field.
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Bitboard(u64);
 
@@ -116,7 +117,7 @@ impl fmt::Debug for Bitboard {
 
 /// Piece-centric representation of all material owned by one player. Uses
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
-/// is [crate::board::Board].
+/// is [crate::board::Board], [Bitboard] is not very useful on its own.
 ///
 /// Defaults to empty board.
 // TODO: Caching all() and either replacing it or adding to the set might
@@ -216,7 +217,7 @@ impl BitboardSet {
 #[cfg(test)]
 mod test {
     use super::{Bitboard, BitboardSet};
-    use crate::board::Square;
+    use crate::core::Square;
 
     #[test]
     fn basics() {

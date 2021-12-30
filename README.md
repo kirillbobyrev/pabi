@@ -32,7 +32,7 @@ __High-quality__ means that Pabi will take full advantage of
 
 - Unit testing and integration testing: the majority of the codebase is
   well-tested and the HEAD is in the functional state. Also, advanced
-  testing techniques such as [Property Testing] are used.
+  testing techniques such as [Fuzzing] are used.
 - Performance testing and benchmarking: pabi should be __fast__. Each change
   should be tested and confirmed to not cause any performance regressions.
 - Continuous quality assurance: GitHub has awesome infrastructure. [GitHub
@@ -146,11 +146,13 @@ project.
 - [1.0.0]: Pabi is a conventional pre [AlphaGo] era chess engine. It uses
   heuristtics + MCTS for evaluattion and search. It can be played locally or
   online, although its strengh is not State-of-The-Art yet.
-- [2.0.0] is the ultimate goal. Reinforcement Learning is used to increase
-  strength and possibly compete with strong human players and other engines.
+- [2.0.0] is a possible ulttimate goal. Reinforcement Learning is used to
+  increase strength and possibly compete with strong human players and other
+  engines. I don't know if I will have enough time and dedication to reach this
+  stage, but it would be great to get there at some point.
 
 [Rust]: https://www.rust-lang.org/
-[Property Testing]: https://en.wikipedia.org/wiki/Property_testing
+[Fuzzing]: https://en.wikipedia.org/wiki/Fuzzing
 [GitHub Actions]: https://github.com/features/actions
 [Dependabot]: https://github.com/dependabot
 [rustdoc]: https://doc.rust-lang.org/rustdoc

@@ -8,5 +8,5 @@ fn main() {
     tracing_subscriber::fmt::init();
     pabi::log_system_info();
     let board = Board::from_fen(&opts.fen).unwrap();
-    println!("{:?}", &board);
+    println!("{:#?}", &board);
 }

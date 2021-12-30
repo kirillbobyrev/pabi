@@ -34,6 +34,7 @@
 
 pub mod bitboard;
 pub mod board;
+pub mod core;
 pub mod perft;
 
 use clap::Parser;
