@@ -25,7 +25,6 @@ use crate::core::{PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 /// the primary user of the bitboard.
 ///
 /// Bitboard is a wrapper around [u64].
-// TODO: Use https://docs.rs/bitflags/latest/bitflags/
 // TODO: Implement "from_debug" to parse 8x8 bit field.
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Bitboard(u64);
@@ -33,6 +32,10 @@ pub struct Bitboard(u64);
 impl Bitboard {
     pub fn data(&self) -> u64 {
         self.0
+    }
+
+    pub fn empty() -> Self {
+        Self::default()
     }
 
     pub fn full() -> Self {

@@ -16,7 +16,7 @@ Pabi is a modern hobby chess engine.
 
 ## Goals
 
-Pabi is inspired by a number of existing chess and go engines. Many of these
+Pabi is inspired by a number of existing Chess and Go engines. Many of these
 amazing and strong engines were started over a decade ago: they are hard to
 understand, use and modify.
 

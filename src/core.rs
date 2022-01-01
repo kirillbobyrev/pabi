@@ -33,7 +33,7 @@ impl fmt::Display for File {
 impl From<u8> for File {
     /// # Panics
     ///
-    /// Input has to be a number within 0..[BOARD_WIDTH] range.
+    /// Input has to be a number within 0..[`BOARD_WIDTH`] range.
     fn from(file: u8) -> Self {
         assert!(file < BOARD_WIDTH);
         unsafe { mem::transmute(file) }
@@ -71,7 +71,7 @@ pub enum Rank {
 impl From<u8> for Rank {
     /// # Panics
     ///
-    /// Input has to be a number within 0..[BOARD_WIDTH] range.
+    /// Input has to be a number within 0..[`BOARD_WIDTH`] range.
     fn from(rank: u8) -> Self {
         assert!(rank < BOARD_WIDTH);
         unsafe { mem::transmute(rank) }
@@ -149,7 +149,7 @@ impl From<u8> for Square {
     ///
     /// # Panics
     ///
-    /// Input has to be a number within 0..[BOARD_SIZE] range.
+    /// Input has to be a number within 0..[`BOARD_SIZE`] range.
     fn from(square: u8) -> Self {
         assert!(square < BOARD_SIZE);
         unsafe { mem::transmute(square) }
@@ -214,7 +214,8 @@ pub struct Piece {
     pub kind: PieceKind,
 }
 
-/// Wraps a message indicating failure in parsing [Piece] or [Board] from FEN.
+/// Wraps a message indicating failure in parsing [`Piece`] or
+/// [`crate::board::Board`] from FEN.
 #[derive(Debug, Clone)]
 pub struct ParseError(pub String);
 
@@ -338,7 +339,7 @@ impl TryFrom<&str> for CastlingRights {
     ///
     /// # Errors
     ///
-    /// Returns [ParseError] if given pattern does not match
+    /// Returns [`ParseError`] if given pattern does not match
     ///
     /// CastlingRights := [K/k] [Q/q]
     ///

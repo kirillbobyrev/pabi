@@ -126,10 +126,10 @@ impl Board {
                         };
                         let square = Square::new(File::from(file), Rank::from(rank_id));
                         *owner.bitboard_for(piece.kind.clone()) |= Bitboard::from(square);
-                    }
+                    },
                     Err(e) => {
                         return Err(ParseError(format!("FEN rank has incorrect symbol: {}", e)))
-                    }
+                    },
                 }
                 file += 1;
             }
@@ -148,7 +148,7 @@ impl Board {
                     "Side to move can be either 'w' or 'b', got: {}.",
                     side_to_move
                 )));
-            }
+            },
         }
         // "-" is no-op (empty board already has cleared castling rights).
         if castling_ability != "-" {
