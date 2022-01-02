@@ -2,7 +2,7 @@
 
 [![Development](https://img.shields.io/badge/development-work%20in%20progress-red)](https://github.com/github/kirillbobyrev/pabi)
 [![Docs](https://docs.rs/pabi/badge.svg)](https://docs.rs/pabi)
-[![Depdendencies](https://deps.rs/repo/github/kirillbobyrev/pabi/status.svg)](https://deps.rs/repo/github/kirillbobyrev/pabi)
+[![Dependencies](https://deps.rs/repo/github/kirillbobyrev/pabi/status.svg)](https://deps.rs/repo/github/kirillbobyrev/pabi)
 [![codecov](https://codecov.io/gh/kirillbobyrev/pabi/branch/main/graph/badge.svg)](https://codecov.io/gh/kirillbobyrev/pabi)
 [![Lines of Code](https://tokei.rs/b1/github/kirillbobyrev/pabi)](https://github.com/kirillbobyrev/pabi/tree/main/src)
 
@@ -145,7 +145,7 @@ project.
   trying it out.
 - [1.0.0]: Pabi is a conventional pre [AlphaGo] era chess engine. It uses
   heuristtics + MCTS for evaluattion and search. It can be played locally or
-  online, although its strengh is not State-of-The-Art yet.
+  online, although its strength is not State-of-The-Art strength yet.
 - [2.0.0] is a possible ulttimate goal. Reinforcement Learning is used to
   increase strength and possibly compete with strong human players and other
   engines. I don't know if I will have enough time and dedication to reach this
