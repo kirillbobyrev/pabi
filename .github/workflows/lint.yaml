@@ -33,7 +33,7 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
+          args: --all-features -- --deny warnings
       - name: typos-action
         uses: crate-ci/typos@v1.3.3
       - name: Lint Code Base
@@ -41,6 +41,9 @@ jobs:
         env:
           # Only check added files.
           VALIDATE_ALL_CODEBASE: false
+          # Nightly is required for some checks and rustfmt config options.
+          # Check it separately.
           VALIDATE_RUST_2021: false
           VALIDATE_RUST_CLIPPY: false
+          DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
