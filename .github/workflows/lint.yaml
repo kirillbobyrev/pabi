@@ -24,9 +24,21 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-nightly-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+      - name: Cargo clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+      - name: typos-action
+        uses: crate-ci/typos@v1.3.3
       - name: Lint Code Base
         uses: github/super-linter@v4
         env:
+          VALIDATE_RUST_2021: false
+          VALIDATE_RUST_CLIPPY: false
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: typos-action
-        uses: crate-ci/typos@v1.3.3
