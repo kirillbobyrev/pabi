@@ -14,6 +14,15 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-stable-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build the docs
         uses: actions-rs/cargo@v1
         with:

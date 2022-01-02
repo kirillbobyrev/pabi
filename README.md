@@ -109,7 +109,7 @@ building my own is a great way to
 - Try Rust: Rust seems to be great for a pre-AlphaGo era engine implementation
   (heuristic-based position evaluation). It is feature-rich, fast, modern and
   convenient programming language for systems programming. In a way, it feels
-  like a natrual fit for such projects because it enforces good engineering
+  like a natural fit for such projects because it enforces good engineering
   practices into the development process. I would guess that it might be easier
   to fix some of the shortcomings of existing engines and/or prevent them.
   However, the language is still not as widely adopted as C or C++. As the
@@ -117,7 +117,7 @@ building my own is a great way to
   infrastructure ([Are We Learning Yet?]) is a notable example. Initially, this
   was the reason for my concerns because if I decide to go with the Neural
   Network-based evaluation, lack of infrastructure would make it complicated.
-  However, the fashion is using [NNUE] and it can be used even in the absense
+  However, the fashion is using [NNUE] and it can be used even in the absence
   of any ML infrastructure (through hard-coding the network in code, which is
   usually done in C or C++ engines). For more sophisticated techniques, I can
   use [Pytorch Rust bindings] and either split training (e.g. into a Python
