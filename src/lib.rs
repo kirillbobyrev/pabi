@@ -1,5 +1,5 @@
 //! Modern and high-quality chess engine. See [README] for information about
-//! design and implementtaiton goals.
+//! design and implementation goals.
 //!
 //! [README]: https://github.com/kirillbobyrev/pabi/blob/main/README.md
 
@@ -50,15 +50,17 @@ pub fn log_system_info() {
     let sys = System::new_all();
     info!(
         "System: {}",
-        sys.long_os_version().unwrap_or("UNKNOWN".to_string())
+        sys.long_os_version()
+            .unwrap_or_else(|| "UNKNOWN".to_string())
     );
     info!(
         "System kernel version: {}",
-        sys.kernel_version().unwrap_or("UNKNOWN".to_string())
+        sys.kernel_version()
+            .unwrap_or_else(|| "UNKNOWN".to_string())
     );
     info!(
         "Host name: {}",
-        sys.host_name().unwrap_or("UNKNOWN".to_string())
+        sys.host_name().unwrap_or_else(|| "UNKNOWN".to_string())
     );
     // Convert returned KB to GB.
     info!("RAM: {} GB", sys.total_memory() / 1_000_000);

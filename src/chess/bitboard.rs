@@ -1,13 +1,14 @@
-//! Bitboard representation for [crate::board::Board]. Bitboard utilizes the
-//! fact that modern processors operate on 64 bit integers, and the bit
-//! operations can be performed simultaneously. This results in very efficient
-//! calculation of possible attack vectors and other meaningful features that
-//! are calculated to evaluate a position on the board. The disadvantage is
-//! complexity that comes with bitboard implementation and inefficiency of some
-//! operations like "get piece type on given square" (efficiently handled by
-//! Square-centric board implementations).
+//! Bitboard representation for [`crate::chess::bitboard::Board`]. Bitboard
+//! utilizes the fact that modern processors operate on 64 bit integers, and the
+//! bit operations can be performed simultaneously. This results in very
+//! efficient calculation of possible attack vectors and other meaningful
+//! features that are calculated to evaluate a position on the board. The
+//! disadvantage is complexity that comes with bitboard implementation and
+//! inefficiency of some operations like "get piece type on given square"
+//! (efficiently handled by Square-centric board implementations).
 //!
 //! [Bitboard]: https://www.chessprogramming.org/Bitboards
+// TODO: This comment needs revamp.
 
 use std::fmt;
 use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor};
@@ -20,11 +21,10 @@ use crate::chess::core::{Piece, PieceKind, Player, Square, BOARD_SIZE, BOARD_WID
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
 /// board.
 ///
-/// Mirroring [crate::core::Square] semantics, the least significant bit
-/// corresponds to A1, and the most significant bit - to H8. [BitboardSet] is
-/// the primary user of the bitboard.
+/// Mirroring [`crate::chess::core::Square`] semantics, the least significant
+/// bit corresponds to A1, and the most significant bit - to H8.
 ///
-/// Bitboard is a wrapper around [u64].
+/// Bitboard is a thin wrapper around [u64].
 // TODO: Implement "from_debug" to parse 8x8 bit field.
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Bitboard(u64);
@@ -45,7 +45,7 @@ impl Bitboard {
     pub(in crate) fn with_squares(squares: &[Square]) -> Self {
         let mut result = Default::default();
         for square in squares {
-            result |= Bitboard::from(square.clone());
+            result |= Bitboard::from(*square);
         }
         result
     }
@@ -120,7 +120,8 @@ impl fmt::Debug for Bitboard {
 
 /// Piece-centric representation of all material owned by one player. Uses
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
-/// is [crate::position::Position], [Bitboard] is not very useful on its own.
+/// is [crate::chess::position::Position], [Bitboard] is not very useful on its
+/// own.
 ///
 /// Defaults to empty board.
 // TODO: Caching all() and either replacing it or adding to the set might

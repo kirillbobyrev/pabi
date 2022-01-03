@@ -26,7 +26,7 @@ pub enum File {
 
 impl fmt::Display for File {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", ('a' as u8 + *self as u8) as char)
+        write!(f, "{}", (b'a' + *self as u8) as char)
     }
 }
 
@@ -45,7 +45,7 @@ impl TryFrom<char> for File {
 
     fn try_from(file: char) -> Result<Self, Self::Error> {
         match file {
-            'a'..='h' => Ok(Self::from(file as u8 - 'a' as u8)),
+            'a'..='h' => Ok(Self::from(file as u8 - b'a')),
             _ => Err(ParseError(format!("Unknown file: {}", file))),
         }
     }
@@ -83,7 +83,7 @@ impl TryFrom<char> for Rank {
 
     fn try_from(rank: char) -> Result<Self, Self::Error> {
         match rank {
-            '1'..='8' => Ok(Self::from(rank as u8 - '0' as u8 - 1)),
+            '1'..='8' => Ok(Self::from(rank as u8 - b'0' - 1)),
             _ => Err(ParseError(format!("Unknown rank: {}", rank))),
         }
     }
@@ -164,7 +164,7 @@ impl TryFrom<&str> for Square {
             return Err(ParseError("Square should be two-char.".into()));
         }
         let (file, rank) = (
-            square.chars().nth(0).unwrap(),
+            square.chars().next().unwrap(),
             square.chars().nth(1).unwrap(),
         );
         Ok(Square::new(file.try_into()?, rank.try_into()?))
@@ -215,7 +215,7 @@ pub struct Piece {
 }
 
 /// Wraps a message indicating failure in parsing [`Piece`] or
-/// [`crate::position::Position`] from FEN.
+/// [`crate::chess::position::Position`] from FEN.
 #[derive(Debug, Clone)]
 pub struct ParseError(pub String);
 

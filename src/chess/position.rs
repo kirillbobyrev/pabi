@@ -1,3 +1,7 @@
+//! Provides fully-specified [Chess Position] implementation: stores information
+//! about the board and tracks the state of castling, 50-move rule draw, etc.
+//!
+//! [Chess Position]: https://www.chessprogramming.org/Chess_Position
 use std::fmt;
 use std::num::NonZeroU16;
 
@@ -125,7 +129,7 @@ impl Position {
                             Player::Black => &mut result.board.black_pieces,
                         };
                         let square = Square::new(File::from(file), Rank::from(rank_id));
-                        *owner.bitboard_for(piece.kind.clone()) |= Bitboard::from(square);
+                        *owner.bitboard_for(piece.kind) |= Bitboard::from(square);
                     },
                     Err(e) => {
                         return Err(ParseError(format!("FEN rank has incorrect symbol: {}", e)))
@@ -186,15 +190,14 @@ impl Position {
 
     /// Dumps board in Forsyth-Edwards Notation.
     pub fn fen() -> String {
-        let result = String::new();
-        result
+        todo!();
     }
 
     fn render_ascii(&self) -> String {
         let mut result = String::new();
         for rank in Rank::iter().rev() {
             for file in File::iter() {
-                let ascii_symbol = match self.at(Square::new(File::from(file), Rank::from(rank))) {
+                let ascii_symbol = match self.at(Square::new(file, rank)) {
                     Some(piece) => piece.algebraic_symbol(),
                     None => '.',
                 };
