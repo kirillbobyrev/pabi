@@ -32,10 +32,8 @@
     rustdoc::bare_urls
 )]
 
-pub mod bitboard;
-pub mod board;
-pub mod core;
-pub mod perft;
+// TODO: Re-export types for convenience.
+pub mod chess;
 
 use clap::Parser;
 use sysinfo::{System, SystemExt};

@@ -3,7 +3,7 @@
 [![Development](https://img.shields.io/badge/development-work%20in%20progress-red)](https://github.com/github/kirillbobyrev/pabi)
 [![Docs](https://docs.rs/pabi/badge.svg)](https://docs.rs/pabi)
 [![Dependencies](https://deps.rs/repo/github/kirillbobyrev/pabi/status.svg)](https://deps.rs/repo/github/kirillbobyrev/pabi)
-[![codecov](https://codecov.io/gh/kirillbobyrev/pabi/branch/main/graph/badge.svg)](https://codecov.io/gh/kirillbobyrev/pabi)
+[![Codecov](https://codecov.io/gh/kirillbobyrev/pabi/branch/main/graph/badge.svg)](https://codecov.io/gh/kirillbobyrev/pabi)
 [![Lines of Code](https://tokei.rs/b1/github/kirillbobyrev/pabi)](https://github.com/kirillbobyrev/pabi/tree/main/src)
 
 [![Build](https://github.com/kirillbobyrev/pabi/actions/workflows/build.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/build.yaml)

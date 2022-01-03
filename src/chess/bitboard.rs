@@ -14,7 +14,7 @@ use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor};
 
 use itertools::Itertools;
 
-use crate::core::{PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
+use crate::chess::core::{Piece, PieceKind, Player, Square, BOARD_SIZE, BOARD_WIDTH};
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
@@ -42,7 +42,7 @@ impl Bitboard {
         Self(u64::MAX)
     }
 
-    pub(crate) fn with_squares(squares: &[Square]) -> Self {
+    pub(in crate) fn with_squares(squares: &[Square]) -> Self {
         let mut result = Default::default();
         for square in squares {
             result |= Bitboard::from(square.clone());
@@ -120,7 +120,7 @@ impl fmt::Debug for Bitboard {
 
 /// Piece-centric representation of all material owned by one player. Uses
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
-/// is [crate::board::Board], [Bitboard] is not very useful on its own.
+/// is [crate::position::Position], [Bitboard] is not very useful on its own.
 ///
 /// Defaults to empty board.
 // TODO: Caching all() and either replacing it or adding to the set might
@@ -137,6 +137,10 @@ pub(crate) struct BitboardSet {
 }
 
 impl BitboardSet {
+    pub(crate) fn empty() -> Self {
+        Self::default()
+    }
+
     pub(crate) fn new_white() -> Self {
         Self {
             king: Square::E1.into(),
@@ -217,10 +221,50 @@ impl BitboardSet {
     }
 }
 
+/// Piece-centric implementation of the chess board. This is
+/// the "back-end" of the chess engine, efficient board representation is
+/// crucial for performance.
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
+pub struct Board {
+    pub(crate) white_pieces: BitboardSet,
+    pub(crate) black_pieces: BitboardSet,
+}
+
+impl Board {
+    pub fn starting() -> Self {
+        Self {
+            white_pieces: BitboardSet::new_white(),
+            black_pieces: BitboardSet::new_black(),
+        }
+    }
+
+    pub fn empty() -> Board {
+        Self::default()
+    }
+
+    /// WARNING: This is slow and inefficient for Bitboard-based piece-centric
+    /// representation. Use with caution.
+    pub fn at(&self, square: Square) -> Option<Piece> {
+        if let Some(kind) = self.white_pieces.at(square) {
+            return Some(Piece {
+                owner: Player::White,
+                kind,
+            });
+        }
+        if let Some(kind) = self.black_pieces.at(square) {
+            return Some(Piece {
+                owner: Player::Black,
+                kind,
+            });
+        }
+        None
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::{Bitboard, BitboardSet};
-    use crate::core::Square;
+    use crate::chess::core::Square;
 
     #[test]
     fn basics() {

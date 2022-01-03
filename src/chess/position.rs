@@ -1,30 +1,35 @@
-//! Piece-centric implementation of the chess board. This is
-//! the "back-end" of the chess engine, efficient board representation is
-//! crucial for performance.
-
-use std::fmt::{self, Write};
+use std::fmt;
 use std::num::NonZeroU16;
 
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::bitboard::{Bitboard, BitboardSet};
-use crate::core::{CastlingRights, File, ParseError, Piece, Player, Rank, Square, BOARD_WIDTH};
+use crate::chess::bitboard::{Bitboard, Board};
+use crate::chess::core::{
+    CastlingRights,
+    File,
+    ParseError,
+    Piece,
+    Player,
+    Rank,
+    Square,
+    BOARD_WIDTH,
+};
 
 /// State of the chess game: position, half-move counters and castling rights,
 /// etc. It can be (de)serialized from/into [Forsyth-Edwards Notation] (FEN).
 ///
-/// Board can be created by
+/// Position can be created by
 ///
-/// - [`Board::from_fen()`] to parse position from FEN.
-/// - [`Board::try_from()`] will clean up the input (trim newlines and
+/// - [`Position::from_fen()`] to parse position from FEN.
+/// - [`Position::try_from()`] will clean up the input (trim newlines and
 ///   whitespace) and attempt to parse in either FEN or a version of [Extended
 ///   Position Description] (EPD). The EPD format Pabi accepts is does not
 ///   support [Operations]. Even though it is a crucial part of EPD, in practice
 ///   it is rarely needed. The EPD support is simply for compatibility with some
 ///   databases which provide trimmed FEN lines (all FEN parts except Halfmove
 ///   Clock and Fullmove Counter). Parsing these positions is important, so
-///   [`Board::try_from()`] wraps common parsing operations in order to parse
+///   [`Position::try_from()`] wraps common parsing operations in order to parse
 ///   and use these databases for testing, benchmarks and learning.
 ///
 /// [Forsyth-Edwards Notation]: https://www.chessprogramming.org/Forsyth-Edwards_Notation
@@ -34,12 +39,8 @@ use crate::core::{CastlingRights, File, ParseError, Piece, Player, Rank, Square,
 // many other engines maintain both piece- and square-centric representations at
 // once to speed up querying the piece on a specific square.
 // TODO: Check if this yields any benefits.
-// TODO: At this point I'm not sure if Position and Board should be separated
-// (a-la shakmaty), let's wait for the user code to appear and see if it's
-// important/can yield performance benefits.
-pub struct Board {
-    white_pieces: BitboardSet,
-    black_pieces: BitboardSet,
+pub struct Position {
+    board: Board,
     white_castling: CastlingRights,
     black_castling: CastlingRights,
     side_to_move: Player,
@@ -57,12 +58,11 @@ pub struct Board {
     en_passant_square: Option<Square>,
 }
 
-impl Board {
+impl Position {
     /// Creates a board with the starting position.
-    pub fn starting() -> Self {
+    pub fn empty() -> Self {
         Self {
-            white_pieces: BitboardSet::new_white(),
-            black_pieces: BitboardSet::new_black(),
+            board: Board::empty(),
             white_castling: CastlingRights::Both,
             black_castling: CastlingRights::Both,
             side_to_move: Player::White,
@@ -103,7 +103,7 @@ impl Board {
                 "Pieces Placement FEN should have 8 ranks.".into(),
             ));
         }
-        let mut result = Self::default();
+        let mut result = Self::empty();
         let ranks = pieces_placement.split('/');
         for (rank_id, rank_fen) in itertools::zip((0..BOARD_WIDTH).rev(), ranks) {
             let mut file: u8 = 0;
@@ -121,8 +121,8 @@ impl Board {
                 match Piece::try_from(symbol) {
                     Ok(piece) => {
                         let owner = match piece.owner {
-                            Player::White => &mut result.white_pieces,
-                            Player::Black => &mut result.black_pieces,
+                            Player::White => &mut result.board.white_pieces,
+                            Player::Black => &mut result.board.black_pieces,
                         };
                         let square = Square::new(File::from(file), Rank::from(rank_id));
                         *owner.bitboard_for(piece.kind.clone()) |= Bitboard::from(square);
@@ -186,7 +186,8 @@ impl Board {
 
     /// Dumps board in Forsyth-Edwards Notation.
     pub fn fen() -> String {
-        todo!();
+        let result = String::new();
+        result
     }
 
     fn render_ascii(&self) -> String {
@@ -213,39 +214,13 @@ impl Board {
 
     // IMPORTANT: This is slow because of the bitboard representation and
     // shouldn't be used in performance-critical scenarios. Caching square to Piece
-    // would solve this problem
+    // would solve this problem.
     fn at(&self, square: Square) -> Option<Piece> {
-        if let Some(kind) = self.white_pieces.at(square) {
-            return Some(Piece {
-                owner: Player::White,
-                kind,
-            });
-        }
-        if let Some(kind) = self.black_pieces.at(square) {
-            return Some(Piece {
-                owner: Player::Black,
-                kind,
-            });
-        }
-        None
+        self.board.at(square)
     }
 }
 
-impl Default for Board {
-    /// Defaults to an empty board (incorrect state) that can be later filled by
-    /// the parser.
-    fn default() -> Self {
-        Self {
-            white_pieces: BitboardSet::default(),
-            black_pieces: BitboardSet::default(),
-            white_castling: CastlingRights::Neither,
-            black_castling: CastlingRights::Neither,
-            ..Self::starting()
-        }
-    }
-}
-
-impl TryFrom<&str> for Board {
+impl TryFrom<&str> for Position {
     type Error = ParseError;
 
     fn try_from(input: &str) -> Result<Self, Self::Error> {
@@ -257,8 +232,8 @@ impl TryFrom<&str> for Board {
             }
         }
         match input.split_ascii_whitespace().count() {
-            6 => Board::from_fen(input),
-            4 => Board::from_fen((input.to_string() + " 0 1").as_str()),
+            6 => Position::from_fen(input),
+            4 => Position::from_fen((input.to_string() + " 0 1").as_str()),
             _ => Err(ParseError(
                 "Board representation should be either FEN (6 parts) or EPD body (4 parts)".into(),
             )),
@@ -266,7 +241,7 @@ impl TryFrom<&str> for Board {
     }
 }
 
-impl fmt::Debug for Board {
+impl fmt::Debug for Position {
     // TODO: Use formatter.alternate() for pretty-printing colored output:
     // <https://doc.rust-lang.org/std/fmt/struct.Formatter.html#method.alternate>
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -277,21 +252,23 @@ impl fmt::Debug for Board {
 
 #[cfg(test)]
 mod test {
-    use super::Board;
+    use super::Position;
 
     // TODO: Validate the precise contents of the bitboard directly.
     // TODO: Add incorrect ones and validate parsing errors.
     #[test]
     fn correct_fen() {
         assert!(
-            Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").is_ok()
+            Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").is_ok()
         );
-        assert!(Board::from_fen("2r3r1/p3k3/1p3pp1/1B5p/5P2/2P1p1P1/PP4KP/3R4 w - - 0 34").is_ok());
-        assert!(Board::from_fen(
+        assert!(
+            Position::from_fen("2r3r1/p3k3/1p3pp1/1B5p/5P2/2P1p1P1/PP4KP/3R4 w - - 0 34").is_ok()
+        );
+        assert!(Position::from_fen(
             "rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq c6 0 7"
         )
         .is_ok());
-        assert!(Board::from_fen(
+        assert!(Position::from_fen(
             "r2qkb1r/1pp1pp1p/p1np1np1/1B6/3PP1b1/2N1BN2/PPP2PPP/R2QK2R w KQkq - 0 7"
         )
         .is_ok());
@@ -300,36 +277,36 @@ mod test {
     #[test]
     fn correct_epd() {
         let epd = "rnbqkb1r/pp2pppp/3p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R b KQkq -";
-        assert!(Board::from_fen(epd).is_err());
-        assert!(Board::try_from(epd).is_ok());
+        assert!(Position::from_fen(epd).is_err());
+        assert!(Position::try_from(epd).is_ok());
     }
 
     #[test]
     fn clean_board_str() {
         // Prefix with "fen".
-        assert!(Board::try_from(
+        assert!(Position::try_from(
             "fen rn1qkb1r/pp3ppp/2p1pn2/3p1b2/2PP4/5NP1/PP2PPBP/RNBQK2R w KQkq - 0 1"
         )
         .is_ok());
         // Prefix with "epd" and add more spaces.
-        assert!(Board::try_from(
+        assert!(Position::try_from(
             " \n epd  rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R  w  KQkq   -  \n"
         )
         .is_ok());
         // Prefix with "fen" and add spaces.
-        assert!(Board::try_from(
+        assert!(Position::try_from(
             "fen   rn1qkb1r/pp3ppp/2p1pn2/3p1b2/2PP4/5NP1/PP2PPBP/RNBQK2R   w   KQkq -  0 1  "
         )
         .is_ok());
         // No prefix at all: infer EPD.
-        assert!(
-            Board::try_from(" rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -   \n")
-                .is_ok()
-        );
+        assert!(Position::try_from(
+            " rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -   \n"
+        )
+        .is_ok());
         // No prefix at all: infer FEN.
-        assert!(
-            Board::try_from(" rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -   0 1")
-                .is_ok()
-        );
+        assert!(Position::try_from(
+            " rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -   0 1"
+        )
+        .is_ok());
     }
 }

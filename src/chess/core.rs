@@ -98,7 +98,7 @@ impl fmt::Display for Rank {
 /// Board squares: from left to right, from bottom to the top:
 ///
 /// ```
-/// use pabi::core::Square;
+/// use pabi::chess::core::Square;
 ///
 /// assert_eq!(Square::A1 as u8, 0);
 /// assert_eq!(Square::E1 as u8, 4);
@@ -110,7 +110,7 @@ impl fmt::Display for Rank {
 /// Square is a compact representation using only one byte.
 ///
 /// ```
-/// use pabi::core::Square;
+/// use pabi::chess::core::Square;
 /// use std::mem;
 ///
 /// assert_eq!(std::mem::size_of::<Square>(), 1);
@@ -215,7 +215,7 @@ pub struct Piece {
 }
 
 /// Wraps a message indicating failure in parsing [`Piece`] or
-/// [`crate::board::Board`] from FEN.
+/// [`crate::position::Position`] from FEN.
 #[derive(Debug, Clone)]
 pub struct ParseError(pub String);
 
