@@ -171,6 +171,12 @@ impl TryFrom<&str> for Square {
     }
 }
 
+impl fmt::Display for Square {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.file(), self.rank())
+    }
+}
+
 /// A standard game of chess is played between two players: White (having the
 /// advantage of the first turn) and Black.
 #[allow(missing_docs)]
@@ -178,6 +184,16 @@ impl TryFrom<&str> for Square {
 pub enum Player {
     White,
     Black,
+}
+
+impl Player {
+    /// Render the `Player` in FEN notation.
+    pub fn fen(&self) -> &str {
+        match &self {
+            Player::White => "w",
+            Player::Black => "b",
+        }
+    }
 }
 
 /// Standard [chess pieces].
@@ -201,8 +217,7 @@ impl PieceKind {
             PieceKind::King => None,
             PieceKind::Queen => Some(9),
             PieceKind::Rook => Some(6),
-            PieceKind::Bishop => Some(3),
-            PieceKind::Knight => Some(3),
+            PieceKind::Bishop | PieceKind::Knight => Some(3),
             PieceKind::Pawn => Some(1),
         }
     }
@@ -251,51 +266,51 @@ impl TryFrom<char> for Piece {
 
     fn try_from(symbol: char) -> Result<Self, ParseError> {
         match symbol {
-            'K' => Ok(Piece {
+            'K' => Ok(Self {
                 owner: Player::White,
                 kind: PieceKind::King,
             }),
-            'Q' => Ok(Piece {
+            'Q' => Ok(Self {
                 owner: Player::White,
                 kind: PieceKind::Queen,
             }),
-            'R' => Ok(Piece {
+            'R' => Ok(Self {
                 owner: Player::White,
                 kind: PieceKind::Rook,
             }),
-            'B' => Ok(Piece {
+            'B' => Ok(Self {
                 owner: Player::White,
                 kind: PieceKind::Bishop,
             }),
-            'N' => Ok(Piece {
+            'N' => Ok(Self {
                 owner: Player::White,
                 kind: PieceKind::Knight,
             }),
-            'P' => Ok(Piece {
+            'P' => Ok(Self {
                 owner: Player::White,
                 kind: PieceKind::Pawn,
             }),
-            'k' => Ok(Piece {
+            'k' => Ok(Self {
                 owner: Player::Black,
                 kind: PieceKind::King,
             }),
-            'q' => Ok(Piece {
+            'q' => Ok(Self {
                 owner: Player::Black,
                 kind: PieceKind::Queen,
             }),
-            'r' => Ok(Piece {
+            'r' => Ok(Self {
                 owner: Player::Black,
                 kind: PieceKind::Rook,
             }),
-            'b' => Ok(Piece {
+            'b' => Ok(Self {
                 owner: Player::Black,
                 kind: PieceKind::Bishop,
             }),
-            'n' => Ok(Piece {
+            'n' => Ok(Self {
                 owner: Player::Black,
                 kind: PieceKind::Knight,
             }),
-            'p' => Ok(Piece {
+            'p' => Ok(Self {
                 owner: Player::Black,
                 kind: PieceKind::Pawn,
             }),
@@ -318,7 +333,7 @@ impl fmt::Display for Piece {
 /// castle its corresponding side.
 ///
 /// [castle]: https://www.chessprogramming.org/Castling
-// TODO: This is likely to be much better using bitflags.
+// TODO: This is likely to be cleaner using bitflags.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(missing_docs)]
@@ -332,7 +347,7 @@ pub enum CastlingRights {
 impl TryFrom<&str> for CastlingRights {
     type Error = ParseError;
 
-    /// Parses CastlingRights for one player from the FEN format. The input
+    /// Parses [`CastlingRights`] for one player from the FEN format. The input
     /// should be ether lowercase ASCII letters or uppercase ones. The user
     /// is responsible for providing valid input cleaned up from the actual
     /// FEN chunk (can be "-").
@@ -341,7 +356,7 @@ impl TryFrom<&str> for CastlingRights {
     ///
     /// Returns [`ParseError`] if given pattern does not match
     ///
-    /// CastlingRights := [K/k] [Q/q]
+    /// [`CastlingRights`] := [K/k] [Q/q]
     ///
     /// Note that both letters have to be either uppercase or lowercase.
     fn try_from(fen: &str) -> Result<Self, ParseError> {
@@ -352,12 +367,32 @@ impl TryFrom<&str> for CastlingRights {
             )));
         }
         match fen.to_ascii_lowercase().as_str() {
-            "" => Ok(CastlingRights::Neither),
-            "k" => Ok(CastlingRights::OnlyKingside),
-            "q" => Ok(CastlingRights::OnlyQueenside),
-            "kq" => Ok(CastlingRights::Both),
+            "-" | "" => Ok(Self::Neither),
+            "k" => Ok(Self::OnlyKingside),
+            "q" => Ok(Self::OnlyQueenside),
+            "kq" => Ok(Self::Both),
             _ => return Err(ParseError(format!("Unknown castling rights: {}", fen))),
         }
+    }
+}
+
+impl CastlingRights {
+    /// Print castling rights of both sides in FEN format.
+    pub fn fen(white: CastlingRights, black: CastlingRights) -> String {
+        if white == CastlingRights::Neither && black == CastlingRights::Neither {
+            return "-".into();
+        }
+        let render_rights = |rights: CastlingRights| match rights {
+            Self::Neither => "",
+            Self::OnlyKingside => "k",
+            Self::OnlyQueenside => "q",
+            Self::Both => "kq",
+        };
+        format!(
+            "{}{}",
+            render_rights(white).to_uppercase(),
+            render_rights(black)
+        )
     }
 }
 

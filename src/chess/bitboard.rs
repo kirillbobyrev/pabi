@@ -14,8 +14,9 @@ use std::fmt;
 use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor};
 
 use itertools::Itertools;
+use strum::IntoEnumIterator;
 
-use crate::chess::core::{Piece, PieceKind, Player, Square, BOARD_SIZE, BOARD_WIDTH};
+use crate::chess::core::{File, Piece, PieceKind, Player, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
@@ -43,7 +44,7 @@ impl Bitboard {
     }
 
     pub(in crate) fn with_squares(squares: &[Square]) -> Self {
-        let mut result = Default::default();
+        let mut result = Self::default();
         for square in squares {
             result |= Bitboard::from(*square);
         }
@@ -109,7 +110,7 @@ impl fmt::Debug for Bitboard {
                 .take(BOARD_SIZE as usize)
                 .chunks(BOARD_WIDTH as usize)
                 .into_iter()
-                .map(|rank| rank.collect::<String>())
+                .map(std::iter::Iterator::collect)
                 .collect::<Vec<String>>()
                 .iter()
                 .rev()
@@ -120,8 +121,8 @@ impl fmt::Debug for Bitboard {
 
 /// Piece-centric representation of all material owned by one player. Uses
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
-/// is [crate::chess::position::Position], [Bitboard] is not very useful on its
-/// own.
+/// is [`crate::chess::position::Position`], [Bitboard] is not very useful on
+/// its own.
 ///
 /// Defaults to empty board.
 // TODO: Caching all() and either replacing it or adding to the set might
@@ -200,7 +201,11 @@ impl BitboardSet {
 
     pub(crate) fn at(&self, square: Square) -> Option<PieceKind> {
         if self.all().is_set(square) {
-            let mut kind = PieceKind::Pawn;
+            let mut kind = if self.king.is_set(square) {
+                PieceKind::King
+            } else {
+                PieceKind::Pawn
+            };
             if self.king.is_set(square) {
                 kind = PieceKind::King;
             }
@@ -225,7 +230,7 @@ impl BitboardSet {
 /// Piece-centric implementation of the chess board. This is
 /// the "back-end" of the chess engine, efficient board representation is
 /// crucial for performance.
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Board {
     pub(crate) white_pieces: BitboardSet,
     pub(crate) black_pieces: BitboardSet,
@@ -239,8 +244,11 @@ impl Board {
         }
     }
 
-    pub fn empty() -> Board {
-        Self::default()
+    pub fn empty() -> Self {
+        Self {
+            white_pieces: BitboardSet::empty(),
+            black_pieces: BitboardSet::empty(),
+        }
     }
 
     /// WARNING: This is slow and inefficient for Bitboard-based piece-centric
@@ -260,11 +268,70 @@ impl Board {
         }
         None
     }
+
+    /// Dumps the board in a simple format ('.' for empty square, FEN algebraic
+    /// symbol for piece) a-la Stockfish "debug" command in UCI mode.
+    pub fn render_ascii(&self) -> String {
+        let mut result = String::new();
+        for rank in Rank::iter().rev() {
+            for file in File::iter() {
+                let ascii_symbol = match self.at(Square::new(file, rank)) {
+                    Some(piece) => piece.algebraic_symbol(),
+                    None => '.',
+                };
+                result.push(ascii_symbol);
+                if file != File::H {
+                    const SQUARE_SEPARATOR: char = ' ';
+                    result.push(SQUARE_SEPARATOR);
+                }
+            }
+            const LINE_SEPARATOR: char = '\n';
+            if rank != Rank::One {
+                result.push(LINE_SEPARATOR);
+            }
+        }
+        result
+    }
+
+    /// Returns board representation in FEN format.
+    pub fn fen(self) -> String {
+        let mut result = String::new();
+        for rank in Rank::iter().rev() {
+            let mut empty_squares = 0i32;
+            for file in File::iter() {
+                let square = Square::new(file, rank);
+                if let Some(piece) = self.at(square) {
+                    if empty_squares != 0 {
+                        result.push_str(format!("{}", empty_squares).as_str());
+                        empty_squares = 0;
+                    }
+                    result.push(piece.algebraic_symbol());
+                } else {
+                    empty_squares += 1;
+                }
+            }
+            if empty_squares != 0 {
+                result.push_str(format!("{}", empty_squares).as_str());
+            }
+            if rank != Rank::One {
+                const RANK_SEPARATOR: char = '/';
+                result.push(RANK_SEPARATOR);
+            }
+        }
+        result
+    }
+}
+
+impl Default for Board {
+    /// Returns a `Board` for starting position.
+    fn default() -> Self {
+        Self::starting()
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{Bitboard, BitboardSet};
+    use super::{Bitboard, BitboardSet, Board};
     use crate::chess::core::Square;
 
     #[test]
@@ -315,7 +382,7 @@ mod test {
 
     #[test]
     // Check the debug output for few bitboards.
-    fn dump() {
+    fn bitboard_dump() {
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Bitboard::default()),
@@ -420,5 +487,38 @@ mod test {
              00000000\n\
              00000000"
         );
+    }
+
+    #[test]
+    fn board_dump() {
+        #[rustfmt::skip]
+        assert_eq!(
+            Board::starting().render_ascii(),
+            "r n b q k b n r\n\
+             p p p p p p p p\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             P P P P P P P P\n\
+             R N B Q K B N R"
+        );
+        assert_eq!(
+            Board::starting().fen(),
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+        );
+        #[rustfmt::skip]
+        assert_eq!(
+            Board::empty().render_ascii(),
+            ". . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . ."
+        );
+        assert_eq!(Board::empty().fen(), "8/8/8/8/8/8/8/8");
     }
 }

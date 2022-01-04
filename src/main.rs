@@ -1,6 +1,7 @@
 use clap::StructOpt;
 use pabi::chess::position::Position;
 use pabi::Opts;
+// TODO: Set up tracer.
 use tracing_subscriber;
 
 fn main() {
