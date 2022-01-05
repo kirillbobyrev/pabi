@@ -44,6 +44,8 @@
 // TODO: Re-export types for convenience.
 pub mod chess;
 
+pub mod util;
+
 use clap::Parser;
 use sysinfo::{System, SystemExt};
 use tracing::info;

@@ -12,8 +12,8 @@ on:
   schedule:
   - cron: '0 0 * * 1'
 jobs:
-  lint:
-    name: Lint
+  audit:
+    name: Security audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources

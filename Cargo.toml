@@ -12,44 +12,54 @@ license = "Apache-2.0"
 name = "pabi"
 readme = "README.md"
 repository = "https://github.com/kirillbobyrev/pabi"
-version = "0.0.0"
 rust-version = "1.57.0"
+version = "0.0.0"
 # Reduce the package size by only including things necessary for building it.
 include = [
-    "/src/**/*.rs",
-    "/Cargo.toml",
-    "/Cargo.lock",
-    "LICENSE",
-    "README.md",
+  "/src/**/*.rs",
+  "/Cargo.toml",
+  "/Cargo.lock",
+  "/data/books/*.epd.zip",
+  "LICENSE",
+  "README.md",
 ]
 
-
 [dependencies]
-strum = { version = "0.23", features = ["derive"] }
 clap = {version = "3.0", features = ["derive", "wrap_help"]}
 itertools = "0.10"
 rustyline = "9.0"
+strum = {version = "0.23", features = ["derive"]}
 sysinfo = "0.22"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+zip = {version = "0.5", features = []}
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = {version = "0.3", features = ["html_reports", "cargo_bench_support", "csv_output"]}
 iai = "0.1"
-zip = "0.5"
 
 [[bench]]
 harness = false
-name = "perft"
+name = "position_parsing"
+
+[profile.release]
+# TODO: Reduce binary size (requires nightly now, should be released in the
+# next stable version): https://github.com/rust-lang/cargo/pull/10088
+# strip = true
 
 # TODO: Mention this in BUILDING.md.
 # TODO: Test this out once the benchmarks are available and tweak specific
-# values.
+# values. So far, this gives around -8% on parsing FEN/EPD positions.
 [profile.fast]
 inherits = "release"
-# lto = "fat"
-# codegen-units = 1
-# target-cpu = "native" (https://github.com/kirillbobyrev/pabi/issues/17)
-# tune-cpu = "native"
+lto = "fat"
+codegen-units = 1
+# TODO: Oh-oh, this is dangerous! So far, it doesn't give any benefits for
+# parsing positions but might be useful in the future.
+# overflow-checks = false
+# TODO: This should be a rustc flag. So far, parse_position benchmarks actually
+# show a regression in performance with this flag turned on. I'm not sure why
+# that is, probably better to wait for more benchmarks.
+# target-cpu = "native"
 # TODO: Tweak inline-threshold.
 # TODO: Set profile-generate and profile-use (https://github.com/kirillbobyrev/pabi/issues/9).

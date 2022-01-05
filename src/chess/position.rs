@@ -22,18 +22,18 @@ use crate::chess::core::{
 /// State of the chess game: board, half-move counters and castling rights,
 /// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
 ///
-/// Position can be created by
+/// [`Position::try_from()`] provides a convenient interface for creating a
+/// [`Position`]. It will clean up the input (trim newlines and whitespace) and
+/// attempt to parse in either FEN or a version of [Extended Position
+/// Description] (EPD). The EPD format Pabi accepts does not support
+/// [Operations]: even though it is an important part of EPD, in practice it is
+/// rarely needed. The EPD support exists for compatibility with some databases
+/// which provide trimmed FEN lines (all FEN parts except Halfmove Clock and
+/// Fullmove Counter). Parsing these positions is important to utilize that
+/// data.
 ///
-/// - [`Position::from_fen()`] to parse position from FEN.
-/// - [`Position::try_from()`] will clean up the input (trim newlines and
-///   whitespace) and attempt to parse in either FEN or a version of [Extended
-///   Position Description] (EPD). The EPD format Pabi accepts does not support
-///   [Operations]: even though it is an important part of EPD, in practice it
-///   is rarely needed. The EPD support exists for compatibility with some
-///   databases which provide trimmed FEN lines (all FEN parts except Halfmove
-///   Clock and Fullmove Counter). Parsing these positions is important to
-///   utilize that data, so [`Position::try_from()`] provides an interface to
-///   this format.
+/// Similarly, [`Position::to_string()`] will dump position in FEN
+/// representation.
 ///
 /// [Forsyth-Edwards Notation]: https://www.chessprogramming.org/Forsyth-Edwards_Notation
 /// [Extended Position Description]: https://www.chessprogramming.org/Extended_Position_Description
@@ -56,7 +56,7 @@ pub struct Position {
     /// [Halfmove Clock]: https://www.chessprogramming.org/Halfmove_Clock
     /// [^ply]: "Half-move" or ["ply"](https://www.chessprogramming.org/Ply) means a move of only
     ///     one side.
-    /// [^fifty]: 50 _full_ moves
+    /// [^fifty]: 50 __full__ moves
     halfmove_clock: u8,
     fullmove_counter: NonZeroU16,
     en_passant_square: Option<Square>,
@@ -88,7 +88,7 @@ impl Position {
     // TODO: Delegate from_fen to the fields (board, etc).
     // TODO: Conceal this from public API? Only leave the From<&str> entrypoint that
     // would sanitize the string and provide meaningful defaults.
-    pub fn from_fen(fen: &str) -> Result<Self, ParseError> {
+    fn from_fen(fen: &str) -> Result<Self, ParseError> {
         let fen = fen.trim();
         if !fen.is_ascii() || fen.lines().count() != 1 {
             return Err(ParseError("FEN should be a single ASCII line.".into()));
@@ -116,16 +116,13 @@ impl Position {
         for (rank_id, rank_fen) in itertools::zip((0..BOARD_WIDTH).rev(), ranks) {
             let mut file: u8 = 0;
             for symbol in rank_fen.chars() {
-                if file >= BOARD_WIDTH {
-                    return Err(ParseError(format!(
-                        "FEN rank {} is longer than {}.",
-                        rank_fen, BOARD_WIDTH
-                    )));
-                }
                 // The increment is a small number: casting to u8 will not truncate.
                 #[allow(clippy::cast_possible_truncation)]
                 if let Some(increment) = symbol.to_digit(10) {
                     file += increment as u8;
+                    if file >= BOARD_WIDTH {
+                        break;
+                    }
                     continue;
                 }
                 match Piece::try_from(symbol) {
@@ -134,7 +131,7 @@ impl Position {
                             Player::White => &mut result.board.white_pieces,
                             Player::Black => &mut result.board.black_pieces,
                         };
-                        let square = Square::new(File::from(file), Rank::from(rank_id));
+                        let square = Square::new(File::try_from(file)?, Rank::try_from(rank_id)?);
                         *owner.bitboard_for(piece.kind) |= Bitboard::from(square);
                     },
                     Err(e) => {
@@ -198,35 +195,12 @@ impl Position {
         Ok(result)
     }
 
-    /// Dumps board in Forsyth-Edwards Notation.
-    pub fn fen(&self) -> String {
-        format!(
-            "{} {} {} {} {} {}",
-            self.board.fen(),
-            self.side_to_move.fen(),
-            CastlingRights::fen(self.white_castling, self.black_castling),
-            match self.en_passant_square {
-                Some(square) => format!("{}", square),
-                None => "-".to_string(),
-            },
-            self.halfmove_clock,
-            self.fullmove_counter
-        )
-    }
-
     fn patch_epd(epd: &str) -> String {
         epd.trim().to_string() + " 0 1"
     }
 
     fn material_imbalance(&self) -> String {
         todo!();
-    }
-
-    // IMPORTANT: This is slow because of the bitboard representation and
-    // shouldn't be used in performance-critical scenarios. Caching square to Piece
-    // would solve this problem.
-    fn at(&self, square: Square) -> Option<Piece> {
-        self.board.at(square)
     }
 }
 
@@ -251,6 +225,24 @@ impl TryFrom<&str> for Position {
     }
 }
 
+impl ToString for Position {
+    /// Dumps board in Forsyth-Edwards Notation.
+    fn to_string(&self) -> String {
+        format!(
+            "{} {} {} {} {} {}",
+            self.board.to_string(),
+            self.side_to_move,
+            CastlingRights::fen(self.white_castling, self.black_castling),
+            match self.en_passant_square {
+                Some(square) => format!("{}", square),
+                None => "-".to_string(),
+            },
+            self.halfmove_clock,
+            self.fullmove_counter
+        )
+    }
+}
+
 impl fmt::Debug for Position {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.board.render_ascii())?;
@@ -260,16 +252,13 @@ impl fmt::Debug for Position {
 
 #[cfg(test)]
 mod test {
-    use std::io::Read;
-    use std::{fs, path};
-
     use super::Position;
 
     fn check_correct_fen(fen: &str) {
         let position = Position::from_fen(fen);
         assert!(position.is_ok());
         let position = position.unwrap();
-        assert_eq!(position.fen(), fen);
+        assert_eq!(position.to_string(), fen);
     }
 
     // TODO: Validate the precise contents of the bitboard directly.
@@ -283,51 +272,6 @@ mod test {
             "r2qkb1r/1pp1pp1p/p1np1np1/1B6/3PP1b1/2N1BN2/PPP2PPP/R2QK2R w KQkq - 0 7",
         );
         check_correct_fen("r3k3/5p2/2p5/p7/P3r3/2N2n2/1PP2P2/2K2B2 w q - 0 24");
-    }
-
-    fn read_compressed_book(book: path::PathBuf) -> String {
-        let file = fs::File::open(&book).unwrap();
-        let mut archive = zip::read::ZipArchive::new(file).unwrap();
-        assert_eq!(archive.len(), 1);
-        let mut contents = String::new();
-        let status = archive.by_index(0).unwrap().read_to_string(&mut contents);
-        assert!(status.is_ok());
-        contents
-    }
-
-    fn validate_book(book_name: path::PathBuf) {
-        for fen in read_compressed_book(book_name).lines() {
-            let fen = fen.trim();
-            match fen.split_ascii_whitespace().count() {
-                6 => check_correct_fen(fen),
-                // Patch EPD to get a full FEN out of it.
-                4 => check_correct_fen(&Position::patch_epd(fen)),
-                _ => unreachable!(),
-            }
-        }
-    }
-
-    // TODO: Maybe move this to tests/ and re-use for move generator and evaluator.
-    // TODO: This is expensive (>60 sec). Make this test optional but make sure it's
-    // enabled in the CI.
-    #[test]
-    fn stockfish_books() {
-        let mut path = path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.push("data/books/");
-        for file in fs::read_dir(path).unwrap() {
-            let path = file.unwrap().path();
-            dbg!(&path);
-            if path
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .ends_with(".epd.zip")
-            {
-                dbg!("Validating {}", &path);
-                validate_book(path);
-            }
-        }
     }
 
     #[test]

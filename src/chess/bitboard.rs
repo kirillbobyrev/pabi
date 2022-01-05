@@ -26,7 +26,6 @@ use crate::chess::core::{File, Piece, PieceKind, Player, Rank, Square, BOARD_SIZ
 /// bit corresponds to A1, and the most significant bit - to H8.
 ///
 /// Bitboard is a thin wrapper around [u64].
-// TODO: Implement "from_debug" to parse 8x8 bit field.
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Bitboard(u64);
 
@@ -43,7 +42,7 @@ impl Bitboard {
         Self(u64::MAX)
     }
 
-    pub(in crate) fn with_squares(squares: &[Square]) -> Self {
+    pub(in crate::chess) fn with_squares(squares: &[Square]) -> Self {
         let mut result = Self::default();
         for square in squares {
             result |= Bitboard::from(*square);
@@ -51,7 +50,7 @@ impl Bitboard {
         result
     }
 
-    pub(crate) fn is_set(&self, square: Square) -> bool {
+    pub(in crate::chess) fn is_set(&self, square: Square) -> bool {
         (self.data() & (1u64 << square as u8)) > 0
     }
 }
@@ -129,21 +128,21 @@ impl fmt::Debug for Bitboard {
 // improve performance. This is what lc0 does:
 // https://github.com/LeelaChessZero/lc0/blob/d2e372e59cd9188315d5c02a20e0bdce88033bc5/src/chess/board.h
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
-pub(crate) struct BitboardSet {
-    pub(crate) king: Bitboard,
-    pub(crate) queen: Bitboard,
-    pub(crate) rooks: Bitboard,
-    pub(crate) bishops: Bitboard,
-    pub(crate) knights: Bitboard,
-    pub(crate) pawns: Bitboard,
+pub(in crate::chess) struct BitboardSet {
+    pub(in crate::chess) king: Bitboard,
+    pub(in crate::chess) queen: Bitboard,
+    pub(in crate::chess) rooks: Bitboard,
+    pub(in crate::chess) bishops: Bitboard,
+    pub(in crate::chess) knights: Bitboard,
+    pub(in crate::chess) pawns: Bitboard,
 }
 
 impl BitboardSet {
-    pub(crate) fn empty() -> Self {
+    pub(in crate::chess) fn empty() -> Self {
         Self::default()
     }
 
-    pub(crate) fn new_white() -> Self {
+    pub(in crate::chess) fn new_white() -> Self {
         Self {
             king: Square::E1.into(),
             queen: Square::D1.into(),
@@ -163,7 +162,7 @@ impl BitboardSet {
         }
     }
 
-    pub(crate) fn new_black() -> Self {
+    pub(in crate::chess) fn new_black() -> Self {
         // TODO: Implement flip and return new_white().flip() to prevent copying code.
         Self {
             king: Square::E8.into(),
@@ -184,11 +183,11 @@ impl BitboardSet {
         }
     }
 
-    pub(crate) fn all(&self) -> Bitboard {
+    pub(in crate::chess) fn all(self) -> Bitboard {
         self.king | self.queen | self.rooks | self.bishops | self.knights | self.pawns
     }
 
-    pub(crate) fn bitboard_for(&mut self, piece: PieceKind) -> &mut Bitboard {
+    pub(in crate::chess) fn bitboard_for(&mut self, piece: PieceKind) -> &mut Bitboard {
         match piece {
             PieceKind::King => &mut self.king,
             PieceKind::Queen => &mut self.queen,
@@ -199,7 +198,7 @@ impl BitboardSet {
         }
     }
 
-    pub(crate) fn at(&self, square: Square) -> Option<PieceKind> {
+    pub(in crate::chess) fn at(self, square: Square) -> Option<PieceKind> {
         if self.all().is_set(square) {
             let mut kind = if self.king.is_set(square) {
                 PieceKind::King
@@ -232,8 +231,8 @@ impl BitboardSet {
 /// crucial for performance.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Board {
-    pub(crate) white_pieces: BitboardSet,
-    pub(crate) black_pieces: BitboardSet,
+    pub(in crate::chess) white_pieces: BitboardSet,
+    pub(in crate::chess) black_pieces: BitboardSet,
 }
 
 impl Board {
@@ -253,7 +252,7 @@ impl Board {
 
     /// WARNING: This is slow and inefficient for Bitboard-based piece-centric
     /// representation. Use with caution.
-    pub fn at(&self, square: Square) -> Option<Piece> {
+    pub fn at(self, square: Square) -> Option<Piece> {
         if let Some(kind) = self.white_pieces.at(square) {
             return Some(Piece {
                 owner: Player::White,
@@ -271,7 +270,7 @@ impl Board {
 
     /// Dumps the board in a simple format ('.' for empty square, FEN algebraic
     /// symbol for piece) a-la Stockfish "debug" command in UCI mode.
-    pub fn render_ascii(&self) -> String {
+    pub fn render_ascii(self) -> String {
         let mut result = String::new();
         for rank in Rank::iter().rev() {
             for file in File::iter() {
@@ -292,9 +291,11 @@ impl Board {
         }
         result
     }
+}
 
+impl ToString for Board {
     /// Returns board representation in FEN format.
-    pub fn fen(self) -> String {
+    fn to_string(&self) -> String {
         let mut result = String::new();
         for rank in Rank::iter().rev() {
             let mut empty_squares = 0i32;
@@ -504,7 +505,7 @@ mod test {
              R N B Q K B N R"
         );
         assert_eq!(
-            Board::starting().fen(),
+            Board::starting().to_string(),
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
         );
         #[rustfmt::skip]
@@ -519,6 +520,6 @@ mod test {
              . . . . . . . .\n\
              . . . . . . . ."
         );
-        assert_eq!(Board::empty().fen(), "8/8/8/8/8/8/8/8");
+        assert_eq!(Board::empty().to_string(), "8/8/8/8/8/8/8/8");
     }
 }
