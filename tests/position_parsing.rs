@@ -16,6 +16,9 @@ fn check(serialized_position: &str) {
     );
 }
 
+// This test is very expensive in the Debug setting (could take 200+ seconds):
+// disable it by default.
+#[ignore]
 #[test]
 fn stockfish_books() {
     for book in util::stockfish_books() {

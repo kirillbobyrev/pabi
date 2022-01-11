@@ -14,7 +14,7 @@
 [![Test Coverage](https://github.com/kirillbobyrev/pabi/actions/workflows/coverage.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/coverage.yaml)
 
 Pabi is a modern chess engine. It is in the early days of development and not
-functional yet, see documentation below for roadmap and details.
+functional yet: see documentation below for roadmap and details.
 
 ## Goals
 

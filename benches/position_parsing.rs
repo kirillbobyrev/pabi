@@ -22,7 +22,10 @@ fn parse(c: &mut Criterion) {
         }
     }
     c.bench_with_input(
-        BenchmarkId::new("position parsing", format!("{} stockfish positions", positions.len())),
+        BenchmarkId::new(
+            "position parsing",
+            format!("{} stockfish positions", positions.len()),
+        ),
         &positions,
         |b, positions| {
             b.iter(|| parse_positions(positions));

@@ -1,11 +1,11 @@
-//! Bitboard representation for [`crate::chess::bitboard::Board`]. Bitboard
-//! utilizes the fact that modern processors operate on 64 bit integers, and the
-//! bit operations can be performed simultaneously. This results in very
-//! efficient calculation of possible attack vectors and other meaningful
-//! features that are calculated to evaluate a position on the board. The
-//! disadvantage is complexity that comes with bitboard implementation and
-//! inefficiency of some operations like "get piece type on given square"
-//! (efficiently handled by Square-centric board implementations).
+//! [`Bitboard`]-based representation for [`Board`]. Bitboard utilizes the fact
+//! that modern processors operate on 64 bit integers, and the bit operations
+//! can be performed simultaneously. This results in very efficient calculation
+//! of possible attack vectors and other meaningful features that are calculated
+//! to evaluate a position on the board. The disadvantage is complexity that
+//! comes with bitboard implementation and inefficiency of some operations like
+//! "get piece type on given square" (efficiently handled by Square-centric
+//! board implementations).
 //!
 //! [Bitboard]: https://www.chessprogramming.org/Bitboards
 // TODO: This comment needs revamp.
@@ -22,7 +22,7 @@ use crate::chess::core::{File, Piece, PieceKind, Player, Rank, Square, BOARD_SIZ
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
 /// board.
 ///
-/// Mirroring [`crate::chess::core::Square`] semantics, the least significant
+/// Mirroring [`Square`] semantics, the least significant
 /// bit corresponds to A1, and the most significant bit - to H8.
 ///
 /// Bitboard is a thin wrapper around [u64].

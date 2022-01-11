@@ -89,14 +89,7 @@ impl Position {
     // TODO: Conceal this from public API? Only leave the From<&str> entrypoint that
     // would sanitize the string and provide meaningful defaults.
     fn from_fen(fen: &str) -> Result<Self, ParseError> {
-        let fen = fen.trim();
-        if !fen.is_ascii() || fen.lines().count() != 1 {
-            return Err(ParseError("FEN should be a single ASCII line.".into()));
-        }
         let parts = fen.split_ascii_whitespace();
-        if parts.clone().count() != 6 {
-            return Err(ParseError("FEN should have 6 parts".into()));
-        }
         let (
             pieces_placement,
             side_to_move,
@@ -104,9 +97,12 @@ impl Position {
             en_passant_square,
             halfmove_clock,
             fullmove_counter,
-        ) = parts.collect_tuple().unwrap();
+        ) = match parts.collect_tuple() {
+            Some(t) => t,
+            None => return Err(ParseError("FEN should have 6 parts".into())),
+        };
         // Parse Piece Placement.
-        if pieces_placement.matches('/').count() != BOARD_WIDTH as usize - 1 {
+        if pieces_placement.matches('/').count() + 1 != BOARD_WIDTH as usize {
             return Err(ParseError(
                 "Pieces Placement FEN should have 8 ranks.".into(),
             ));
