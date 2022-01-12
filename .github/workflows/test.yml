@@ -44,7 +44,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+      # Using -- --ignored is not possible with actions-rs/cargo, run plain
+      # cargo instead.
       - name: Run expensive testts
-        uses: actions-rs/cargo@v1
-        with:
-          command: test -- --ignored
+        run: cargo test -- --ignored
