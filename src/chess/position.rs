@@ -102,14 +102,12 @@ impl Position {
             None => return Err(ParseError("FEN should have 6 parts".into())),
         };
         // Parse Piece Placement.
-        if pieces_placement.matches('/').count() + 1 != BOARD_WIDTH as usize {
-            return Err(ParseError(
-                "Pieces Placement FEN should have 8 ranks.".into(),
-            ));
-        }
         let mut result = Self::empty();
         let ranks = pieces_placement.split('/');
-        for (rank_id, rank_fen) in itertools::zip((0..BOARD_WIDTH).rev(), ranks) {
+        let mut rank_id = 8;
+        for rank_fen in ranks {
+            rank_id -= 1;
+            let rank = Rank::try_from(rank_id)?;
             let mut file: u8 = 0;
             for symbol in rank_fen.chars() {
                 // The increment is a small number: casting to u8 will not truncate.
@@ -127,7 +125,7 @@ impl Position {
                             Player::White => &mut result.board.white_pieces,
                             Player::Black => &mut result.board.black_pieces,
                         };
-                        let square = Square::new(File::try_from(file)?, Rank::try_from(rank_id)?);
+                        let square = Square::new(file.try_into()?, rank);
                         *owner.bitboard_for(piece.kind) |= Bitboard::from(square);
                     },
                     Err(e) => {
@@ -143,16 +141,10 @@ impl Position {
                 )));
             }
         }
-        match side_to_move {
-            "w" => result.side_to_move = Player::White,
-            "b" => result.side_to_move = Player::Black,
-            _ => {
-                return Err(ParseError(format!(
-                    "Side to move can be either 'w' or 'b', got: {}.",
-                    side_to_move
-                )));
-            },
+        if rank_id != 0 {
+            return Err(ParseError("There should be 8 ranks".into()));
         }
+        result.side_to_move = side_to_move.try_into()?;
         // "-" is no-op (empty board already has cleared castling rights).
         if castling_ability != "-" {
             result.white_castling = castling_ability
