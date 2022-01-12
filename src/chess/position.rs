@@ -8,16 +8,7 @@ use std::num::NonZeroU16;
 use itertools::Itertools;
 
 use crate::chess::bitboard::{Bitboard, Board};
-use crate::chess::core::{
-    CastlingRights,
-    File,
-    ParseError,
-    Piece,
-    Player,
-    Rank,
-    Square,
-    BOARD_WIDTH,
-};
+use crate::chess::core::{CastlingRights, ParseError, Piece, Player, Rank, Square, BOARD_WIDTH};
 
 /// State of the chess game: board, half-move counters and castling rights,
 /// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
@@ -106,6 +97,9 @@ impl Position {
         let ranks = pieces_placement.split('/');
         let mut rank_id = 8;
         for rank_fen in ranks {
+            if rank_id == 0 {
+                return Err(ParseError("There should be 8 ranks".into()));
+            }
             rank_id -= 1;
             let rank = Rank::try_from(rank_id)?;
             let mut file: u8 = 0;
@@ -136,8 +130,8 @@ impl Position {
             }
             if file != BOARD_WIDTH {
                 return Err(ParseError(format!(
-                    "FEN rank {} size should be exactly {}.",
-                    rank_fen, BOARD_WIDTH
+                    "FEN rank {} size should be exactly {}, got: {}.",
+                    rank_fen, BOARD_WIDTH, file
                 )));
             }
         }
@@ -186,29 +180,28 @@ impl Position {
     fn patch_epd(epd: &str) -> String {
         epd.trim().to_string() + " 0 1"
     }
-
-    fn material_imbalance(&self) -> String {
-        todo!();
-    }
 }
 
 impl TryFrom<&str> for Position {
     type Error = ParseError;
 
     fn try_from(input: &str) -> Result<Self, Self::Error> {
-        let mut input = input.trim();
+        let mut input = input;
         for prefix in ["fen", "epd"] {
             if input.starts_with(prefix) {
-                input = input.split_at(prefix.len()).1.trim();
+                input = input.split_at(prefix.len()).1;
                 break;
             }
         }
+        input = input.trim();
         match input.split_ascii_whitespace().count() {
             6 => Self::from_fen(input),
             4 => Self::from_fen(&Position::patch_epd(input)),
-            _ => Err(ParseError(
-                "Board representation should be either FEN (6 parts) or EPD body (4 parts)".into(),
-            )),
+            parts => Err(ParseError(format!(
+                "Board representation should be either FEN (6 parts) or EPD body (4 parts), got: \
+                 {}.",
+                parts
+            ))),
         }
     }
 }
@@ -278,7 +271,7 @@ mod test {
         .is_ok());
         // Prefix with "epd" and add more spaces.
         assert!(Position::try_from(
-            " \n epd  rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R  w  KQkq   -  \n"
+            "epd  rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R  w  KQkq   -  \n"
         )
         .is_ok());
         // Prefix with "fen" and add spaces.
@@ -301,5 +294,15 @@ mod test {
             " rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -   0 1"
         )
         .is_ok());
+        // Whitespaces at the start of "fen"/"epd" are not accepted.
+        assert!(Position::try_from(
+            " \n epd  rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R  w  KQkq   -  \n"
+        )
+        .is_err());
+        // Don't crash on unicode symbols.
+        assert!(Position::try_from(
+            "8/8/8/8/8/8/8/8 b 88 🔠 🔠 "
+        )
+        .is_err());
     }
 }

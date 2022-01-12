@@ -1,4 +1,3 @@
----
 name: Test Coverage
 # TODO: Extend to pull requests and report the diff.
 on: [push]

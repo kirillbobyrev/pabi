@@ -147,14 +147,17 @@ pub enum Square {
 }
 
 impl Square {
+    /// Connects file (column) and rank (row) to form a full square.
     pub fn new(file: File, rank: Rank) -> Self {
         unsafe { mem::transmute(file as u8 + (rank as u8) * BOARD_WIDTH) }
     }
 
+    /// Returns file (column) on which the square is located.
     pub fn file(&self) -> File {
         unsafe { mem::transmute(*self as u8 % BOARD_WIDTH) }
     }
 
+    /// Returns rank (row) on which the square is located.
     pub fn rank(&self) -> Rank {
         unsafe { mem::transmute(*self as u8 / BOARD_WIDTH) }
     }
@@ -185,15 +188,15 @@ impl TryFrom<&str> for Square {
     type Error = ParseError;
 
     fn try_from(square: &str) -> Result<Self, ParseError> {
-        if square.len() != 2 {
+        if square.bytes().len() != 2 {
             return Err(ParseError(format!(
                 "Unknown square ({}): should be two-char.",
                 square
             )));
         }
         let (file, rank) = (
-            square.chars().next().unwrap(),
-            square.chars().nth(1).unwrap(),
+            square.bytes().next().unwrap() as char,
+            square.bytes().nth(1).unwrap() as char,
         );
         Ok(Square::new(file.try_into()?, rank.try_into()?))
     }
@@ -256,22 +259,11 @@ pub enum PieceKind {
     Pawn,
 }
 
-impl PieceKind {
-    fn relative_value(&self) -> Option<u32> {
-        match &self {
-            // The value of King is undefined as it cannot be captured.
-            PieceKind::King => None,
-            PieceKind::Queen => Some(9),
-            PieceKind::Rook => Some(6),
-            PieceKind::Bishop | PieceKind::Knight => Some(3),
-            PieceKind::Pawn => Some(1),
-        }
-    }
-}
-
 /// Represents a specific piece owned by a player.
 pub struct Piece {
+    #[allow(missing_docs)]
     pub owner: Player,
+    #[allow(missing_docs)]
     pub kind: PieceKind,
 }
 
@@ -289,9 +281,9 @@ impl fmt::Display for ParseError {
 impl Error for ParseError {}
 
 impl Piece {
-    // Algebraic notation symbol used in FEN. Uppercase for white, lowercase for
-    // black.
-    pub fn algebraic_symbol(&self) -> char {
+    /// Algebraic notation symbol used in FEN. Uppercase for white, lowercase for
+    /// black.
+    pub(in crate::chess) fn algebraic_symbol(&self) -> char {
         let result = match &self.kind {
             PieceKind::King => 'k',
             PieceKind::Queen => 'q',
@@ -444,7 +436,9 @@ impl CastlingRights {
 
 #[cfg(test)]
 mod test {
-    use super::{File, ParseError, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
+    use std::mem::{size_of, size_of_val};
+
+    use super::{File, ParseError, PieceKind, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
 
     #[test]
     fn rank() {
@@ -566,5 +560,17 @@ mod test {
             squares,
             vec![Square::B3, Square::F5, Square::H8, Square::E4]
         );
+    }
+
+    #[test]
+    fn primitive_size() {
+        assert_eq!(size_of::<Square>(), 1);
+        // Primitives will have small size thanks to the niche optimizatins:
+        // https://rust-lang.github.io/unsafe-code-guidelines/layout/enums.html#layout-of-a-data-carrying-enums-without-a-repr-annotation
+        assert_eq!(size_of::<PieceKind>(), size_of::<Option<PieceKind>>());
+        // This is going to be very useful for square-centric board implementation.
+        let square_to_pieces: [Option<PieceKind>; BOARD_SIZE as usize] =
+            [None; BOARD_SIZE as usize];
+        assert_eq!(size_of_val(&square_to_pieces), BOARD_SIZE as usize);
     }
 }

@@ -1,4 +1,6 @@
-blank_issues_enabled: false
+# For now, enable blank issues, migrate to Bug, Feature Request and Enhancement
+# in the future.
+blank_issues_enabled: true
 contact_links:
   - name: Discussion
     url: https://github.com/kirillbobyrev/pabi/discussions
