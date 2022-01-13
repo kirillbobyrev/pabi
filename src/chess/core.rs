@@ -361,7 +361,7 @@ impl fmt::Display for Piece {
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
-pub enum Castling {
+pub enum CastlingSide {
     Short,
     Long,
 }
@@ -415,11 +415,11 @@ impl TryFrom<&str> for CastlingRights {
                 "Castling rights should contain up to 2 symbols, got: {fen}."
             )));
         }
-        match fen.to_ascii_lowercase().as_str() {
+        match fen {
             "-" | "" => Ok(Self::Neither),
-            "k" => Ok(Self::OnlyKingside),
-            "q" => Ok(Self::OnlyQueenside),
-            "kq" => Ok(Self::Both),
+            "k" | "K" => Ok(Self::OnlyKingside),
+            "q" | "Q" => Ok(Self::OnlyQueenside),
+            "kq" | "KQ" => Ok(Self::Both),
             _ => return Err(ParseError(format!("Unknown castling rights: {fen}."))),
         }
     }
