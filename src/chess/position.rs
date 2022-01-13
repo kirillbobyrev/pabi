@@ -35,10 +35,10 @@ use crate::chess::core::{CastlingRights, ParseError, Piece, Player, Rank, Square
 // TODO: Check if this yields any benefits. It's likely to be very important for
 // hashing and some square-centric algorithms.
 pub struct Position {
-    board: Board,
-    white_castling: CastlingRights,
-    black_castling: CastlingRights,
-    side_to_move: Player,
+    pub(in crate::chess) board: Board,
+    pub(in crate::chess) white_castling: CastlingRights,
+    pub(in crate::chess) black_castling: CastlingRights,
+    pub(in crate::chess) side_to_move: Player,
     /// [Halfmove Clock][^ply] keeps track of the number of (half-)moves
     /// since the last capture or pawn move and is used to enforce
     /// fifty[^fifty]-move draw rule.
@@ -48,9 +48,9 @@ pub struct Position {
     /// [^ply]: "Half-move" or ["ply"](https://www.chessprogramming.org/Ply) means a move of only
     ///     one side.
     /// [^fifty]: 50 __full__ moves
-    halfmove_clock: u8,
-    fullmove_counter: NonZeroU16,
-    en_passant_square: Option<Square>,
+    pub(in crate::chess) halfmove_clock: u8,
+    pub(in crate::chess) fullmove_counter: NonZeroU16,
+    pub(in crate::chess) en_passant_square: Option<Square>,
 }
 
 impl Position {
@@ -300,9 +300,6 @@ mod test {
         )
         .is_err());
         // Don't crash on unicode symbols.
-        assert!(Position::try_from(
-            "8/8/8/8/8/8/8/8 b 88 🔠 🔠 "
-        )
-        .is_err());
+        assert!(Position::try_from("8/8/8/8/8/8/8/8 b 88 🔠 🔠 ").is_err());
     }
 }

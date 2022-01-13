@@ -3,5 +3,6 @@
 // where possible.
 pub mod bitboard;
 pub mod core;
+pub mod moves;
 pub mod perft;
 pub mod position;

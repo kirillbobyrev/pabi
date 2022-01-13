@@ -1,4 +1,5 @@
-//! Core types for
+//! Board primitives commonly used within [`crate::chess`].
+
 use std::error::Error;
 use std::{fmt, mem};
 
@@ -9,7 +10,7 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 
 /// Represents a column (vertical row) of the chessboard. In chess notation, it
 /// is normally represented with a lowercase letter.
-// TODO: Move all of this to src/chess and re-export in lib.rs for convenience?
+// TODO: Re-export in lib.rs for convenience?
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
 #[allow(missing_docs)]
@@ -132,7 +133,7 @@ impl fmt::Display for Rank {
 /// assert_eq!(std::mem::size_of::<Square>(), 1);
 /// ```
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
 #[rustfmt::skip]
 #[allow(missing_docs)]
 pub enum Square {
@@ -281,8 +282,8 @@ impl fmt::Display for ParseError {
 impl Error for ParseError {}
 
 impl Piece {
-    /// Algebraic notation symbol used in FEN. Uppercase for white, lowercase for
-    /// black.
+    /// Algebraic notation symbol used in FEN. Uppercase for white, lowercase
+    /// for black.
     pub(in crate::chess) fn algebraic_symbol(&self) -> char {
         let result = match &self.kind {
             PieceKind::King => 'k',
@@ -363,6 +364,24 @@ impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.algebraic_symbol())
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[repr(u8)]
+pub enum Castling {
+    Short,
+    Long,
+}
+
+pub(in crate::chess) enum Direction {
+    NorthWest,
+    North,
+    NorthEast,
+    West,
+    East,
+    SouthWest,
+    South,
+    SouthEast,
 }
 
 /// Track the ability to [castle] each side (kingside is often referred to as
