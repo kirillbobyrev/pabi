@@ -1,0 +1,36 @@
+name: Bug
+description: Report an issue that would help to improve this project.
+labels: ['bug']
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A brief description of the problem.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. In this environment...
+        2. With this config...
+        3. Run '...'
+        4. See error...
+    validations:
+     required: false    
+  - type: textarea
+    attributes:
+      label: Logs
+      description: Please add the logs with `RUST_BACKTRACE=1` and `RUST_LOG=info`.
+    validations:
+      required: false
+  - type: textarea
+    id: extrainfo
+    attributes:
+      label: Additional information
+      description: Is there anything else we should know about this bug?
+    validations:
+      required: false
+      
