@@ -1,6 +1,6 @@
 name: Bug
 description: Report an issue that would help to improve this project.
-labels: [' goal: fix']
+labels: ['bug']
 body:
   - type: textarea
     id: description
