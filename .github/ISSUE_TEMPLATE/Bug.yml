@@ -10,10 +10,9 @@ body:
     validations:
       required: true
   - type: textarea
-    id: screenshots
     attributes:
-      label: Screenshots
-      description: Please add any screenshots if applicable
+      label: Logs
+      description: Please add the logs with `RUST_BACKTRACE=1` and `RUST_LOG=info`.
     validations:
       required: false
   - type: textarea
