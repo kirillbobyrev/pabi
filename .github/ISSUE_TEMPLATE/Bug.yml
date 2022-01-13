@@ -23,9 +23,4 @@ body:
       description: Is there anything else we should know about this bug?
     validations:
       required: false
-  - type: markdown
-    attributes:
-      value: |
-        You can Submit this issue now.
-       
     
