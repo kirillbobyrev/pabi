@@ -9,5 +9,5 @@ fn main() {
     tracing_subscriber::fmt::init();
     pabi::log_system_info();
     let position = Position::try_from(opts.fen.as_str()).unwrap();
-    println!("{:?}", &position);
+    println!("{position:?}");
 }

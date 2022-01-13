@@ -1,9 +1,9 @@
 //! Move generation, application and parsing.
 use strum::IntoEnumIterator;
 
-use crate::chess::core::{Castling, PieceKind, Square, Piece};
-use crate::chess::position::Position;
 use crate::chess::bitboard::Board;
+use crate::chess::core::{Castling, Piece, PieceKind, Square};
+use crate::chess::position::Position;
 
 pub enum Move {
     Regular(RegularMove),
@@ -53,6 +53,4 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
     result
 }
 
-fn generate_sliding_moves(result: &mut Vec<Move>, board: &Board, piece: &Piece) {
-
-}
+fn generate_sliding_moves(result: &mut Vec<Move>, board: &Board, piece: &Piece) {}

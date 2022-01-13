@@ -40,8 +40,7 @@ impl TryFrom<char> for File {
         match file {
             'a'..='h' => Ok(unsafe { mem::transmute(file as u8 - b'a') }),
             _ => Err(ParseError(format!(
-                "Unknown file ({}): needs to be in 'a'..='h'.",
-                file
+                "Unknown file ({file}): needs to be in 'a'..='h'."
             ))),
         }
     }
@@ -54,8 +53,7 @@ impl TryFrom<u8> for File {
         match file {
             0..=7 => Ok(unsafe { mem::transmute(file) }),
             _ => Err(ParseError(format!(
-                "Unknown file ({}): needs to be in 0..BOARD_WIDTH.",
-                file
+                "Unknown file ({file}): needs to be in 0..BOARD_WIDTH."
             ))),
         }
     }
@@ -85,8 +83,7 @@ impl TryFrom<char> for Rank {
         match rank {
             '1'..='8' => Ok(unsafe { mem::transmute(rank as u8 - b'1') }),
             _ => Err(ParseError(format!(
-                "Unknown rank ({}): needs to be in '1'..='8'.",
-                rank
+                "Unknown rank ({rank}): needs to be in '1'..='8'."
             ))),
         }
     }
@@ -99,8 +96,7 @@ impl TryFrom<u8> for Rank {
         match rank {
             0..=7 => Ok(unsafe { mem::transmute(rank) }),
             _ => Err(ParseError(format!(
-                "Unknown rank ({}): needs to be in 0..BOARD_WIDTH.",
-                rank
+                "Unknown rank ({rank}): needs to be in 0..BOARD_WIDTH."
             ))),
         }
     }
@@ -178,8 +174,7 @@ impl TryFrom<u8> for Square {
         match square_index {
             0..=MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
             _ => Err(ParseError(format!(
-                "Unknown square_index ({}): needs to be in 0..BOARD_SIZE.",
-                square_index
+                "Unknown square_index ({square_index}): needs to be in 0..BOARD_SIZE."
             ))),
         }
     }
@@ -191,8 +186,7 @@ impl TryFrom<&str> for Square {
     fn try_from(square: &str) -> Result<Self, ParseError> {
         if square.bytes().len() != 2 {
             return Err(ParseError(format!(
-                "Unknown square ({}): should be two-char.",
-                square
+                "Unknown square ({square}): should be two-char."
             )));
         }
         let (file, rank) = (
@@ -226,8 +220,7 @@ impl TryFrom<&str> for Player {
             "w" => Ok(Player::White),
             "b" => Ok(Player::Black),
             _ => Err(ParseError(format!(
-                "Unknown player ({}): should be either 'w' or 'b'.",
-                player
+                "Unknown player ({player}): should be either 'w' or 'b'."
             ))),
         }
     }
@@ -419,8 +412,7 @@ impl TryFrom<&str> for CastlingRights {
     fn try_from(fen: &str) -> Result<Self, ParseError> {
         if fen.len() > 2 {
             return Err(ParseError(format!(
-                "Castling rights should contain up to 2 symbols, got: {}",
-                fen
+                "Castling rights should contain up to 2 symbols, got: {fen}."
             )));
         }
         match fen.to_ascii_lowercase().as_str() {
@@ -428,7 +420,7 @@ impl TryFrom<&str> for CastlingRights {
             "k" => Ok(Self::OnlyKingside),
             "q" => Ok(Self::OnlyQueenside),
             "kq" => Ok(Self::Both),
-            _ => return Err(ParseError(format!("Unknown castling rights: {}", fen))),
+            _ => return Err(ParseError(format!("Unknown castling rights: {fen}."))),
         }
     }
 }

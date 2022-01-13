@@ -303,7 +303,7 @@ impl ToString for Board {
                 let square = Square::new(file, rank);
                 if let Some(piece) = self.at(square) {
                     if empty_squares != 0 {
-                        result.push_str(format!("{}", empty_squares).as_str());
+                        result.push_str(format!("{empty_squares}").as_str());
                         empty_squares = 0;
                     }
                     result.push(piece.algebraic_symbol());
@@ -312,7 +312,7 @@ impl ToString for Board {
                 }
             }
             if empty_squares != 0 {
-                result.push_str(format!("{}", empty_squares).as_str());
+                result.push_str(format!("{empty_squares}").as_str());
             }
             if rank != Rank::One {
                 const RANK_SEPARATOR: char = '/';

@@ -123,15 +123,14 @@ impl Position {
                         *owner.bitboard_for(piece.kind) |= Bitboard::from(square);
                     },
                     Err(e) => {
-                        return Err(ParseError(format!("FEN rank has incorrect symbol: {}", e)))
+                        return Err(ParseError(format!("FEN rank has incorrect symbol: {e}.")))
                     },
                 }
                 file += 1;
             }
             if file != BOARD_WIDTH {
                 return Err(ParseError(format!(
-                    "FEN rank {} size should be exactly {}, got: {}.",
-                    rank_fen, BOARD_WIDTH, file
+                    "FEN rank {rank_fen} size should be exactly {BOARD_WIDTH}, got: {file}."
                 )));
             }
         }
@@ -159,11 +158,11 @@ impl Position {
         }
         result.halfmove_clock = match halfmove_clock.parse::<u8>() {
             Ok(num) => num,
-            Err(e) => return Err(ParseError(format!("Halfmove clock parsing error: {}", e))),
+            Err(e) => return Err(ParseError(format!("Halfmove clock parsing error: {e}."))),
         };
         result.fullmove_counter = match fullmove_counter.parse::<NonZeroU16>() {
             Ok(num) => num,
-            Err(e) => return Err(ParseError(format!("Fullmove counter parsing error: {}", e))),
+            Err(e) => return Err(ParseError(format!("Fullmove counter parsing error: {e}."))),
         };
         // TODO: Add checks for board validity:
         // - Pawns can't be on ranks 1 and 8.
@@ -199,8 +198,7 @@ impl TryFrom<&str> for Position {
             4 => Self::from_fen(&Position::patch_epd(input)),
             parts => Err(ParseError(format!(
                 "Board representation should be either FEN (6 parts) or EPD body (4 parts), got: \
-                 {}.",
-                parts
+                 {parts}."
             ))),
         }
     }
@@ -215,7 +213,7 @@ impl ToString for Position {
             self.side_to_move,
             CastlingRights::fen(self.white_castling, self.black_castling),
             match self.en_passant_square {
-                Some(square) => format!("{}", square),
+                Some(square) => format!("{square}"),
                 None => "-".to_string(),
             },
             self.halfmove_clock,
