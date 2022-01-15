@@ -17,4 +17,4 @@ body:
         Is this feature supported in other engines (e.g. Stockfish, Leela Chess Zero)?
         What is the rationale behind adding this enhancement?
     validations:
-      required: true
+      required: false
