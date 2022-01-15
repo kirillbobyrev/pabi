@@ -1,0 +1,20 @@
+name: Feature Request
+description: Suggest an idea for this project
+title: '[Feature]: '
+labels: ['feature']
+body:
+  - type: textarea
+    attributes:
+      description: A clear description of the feature you would like to have.
+      placeholder: |
+        What problem does this solve? How does this feature improve the engine?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      description: Context
+      placeholder: |
+        Is this feature supported in other engines (e.g. Stockfish, Leela Chess Zero)?
+        What is the rationale behind adding this enhancement?
+    validations:
+      required: false
