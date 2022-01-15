@@ -1,7 +1,7 @@
 name: Feature Request/Enhancement
 description: Have a new idea of any feature you want to propose ? Please suggest.
 title: '[Feature]: '
-labels: ['goal: Addition']
+labels: ['feature']
 body:
   - type: textarea
     id: description
