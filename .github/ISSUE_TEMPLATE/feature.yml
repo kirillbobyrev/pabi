@@ -10,29 +10,3 @@ body:
       description: A brief description of the enhancement or Feature you want propose.
     validations:
       required: true
-  - type: textarea
-    id: solution
-    attributes:
-      label: Solution
-      description: Any Solution you like to propose?
-    validations:
-      required: true    
-  - type: textarea
-    id: screenshot
-    attributes:
-      label: Screenshots
-      description: Please add any screenshots if it is applicable
-    validations:
-      required: false
-  - type: textarea
-    id: additionalinfo
-    attributes:
-      label: Additional information
-      description: Is there any additional information you wish to add?
-    validations:
-      required: false
-  - type: markdown
-    attributes:
-      value: |
-        You can Summit your Request.
-        
