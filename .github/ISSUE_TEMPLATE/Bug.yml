@@ -19,7 +19,7 @@ body:
         2. Enter command...
         3. See the error...
     validations:
-     required: false    
+     required: false
   - type: textarea
     attributes:
       label: Logs
