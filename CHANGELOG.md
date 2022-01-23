@@ -16,7 +16,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 -
 
-## [0.0.0] - 2019-02-15
+## [0.0.1] - [TBD YEAR]-[TBD MONTH]-[TBD DAY]
 
-[unreleased]: https://github.com/kirillbobyrev/pabi/compare/v0.0.0...HEAD
-[0.0.0]: https://github.com/kirillbobyrev/pabi/releases/tag/v0.0.0
+[unreleased]: https://github.com/kirillbobyrev/pabi/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/kirillbobyrev/pabi/releases/tag/v0.0.1

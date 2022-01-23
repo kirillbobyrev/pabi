@@ -97,6 +97,9 @@ impl From<u64> for Bitboard {
     }
 }
 
+const LINE_SEPARATOR: &str = "\n";
+const SQUARE_SEPARATOR: &str = " ";
+
 impl fmt::Debug for Bitboard {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO: This is quite verbose. Refactor or explain what is happening.
@@ -109,11 +112,17 @@ impl fmt::Debug for Bitboard {
                 .take(BOARD_SIZE as usize)
                 .chunks(BOARD_WIDTH as usize)
                 .into_iter()
-                .map(std::iter::Iterator::collect)
+                .map(|chunk| chunk
+                    .map(|ch| match ch {
+                        '1' => '1',
+                        '0' => '.',
+                        _ => unreachable!(),
+                    })
+                    .join(SQUARE_SEPARATOR))
                 .collect::<Vec<String>>()
                 .iter()
                 .rev()
-                .join("\n")
+                .join(LINE_SEPARATOR)
         )
     }
 }
@@ -267,29 +276,12 @@ impl Board {
         }
         None
     }
+}
 
-    /// Dumps the board in a simple format ('.' for empty square, FEN algebraic
-    /// symbol for piece) a-la Stockfish "debug" command in UCI mode.
-    pub fn render_ascii(self) -> String {
-        let mut result = String::new();
-        for rank in Rank::iter().rev() {
-            for file in File::iter() {
-                let ascii_symbol = match self.at(Square::new(file, rank)) {
-                    Some(piece) => piece.algebraic_symbol(),
-                    None => '.',
-                };
-                result.push(ascii_symbol);
-                if file != File::H {
-                    const SQUARE_SEPARATOR: char = ' ';
-                    result.push(SQUARE_SEPARATOR);
-                }
-            }
-            const LINE_SEPARATOR: char = '\n';
-            if rank != Rank::One {
-                result.push(LINE_SEPARATOR);
-            }
-        }
-        result
+impl Default for Board {
+    /// Returns a `Board` for starting position.
+    fn default() -> Self {
+        Self::empty()
     }
 }
 
@@ -323,10 +315,26 @@ impl ToString for Board {
     }
 }
 
-impl Default for Board {
-    /// Returns a `Board` for starting position.
-    fn default() -> Self {
-        Self::starting()
+impl fmt::Debug for Board {
+    /// Dumps the board in a simple format ('.' for empty square, FEN algebraic
+    /// symbol for piece) a-la Stockfish "debug" command in UCI mode.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for rank in Rank::iter().rev() {
+            for file in File::iter() {
+                let ascii_symbol = match self.at(Square::new(file, rank)) {
+                    Some(piece) => piece.algebraic_symbol(),
+                    None => '.',
+                };
+                write!(f, "{}", ascii_symbol)?;
+                if file != File::H {
+                    write!(f, "{}", SQUARE_SEPARATOR)?;
+                }
+            }
+            if rank != Rank::One {
+                write!(f, "{}", LINE_SEPARATOR)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -387,38 +395,38 @@ mod test {
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Bitboard::default()),
-            "00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000"
+            ". . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . ."
         );
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Bitboard::full()),
-            "11111111\n\
-             11111111\n\
-             11111111\n\
-             11111111\n\
-             11111111\n\
-             11111111\n\
-             11111111\n\
-             11111111"
+            "1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1"
         );
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Bitboard::from(Square::G5) | Bitboard::from(Square::B8)),
-            "01000000\n\
-             00000000\n\
-             00000000\n\
-             00000010\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000"
+            ". 1 . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . 1 .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . ."
         );
     }
 
@@ -430,63 +438,63 @@ mod test {
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", black.all()),
-            "11111111\n\
-             11111111\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000"
+            "1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . ."
         );
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", white.all() | black.all()),
-            "11111111\n\
-             11111111\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             11111111\n\
-             11111111"
+            "1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             1 1 1 1 1 1 1 1\n\
+             1 1 1 1 1 1 1 1"
         );
 
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", white.king),
-            "00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00001000"
+            ". . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . 1 . . ."
         );
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", black.pawns),
-            "00000000\n\
-             11111111\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000"
+            ". . . . . . . .\n\
+             1 1 1 1 1 1 1 1\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . ."
         );
         #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", black.knights),
-            "01000010\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000\n\
-             00000000"
+            ". 1 . . . . 1 .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . ."
         );
     }
 
@@ -494,7 +502,7 @@ mod test {
     fn board_dump() {
         #[rustfmt::skip]
         assert_eq!(
-            Board::starting().render_ascii(),
+            format!("{:?}", Board::starting()),
             "r n b q k b n r\n\
              p p p p p p p p\n\
              . . . . . . . .\n\
@@ -510,7 +518,7 @@ mod test {
         );
         #[rustfmt::skip]
         assert_eq!(
-            Board::empty().render_ascii(),
+            format!("{:?}", Board::empty()),
             ". . . . . . . .\n\
              . . . . . . . .\n\
              . . . . . . . .\n\

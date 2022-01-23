@@ -1,5 +1,6 @@
 //! Convenient utility functions for Pabi that can be used from benchmarks and
 //! public tests.
+
 use std::io::Read;
 use std::{fs, path};
 

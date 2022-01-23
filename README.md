@@ -7,14 +7,13 @@
 
 [![Dependencies](https://deps.rs/repo/github/kirillbobyrev/pabi/status.svg)](https://deps.rs/repo/github/kirillbobyrev/pabi)
 
-[![Build](https://github.com/kirillbobyrev/pabi/actions/workflows/build.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/build.yaml)
-[![Lint](https://github.com/kirillbobyrev/pabi/actions/workflows/lint.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/lint.yaml)
-[![Test Suite](https://github.com/kirillbobyrev/pabi/actions/workflows/test.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/test.yaml)
-[![Build docs](https://github.com/kirillbobyrev/pabi/actions/workflows/docs.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/docs.yaml)
-[![Test Coverage](https://github.com/kirillbobyrev/pabi/actions/workflows/coverage.yaml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/coverage.yaml)
+[![Build](https://github.com/kirillbobyrev/pabi/actions/workflows/build.yml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/build.yml)
+[![Test Suite](https://github.com/kirillbobyrev/pabi/actions/workflows/test.yml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/test.yml)
+[![Lint](https://github.com/kirillbobyrev/pabi/actions/workflows/lint.yml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/lint.yml)
+[![Security audit](https://github.com/kirillbobyrev/pabi/actions/workflows/audit.yml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/audit.yml)
 
-Pabi is a modern chess engine. It is in the early days of development and not
-functional yet: see documentation below for roadmap and details.
+Pabi is a hypermodern chess engine. It is in the early days of development and
+not functional yet: see documentation below for roadmap and details.
 
 ## Goals
 
@@ -22,20 +21,20 @@ Pabi is inspired by a number of existing Chess and Go engines. Many of these
 amazing and strong engines were started over a decade ago: they are hard to
 understand, use and modify.
 
-In contrast, Pabi strives to be __modern__ and __high-quality__ chess engine
-focusing on standard chess (as opposed to Fisher Random and other notable
+In contrast, Pabi strives to be **hypermodern** and **high-quality** chess
+engine focusing on standard chess (as opposed to Fisher Random and other notable
 variations).
 
-__Modern__ means that it uses up-to-date [Rust] toolchain, is targeting new
+**Hypermodern** means that it uses up-to-date [Rust] toolchain, is targeting new
 processor architectures, uses latest developments in the domains of programming
-tooling and (possibly) Machine Learning.
+tooling, Chess Programming and Machine Learning.
 
-__High-quality__ means that Pabi will take full advantage of
+**High-quality** means that Pabi will take full advantage of
 
 - Unit testing and integration testing: the majority of the codebase is
   well-tested and the HEAD is in the functional state. Also, advanced
   testing techniques such as [Fuzzing] are used.
-- Performance testing and benchmarking: pabi should be __fast__. Each change
+- Performance testing and benchmarking: pabi should be **fast**. Each change
   should be tested and confirmed to not cause any performance regressions.
 - Continuous quality assurance: GitHub has awesome infrastructure. [GitHub
   Actions] make it possible to test, benchmark and warn on
@@ -44,7 +43,7 @@ __High-quality__ means that Pabi will take full advantage of
 - Documentation: [rustdoc] has awesome features, e.g. warning on
   unudocumented code and testing example code in the documentation.
 
-Pabi strives to be __user-__ and __developer-friendly__.
+Pabi strives to be **user-** and **developer-friendly**.
 
 - Building/downloading it should be straightforward. Anyone willing to try
   it out can either run it locally (possibly in the [Web UI]) or on Lichess
@@ -59,14 +58,14 @@ Pabi strives to be __user-__ and __developer-friendly__.
   making their impact obvious in combination with CI and automated checks
   run in each Pull Request.
 
-Pabi strives to provide a __platform__ for exploration. Testing new ideas is
+Pabi strives to provide a **platform** for exploration. Testing new ideas is
 only valuable if the outcome if such tests can be well understood and can be
 interpreted. There are plenty of interesting ideas to be tried (e.g. different
 evaluation network architecture, different training methods and network
 distillation/quantization as means of compression). See [Resources] for a list
 of candidates.
 
-Pabi strives to be __strong__. It should participate in [Computer Chess Rating
+Pabi strives to be **strong**. It should participate in [Computer Chess Rating
 Lists] (CCRL) and ultimately, if and when it reaches 3000+ ELO strength, in
 Chess.com [Computer Chess Championship] (CCCC)[^cccc]. As such, it should be
 fine-tuned for the time formats (mainly Blitz and Rapid) that are popular in

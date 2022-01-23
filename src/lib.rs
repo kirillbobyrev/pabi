@@ -1,7 +1,10 @@
-//! Modern and high-quality chess engine. See [README] for more information
-//! about design and implementation goals.
+//! Modern and high-quality chess engine. See
+//!
+//! - [README] for information about design and implementation goals.
+//! - [Resources] for information on important papers and other engines.
 //!
 //! [README]: https://github.com/kirillbobyrev/pabi/blob/main/README.md
+//! [Resources]: https://github.com/kirillbobyrev/pabi/wiki/Resources
 
 // TODO: Gradually move most of warnings to deny.
 #![warn(missing_docs, variant_size_differences)]
@@ -44,12 +47,14 @@
 // TODO: Re-export types for convenience.
 pub mod chess;
 
+pub mod perft;
 pub mod util;
 
 use clap::Parser;
 use sysinfo::{System, SystemExt};
 use tracing::info;
 
+/// Options for invoking through command-line.
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 pub struct Opts {

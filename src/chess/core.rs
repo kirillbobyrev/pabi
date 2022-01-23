@@ -49,11 +49,11 @@ impl TryFrom<char> for File {
 impl TryFrom<u8> for File {
     type Error = ParseError;
 
-    fn try_from(file: u8) -> Result<Self, Self::Error> {
-        match file {
-            0..=7 => Ok(unsafe { mem::transmute(file) }),
+    fn try_from(column: u8) -> Result<Self, Self::Error> {
+        match column {
+            0..=7 => Ok(unsafe { mem::transmute(column) }),
             _ => Err(ParseError(format!(
-                "Unknown file ({file}): needs to be in 0..BOARD_WIDTH."
+                "Unknown file ({column}): needs to be in 0..BOARD_WIDTH."
             ))),
         }
     }
@@ -92,11 +92,11 @@ impl TryFrom<char> for Rank {
 impl TryFrom<u8> for Rank {
     type Error = ParseError;
 
-    fn try_from(rank: u8) -> Result<Self, Self::Error> {
-        match rank {
-            0..=7 => Ok(unsafe { mem::transmute(rank) }),
+    fn try_from(row: u8) -> Result<Self, Self::Error> {
+        match row {
+            0..=7 => Ok(unsafe { mem::transmute(row) }),
             _ => Err(ParseError(format!(
-                "Unknown rank ({rank}): needs to be in 0..BOARD_WIDTH."
+                "Unknown rank ({row}): needs to be in 0..BOARD_WIDTH."
             ))),
         }
     }
@@ -150,13 +150,50 @@ impl Square {
     }
 
     /// Returns file (column) on which the square is located.
-    pub fn file(&self) -> File {
-        unsafe { mem::transmute(*self as u8 % BOARD_WIDTH) }
+    pub fn file(self) -> File {
+        unsafe { mem::transmute(self as u8 % BOARD_WIDTH) }
     }
 
     /// Returns rank (row) on which the square is located.
-    pub fn rank(&self) -> Rank {
-        unsafe { mem::transmute(*self as u8 / BOARD_WIDTH) }
+    pub fn rank(self) -> Rank {
+        unsafe { mem::transmute(self as u8 / BOARD_WIDTH) }
+    }
+
+    pub(in crate::chess) fn shift(self, direction: Direction) -> Option<Square> {
+        // TODO: Maybe extend this to all cases and don't check for candidate < 0. Check
+        // if it's faster on the benchmarks.
+        match direction {
+            Direction::UpLeft | Direction::Right | Direction::DownLeft => {
+                if self.file() == File::H {
+                    return None;
+                }
+            },
+            Direction::UpRight | Direction::Left | Direction::DownRight => {
+                if self.file() == File::A {
+                    return None;
+                }
+            },
+            _ => (),
+        }
+        let shift: i8 = match direction {
+            Direction::UpLeft => BOARD_WIDTH as i8 + 1,
+            Direction::Up => BOARD_WIDTH as i8,
+            Direction::UpRight => BOARD_WIDTH as i8 - 1,
+            Direction::Right => 1,
+            Direction::Left => -1,
+            Direction::DownLeft => -(BOARD_WIDTH as i8 - 1),
+            Direction::Down => -(BOARD_WIDTH as i8),
+            Direction::DownRight => -(BOARD_WIDTH as i8 + 1),
+        };
+        // TODO: Should this be TryFrom<i8> instead?
+        let candidate = self as i8 + shift;
+        if candidate < 0 {
+            return None;
+        }
+        match Square::try_from(candidate as u8) {
+            Ok(square) => Some(square),
+            Err(_) => None,
+        }
     }
 }
 
@@ -243,7 +280,7 @@ impl fmt::Display for Player {
 ///
 /// [chess pieces]: https://en.wikipedia.org/wiki/Chess_piece
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum PieceKind {
     King,
     Queen,
@@ -366,15 +403,23 @@ pub enum CastlingSide {
     Long,
 }
 
+/// Directions on the board from a perspective of White player.
+///
+/// Traditionally those are North (Up), West (Left), East (Right), South (Down)
+/// and their combinations. However, using cardinal directions is unnecessarily
+/// confusing, hence relative directions are more straightforward to use and
+/// argue about.
+#[derive(Copy, Clone, Debug)]
+#[allow(missing_docs)]
 pub(in crate::chess) enum Direction {
-    NorthWest,
-    North,
-    NorthEast,
-    West,
-    East,
-    SouthWest,
-    South,
-    SouthEast,
+    UpLeft,
+    Up,
+    UpRight,
+    Right,
+    Left,
+    DownLeft,
+    Down,
+    DownRight,
 }
 
 /// Track the ability to [castle] each side (kingside is often referred to as
@@ -389,8 +434,8 @@ pub(in crate::chess) enum Direction {
 #[allow(missing_docs)]
 pub enum CastlingRights {
     Neither,
-    OnlyKingside,
-    OnlyQueenside,
+    OnlyShort,
+    OnlyLong,
     Both,
 }
 
@@ -417,8 +462,8 @@ impl TryFrom<&str> for CastlingRights {
         }
         match fen {
             "-" | "" => Ok(Self::Neither),
-            "k" | "K" => Ok(Self::OnlyKingside),
-            "q" | "Q" => Ok(Self::OnlyQueenside),
+            "k" | "K" => Ok(Self::OnlyShort),
+            "q" | "Q" => Ok(Self::OnlyLong),
             "kq" | "KQ" => Ok(Self::Both),
             _ => return Err(ParseError(format!("Unknown castling rights: {fen}."))),
         }
@@ -433,8 +478,8 @@ impl CastlingRights {
         }
         let render_rights = |rights: CastlingRights| match rights {
             Self::Neither => "",
-            Self::OnlyKingside => "k",
-            Self::OnlyQueenside => "q",
+            Self::OnlyShort => "k",
+            Self::OnlyLong => "q",
             Self::Both => "kq",
         };
         format!(
@@ -449,7 +494,7 @@ impl CastlingRights {
 mod test {
     use std::mem::{size_of, size_of_val};
 
-    use super::{File, ParseError, PieceKind, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
+    use super::{Direction, File, ParseError, PieceKind, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
 
     #[test]
     fn rank() {
@@ -576,12 +621,139 @@ mod test {
     #[test]
     fn primitive_size() {
         assert_eq!(size_of::<Square>(), 1);
-        // Primitives will have small size thanks to the niche optimizatins:
+        // Primitives will have small size thanks to the niche optimizations:
         // https://rust-lang.github.io/unsafe-code-guidelines/layout/enums.html#layout-of-a-data-carrying-enums-without-a-repr-annotation
         assert_eq!(size_of::<PieceKind>(), size_of::<Option<PieceKind>>());
         // This is going to be very useful for square-centric board implementation.
         let square_to_pieces: [Option<PieceKind>; BOARD_SIZE as usize] =
             [None; BOARD_SIZE as usize];
         assert_eq!(size_of_val(&square_to_pieces), BOARD_SIZE as usize);
+    }
+
+    #[test]
+    fn within_board_shift() {
+        // D1.
+        let square = Square::E4;
+        assert_eq!(square.shift(Direction::Left), Some(Square::D4));
+        assert_eq!(square.shift(Direction::Up), Some(Square::E5));
+        assert_eq!(square.shift(Direction::UpRight), Some(Square::D5));
+        assert_eq!(square.shift(Direction::UpLeft), Some(Square::F5));
+        assert_eq!(square.shift(Direction::Right), Some(Square::F4));
+        assert_eq!(square.shift(Direction::Down), Some(Square::E3));
+        assert_eq!(square.shift(Direction::DownRight), Some(Square::D3));
+        assert_eq!(square.shift(Direction::DownLeft), Some(Square::F3));
+    }
+
+    #[test]
+    fn border_squares_shift() {
+        // D1.
+        let square = Square::D1;
+        assert_eq!(square.shift(Direction::Left), Some(Square::C1));
+        assert_eq!(square.shift(Direction::Up), Some(Square::D2));
+        assert_eq!(square.shift(Direction::UpRight), Some(Square::C2));
+        assert_eq!(square.shift(Direction::UpLeft), Some(Square::E2));
+        assert_eq!(square.shift(Direction::Right), Some(Square::E1));
+        for direction in [Direction::Down, Direction::DownRight, Direction::DownLeft] {
+            assert_eq!(square.shift(direction), None);
+        }
+
+        // A2.
+        let square = Square::A2;
+        assert_eq!(square.shift(Direction::Up), Some(Square::A3));
+        assert_eq!(square.shift(Direction::UpLeft), Some(Square::B3));
+        assert_eq!(square.shift(Direction::Down), Some(Square::A1));
+        assert_eq!(square.shift(Direction::DownLeft), Some(Square::B1));
+        assert_eq!(square.shift(Direction::Right), Some(Square::B2));
+        for direction in [Direction::Left, Direction::UpRight, Direction::DownRight] {
+            assert_eq!(square.shift(direction), None);
+        }
+
+        // F8.
+        let square = Square::F8;
+        assert_eq!(square.shift(Direction::Left), Some(Square::E8));
+        assert_eq!(square.shift(Direction::Down), Some(Square::F7));
+        assert_eq!(square.shift(Direction::DownRight), Some(Square::E7));
+        assert_eq!(square.shift(Direction::DownLeft), Some(Square::G7));
+        assert_eq!(square.shift(Direction::Right), Some(Square::G8));
+        for direction in [Direction::Up, Direction::UpRight, Direction::UpLeft] {
+            assert_eq!(square.shift(direction), None);
+        }
+
+        // H6.
+        let square = Square::H6;
+        assert_eq!(square.shift(Direction::Left), Some(Square::G6));
+        assert_eq!(square.shift(Direction::Up), Some(Square::H7));
+        assert_eq!(square.shift(Direction::UpRight), Some(Square::G7));
+        assert_eq!(square.shift(Direction::Down), Some(Square::H5));
+        assert_eq!(square.shift(Direction::DownRight), Some(Square::G5));
+        for direction in [Direction::UpLeft, Direction::DownLeft, Direction::Right] {
+            assert_eq!(square.shift(direction), None);
+        }
+    }
+
+    #[test]
+    fn corner_squares_shift() {
+        // A1.
+        let square = Square::A1;
+        assert_eq!(square.shift(Direction::Up), Some(Square::A2));
+        assert_eq!(square.shift(Direction::UpLeft), Some(Square::B2));
+        assert_eq!(square.shift(Direction::Right), Some(Square::B1));
+        for direction in [
+            Direction::Left,
+            Direction::UpRight,
+            Direction::Down,
+            Direction::DownRight,
+            Direction::DownLeft,
+        ] {
+            assert_eq!(square.shift(direction), None);
+        }
+
+        // A8.
+        let square = Square::A8;
+        assert_eq!(square.shift(Direction::Down), Some(Square::A7));
+        assert_eq!(square.shift(Direction::DownLeft), Some(Square::B7));
+        assert_eq!(square.shift(Direction::Right), Some(Square::B8));
+        for direction in [
+            Direction::Left,
+            Direction::Up,
+            Direction::UpRight,
+            Direction::UpLeft,
+            Direction::DownRight,
+        ] {
+            assert_eq!(square.shift(direction), None);
+        }
+
+        // H8.
+        let square = Square::H8;
+        assert_eq!(square.shift(Direction::Left), Some(Square::G8));
+        assert_eq!(square.shift(Direction::Down), Some(Square::H7));
+        assert_eq!(square.shift(Direction::DownRight), Some(Square::G7));
+        for direction in [
+            Direction::Up,
+            Direction::UpRight,
+            Direction::UpLeft,
+            Direction::DownLeft,
+            Direction::Right,
+        ] {
+            assert_eq!(square.shift(direction), None);
+        }
+
+        // H1.
+        let square = Square::H1;
+        assert_eq!(square.shift(Direction::Left), Some(Square::G1));
+        assert_eq!(square.shift(Direction::Up), Some(Square::H2));
+        assert_eq!(square.shift(Direction::UpRight), Some(Square::G2));
+        for direction in [
+            Direction::UpLeft,
+            Direction::Right,
+            Direction::DownRight,
+            Direction::Down,
+            Direction::DownLeft,
+        ] {
+            assert_eq!(square.shift(direction), None);
+        }
+
+        let square = Square::E4;
+        assert_eq!(square.shift(Direction::Up), Some(Square::E5));
     }
 }

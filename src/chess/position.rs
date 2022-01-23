@@ -2,6 +2,7 @@
 //! about the board and tracks the state of castling, 50-move rule draw, etc.
 //!
 //! [Chess Position]: https://www.chessprogramming.org/Chess_Position
+
 use std::fmt;
 use std::num::NonZeroU16;
 
@@ -29,11 +30,20 @@ use crate::chess::core::{CastlingRights, ParseError, Piece, Player, Rank, Square
 /// [Forsyth-Edwards Notation]: https://www.chessprogramming.org/Forsyth-Edwards_Notation
 /// [Extended Position Description]: https://www.chessprogramming.org/Extended_Position_Description
 /// [Operations]: https://www.chessprogramming.org/Extended_Position_Description#Operations
-// Note: This stores information about pieces in BitboardSets. Stockfish and
-// many other engines maintain both piece- and square-centric representations at
-// once to speed up querying the piece on a specific square.
-// TODO: Check if this yields any benefits. It's likely to be very important for
-// hashing and some square-centric algorithms.
+// TODO: This only stores information about pieces in BitboardSets. Stockfish
+// and many other engines maintain both piece- and square-centric
+// representations at once to speed up querying the piece on a specific square.
+// Implement and benchmark this.
+// TODO: Add checks for board validity? Not sure if it'd be useful, but here are
+// the heuristics:
+// - Pawns can't be on ranks 1 and 8.
+// - There can't be more than 8 pawns per side.
+// - There should be exactly two kings.
+// - If there is a check, there should only be one.
+// - En passant squares can not be ni ranks other than 3 and 6.
+// Theoretically, this can still not be "correct" position of the classical
+// chess. However, this is probably sufficient for Pabi's needs. This should
+// probably be a debug assertion.
 pub struct Position {
     pub(in crate::chess) board: Board,
     pub(in crate::chess) white_castling: CastlingRights,
@@ -76,9 +86,7 @@ impl Position {
     ///   ' ' En passant target square
     ///   ' ' Halfmove clock
     ///   ' ' Fullmove counter
-    // TODO: Delegate from_fen to the fields (board, etc).
-    // TODO: Conceal this from public API? Only leave the From<&str> entrypoint that
-    // would sanitize the string and provide meaningful defaults.
+    // TODO: Delegate from_fen to the fields (board, etc)?
     fn from_fen(fen: &str) -> Result<Self, ParseError> {
         let parts = fen.split_ascii_whitespace();
         let (
@@ -164,15 +172,6 @@ impl Position {
             Ok(num) => num,
             Err(e) => return Err(ParseError(format!("Fullmove counter parsing error: {e}."))),
         };
-        // TODO: Add checks for board validity:
-        // - Pawns can't be on ranks 1 and 8.
-        // - There can't be more than 8 pawns per side.
-        // - There should be exactly two kings.
-        // - If there is a check, there should only be one.
-        // - En passant squares can not be ni ranks other than 3 and 6.
-        // Theoretically, this can still not be "correct" position of the
-        // classical chess. However, this is probably sufficient for Pabi's
-        // needs. This should probably be a debug assertion.
         Ok(result)
     }
 
@@ -181,6 +180,8 @@ impl Position {
     }
 }
 
+// TODO: There are many &str <-> String conversions. Memory allocations are
+// expensive, it would be better to consume strings and avoid allocations.
 impl TryFrom<&str> for Position {
     type Error = ParseError;
 
@@ -224,8 +225,7 @@ impl ToString for Position {
 
 impl fmt::Debug for Position {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.board.render_ascii())?;
-        Ok(())
+        write!(f, "{:?}", self.board)
     }
 }
 
