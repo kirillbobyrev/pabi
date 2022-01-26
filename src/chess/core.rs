@@ -1,6 +1,6 @@
 //! Board primitives commonly used within [`crate::chess`].
 
-use std::error::Error;
+use anyhow::bail;
 use std::{fmt, mem};
 
 #[allow(missing_docs)]
@@ -34,27 +34,23 @@ impl fmt::Display for File {
 // TODO: Here and in Rank: implement From<u8> and see whether/how much faster it
 // is than the safe checked version.
 impl TryFrom<char> for File {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
-    fn try_from(file: char) -> Result<Self, Self::Error> {
+    fn try_from(file: char) -> anyhow::Result<Self> {
         match file {
             'a'..='h' => Ok(unsafe { mem::transmute(file as u8 - b'a') }),
-            _ => Err(ParseError(format!(
-                "Unknown file ({file}): needs to be in 'a'..='h'."
-            ))),
+            _ => bail!("unknown file: expected within 'a'..='h', got '{file}'"),
         }
     }
 }
 
 impl TryFrom<u8> for File {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
-    fn try_from(column: u8) -> Result<Self, Self::Error> {
+    fn try_from(column: u8) -> anyhow::Result<Self> {
         match column {
             0..=7 => Ok(unsafe { mem::transmute(column) }),
-            _ => Err(ParseError(format!(
-                "Unknown file ({column}): needs to be in 0..BOARD_WIDTH."
-            ))),
+            _ => bail!("unknown file: expected within 0..BOARD_WIDTH, got {column}"),
         }
     }
 }
@@ -79,27 +75,23 @@ pub enum Rank {
 }
 
 impl TryFrom<char> for Rank {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
-    fn try_from(rank: char) -> Result<Self, Self::Error> {
+    fn try_from(rank: char) -> anyhow::Result<Self> {
         match rank {
             '1'..='8' => Ok(unsafe { mem::transmute(rank as u8 - b'1') }),
-            _ => Err(ParseError(format!(
-                "Unknown rank ({rank}): needs to be in '1'..='8'."
-            ))),
+            _ => bail!("unknown rank: expected within '1'..='8', got '{rank}'"),
         }
     }
 }
 
 impl TryFrom<u8> for Rank {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
-    fn try_from(row: u8) -> Result<Self, Self::Error> {
+    fn try_from(row: u8) -> anyhow::Result<Self> {
         match row {
             0..=7 => Ok(unsafe { mem::transmute(row) }),
-            _ => Err(ParseError(format!(
-                "Unknown rank ({row}): needs to be in 0..BOARD_WIDTH."
-            ))),
+            _ => bail!("unknown rank: expected within 0..BOARD_WIDTH, got {row}"),
         }
     }
 }
@@ -203,33 +195,32 @@ impl Square {
 }
 
 impl TryFrom<u8> for Square {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
     /// Creates a square given its position on the board.
     ///
     /// # Errors
     ///
     /// If given square index is outside 0..[`BOARD_SIZE`] range.
-    fn try_from(square_index: u8) -> Result<Self, Self::Error> {
+    fn try_from(square_index: u8) -> anyhow::Result<Self> {
         // Exclusive range patterns are not allowed: https://github.com/rust-lang/rust/issues/37854
         const MAX_INDEX: u8 = BOARD_SIZE - 1;
         match square_index {
             0..=MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
-            _ => Err(ParseError(format!(
-                "Unknown square_index ({square_index}): needs to be in 0..BOARD_SIZE."
-            ))),
+            _ => bail!("unknown square index: needs to be in 0..BOARD_SIZE, got {square_index}"),
         }
     }
 }
 
 impl TryFrom<&str> for Square {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
-    fn try_from(square: &str) -> Result<Self, ParseError> {
+    fn try_from(square: &str) -> anyhow::Result<Self> {
         if square.bytes().len() != 2 {
-            return Err(ParseError(format!(
-                "Unknown square ({square}): should be two-char."
-            )));
+            bail!(
+                "unknown square: should be two-char, got {square} with {} chars",
+                square.bytes().len()
+            );
         }
         let (file, rank) = (
             *square.as_bytes().get(0).unwrap() as char,
@@ -255,15 +246,13 @@ pub enum Player {
 }
 
 impl TryFrom<&str> for Player {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
-    fn try_from(player: &str) -> Result<Self, Self::Error> {
+    fn try_from(player: &str) -> anyhow::Result<Self> {
         match player {
             "w" => Ok(Self::White),
             "b" => Ok(Self::Black),
-            _ => Err(ParseError(format!(
-                "Unknown player ({player}): should be either 'w' or 'b'."
-            ))),
+            _ => bail!("unknown player: expected 'w' or 'b', got '{player}'"),
         }
     }
 }
@@ -303,19 +292,6 @@ pub struct Piece {
     pub kind: PieceKind,
 }
 
-/// Wraps a message indicating failure in parsing part of a chess position
-/// (FEN/EPD).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseError(pub String);
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Error for ParseError {}
-
 impl Piece {
     /// Algebraic notation symbol used in FEN. Uppercase for white, lowercase
     /// for black.
@@ -336,9 +312,9 @@ impl Piece {
 }
 
 impl TryFrom<char> for Piece {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
-    fn try_from(symbol: char) -> Result<Self, ParseError> {
+    fn try_from(symbol: char) -> anyhow::Result<Self> {
         match symbol {
             'K' => Ok(Self {
                 owner: Player::White,
@@ -388,9 +364,7 @@ impl TryFrom<char> for Piece {
                 owner: Player::Black,
                 kind: PieceKind::Pawn,
             }),
-            _ => Err(ParseError(
-                "Piece symbols should be within \"KQRBNPkqrbnp\"".into(),
-            )),
+            _ => bail!("unknown piece symbol: expected within \"KQRBNPkqrbnp\", got '{symbol}'"),
         }
     }
 }
@@ -445,7 +419,7 @@ pub enum CastlingRights {
 }
 
 impl TryFrom<&str> for CastlingRights {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
     /// Parses [`CastlingRights`] for one player from the FEN format. The input
     /// should be ether lowercase ASCII letters or uppercase ones. The user
@@ -459,18 +433,19 @@ impl TryFrom<&str> for CastlingRights {
     /// [`CastlingRights`] := [K/k] [Q/q]
     ///
     /// Note that both letters have to be either uppercase or lowercase.
-    fn try_from(fen: &str) -> Result<Self, ParseError> {
-        if fen.len() > 2 {
-            return Err(ParseError(format!(
-                "Castling rights should contain up to 2 symbols, got: {fen}."
-            )));
+    fn try_from(fen: &str) -> anyhow::Result<Self> {
+        if fen.bytes().len() > 2 {
+            bail!(
+                "unknown castling rights: expected <=2 symbols, got: {fen} with {} symbols",
+                fen.bytes().len()
+            );
         }
         match fen {
             "-" | "" => Ok(Self::Neither),
             "k" | "K" => Ok(Self::OnlyShort),
             "q" | "Q" => Ok(Self::OnlyLong),
             "kq" | "KQ" => Ok(Self::Both),
-            _ => return Err(ParseError(format!("Unknown castling rights: {fen}."))),
+            _ => bail!("unknown castling rights: {fen}"),
         }
     }
 }
@@ -499,82 +474,106 @@ impl CastlingRights {
 mod test {
     use std::mem::{size_of, size_of_val};
 
-    use super::{Direction, File, ParseError, PieceKind, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
+    use pretty_assertions::assert_eq;
+
+    use super::{Direction, File, PieceKind, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
 
     #[test]
     fn rank() {
-        let ranks: Vec<_> = ('1'..='9').map(Rank::try_from).collect();
         assert_eq!(
-            ranks,
+            ('1'..='9')
+                .filter_map(|ch| Rank::try_from(ch).ok())
+                .collect::<Vec<Rank>>(),
             vec![
-                Ok(Rank::One),
-                Ok(Rank::Two),
-                Ok(Rank::Three),
-                Ok(Rank::Four),
-                Ok(Rank::Five),
-                Ok(Rank::Six),
-                Ok(Rank::Seven),
-                Ok(Rank::Eight),
-                Err(ParseError(
-                    "Unknown rank (9): needs to be in '1'..='8'.".to_string()
-                )),
+                Rank::One,
+                Rank::Two,
+                Rank::Three,
+                Rank::Four,
+                Rank::Five,
+                Rank::Six,
+                Rank::Seven,
+                Rank::Eight,
             ]
         );
-        let ranks: Vec<_> = (0..=BOARD_WIDTH).map(Rank::try_from).collect();
         assert_eq!(
-            ranks,
+            ('1'..='9')
+                .filter_map(|idx| Rank::try_from(idx).ok())
+                .collect::<Vec<Rank>>(),
             vec![
-                Ok(Rank::One),
-                Ok(Rank::Two),
-                Ok(Rank::Three),
-                Ok(Rank::Four),
-                Ok(Rank::Five),
-                Ok(Rank::Six),
-                Ok(Rank::Seven),
-                Ok(Rank::Eight),
-                Err(ParseError(
-                    "Unknown rank (8): needs to be in 0..BOARD_WIDTH.".to_string()
-                )),
+                Rank::One,
+                Rank::Two,
+                Rank::Three,
+                Rank::Four,
+                Rank::Five,
+                Rank::Six,
+                Rank::Seven,
+                Rank::Eight,
             ]
         );
     }
 
     #[test]
+    #[should_panic(expected = "unknown rank: expected within '1'..='8', got '9'")]
+    fn rank_from_incorrect_char() {
+        let _ = Rank::try_from('9').unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown rank: expected within '1'..='8', got '0'")]
+    fn rank_from_incorrect_char_zero() {
+        let _ = Rank::try_from('0').unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown rank: expected within 0..BOARD_WIDTH, got 8")]
+    fn rank_from_incorrect_index() {
+        let _ = Rank::try_from(BOARD_WIDTH).unwrap();
+    }
+
+    #[test]
     fn file() {
-        let files: Vec<_> = ('a'..='i').map(File::try_from).collect();
         assert_eq!(
-            files,
+            ('a'..='i')
+                .filter_map(|ch| File::try_from(ch).ok())
+                .collect::<Vec<File>>(),
             vec![
-                Ok(File::A),
-                Ok(File::B),
-                Ok(File::C),
-                Ok(File::D),
-                Ok(File::E),
-                Ok(File::F),
-                Ok(File::G),
-                Ok(File::H),
-                Err(ParseError(
-                    "Unknown file (i): needs to be in 'a'..='h'.".to_string()
-                ))
+                File::A,
+                File::B,
+                File::C,
+                File::D,
+                File::E,
+                File::F,
+                File::G,
+                File::H,
             ]
         );
-        let files: Vec<_> = (0..=BOARD_WIDTH).map(File::try_from).collect();
         assert_eq!(
-            files,
+            (0..=BOARD_WIDTH)
+                .filter_map(|idx| File::try_from(idx).ok())
+                .collect::<Vec<File>>(),
             vec![
-                Ok(File::A),
-                Ok(File::B),
-                Ok(File::C),
-                Ok(File::D),
-                Ok(File::E),
-                Ok(File::F),
-                Ok(File::G),
-                Ok(File::H),
-                Err(ParseError(
-                    "Unknown file (8): needs to be in 0..BOARD_WIDTH.".to_string()
-                ))
+                File::A,
+                File::B,
+                File::C,
+                File::D,
+                File::E,
+                File::F,
+                File::G,
+                File::H,
             ]
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown file: expected within 'a'..='h', got 'i'")]
+    fn file_from_incorrect_char() {
+        let _ = File::try_from('i').unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown file: expected within 0..BOARD_WIDTH, got 8")]
+    fn file_from_incorrect_index() {
+        let _ = File::try_from(BOARD_WIDTH).unwrap();
     }
 
     #[test]
@@ -588,20 +587,11 @@ mod test {
             BOARD_SIZE,
         ]
         .iter()
-        .map(|square| Square::try_from(*square))
+        .filter_map(|square| Square::try_from(*square).ok())
         .collect();
         assert_eq!(
             squares,
-            vec![
-                Ok(Square::A1),
-                Ok(Square::H8),
-                Ok(Square::H1),
-                Ok(Square::A2),
-                Ok(Square::F3),
-                Err(ParseError(
-                    "Unknown square_index (64): needs to be in 0..BOARD_SIZE.".to_string()
-                ))
-            ]
+            vec![Square::A1, Square::H8, Square::H1, Square::A2, Square::F3,]
         );
         let squares: Vec<_> = [
             (File::B, Rank::Three),
@@ -621,6 +611,12 @@ mod test {
             squares,
             vec![Square::B3, Square::F5, Square::H8, Square::E4]
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown square index: needs to be in 0..BOARD_SIZE, got 64")]
+    fn square_from_incorrect_index() {
+        let _ = Square::try_from(BOARD_SIZE).unwrap();
     }
 
     #[test]

@@ -44,7 +44,8 @@ impl Bitboard {
         Self { bits: 0 }
     }
 
-    /// Constructs a bitboard representing a full set of squares: from A1 to H8.
+    /// Constructs a bitboard representing the universal set, it contains all
+    /// squares by setting all bits to binary one.
     #[must_use]
     pub const fn full() -> Self {
         Self { bits: u64::MAX }
@@ -424,6 +425,8 @@ const SQUARE_SEPARATOR: &str = " ";
 
 #[cfg(test)]
 mod test {
+    use pretty_assertions::assert_eq;
+
     use super::{Bitboard, BitboardSet, Board};
     use crate::chess::core::Square;
 
@@ -562,7 +565,10 @@ mod test {
             . . . . . . 1 ."
         );
         assert_eq!(
-            format!("{:?}", bitboard - Bitboard::from_squares(&[Square::A1, Square::E4, Square::G8])),
+            format!(
+                "{:?}",
+                bitboard - Bitboard::from_squares(&[Square::A1, Square::E4, Square::G8])
+            ),
             "1 . 1 1 1 1 . 1\n\
             1 1 1 1 . 1 1 1\n\
             . . 1 . . . . .\n\

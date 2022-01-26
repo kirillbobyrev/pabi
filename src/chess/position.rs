@@ -3,13 +3,14 @@
 //!
 //! [Chess Position]: https://www.chessprogramming.org/Chess_Position
 
+use anyhow::{bail, Context};
 use std::fmt;
 use std::num::NonZeroU16;
 
 use itertools::Itertools;
 
 use crate::chess::bitboard::{Bitboard, Board};
-use crate::chess::core::{CastlingRights, ParseError, Piece, Player, Rank, Square, BOARD_WIDTH};
+use crate::chess::core::{CastlingRights, Piece, Player, Rank, Square, BOARD_WIDTH};
 
 /// State of the chess game: board, half-move counters and castling rights,
 /// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
@@ -109,7 +110,7 @@ impl Position {
     ///   ' ' Halfmove clock
     ///   ' ' Fullmove counter
     // TODO: Delegate from_fen to the fields (board, etc)?
-    fn from_fen(fen: &str) -> Result<Self, ParseError> {
+    fn from_fen(fen: &str) -> anyhow::Result<Self> {
         let parts = fen.split_ascii_whitespace();
         let (
             pieces_placement,
@@ -120,7 +121,10 @@ impl Position {
             fullmove_counter,
         ) = match parts.collect_tuple() {
             Some(t) => t,
-            None => return Err(ParseError("FEN should have 6 parts".into())),
+            None => bail!(
+                "incorrect FEN: expected 6 parts, got: {}",
+                fen.split_ascii_whitespace().count()
+            ),
         };
         // Parse Piece Placement.
         let mut result = Self::empty();
@@ -128,7 +132,7 @@ impl Position {
         let mut rank_id = 8;
         for rank_fen in ranks {
             if rank_id == 0 {
-                return Err(ParseError("There should be 8 ranks".into()));
+                bail!("incorrect FEN: expected 8 ranks, got {pieces_placement}");
             }
             rank_id -= 1;
             let rank = Rank::try_from(rank_id)?;
@@ -152,20 +156,16 @@ impl Position {
                         let square = Square::new(file.try_into()?, rank);
                         *owner.bitboard_for(piece.kind) |= Bitboard::from(square);
                     },
-                    Err(e) => {
-                        return Err(ParseError(format!("FEN rank has incorrect symbol: {e}.")))
-                    },
+                    Err(e) => return Err(e),
                 }
                 file += 1;
             }
             if file != BOARD_WIDTH {
-                return Err(ParseError(format!(
-                    "FEN rank {rank_fen} size should be exactly {BOARD_WIDTH}, got: {file}."
-                )));
+                bail!("incorrect FEN: rank size should be exactly {BOARD_WIDTH}, got {rank_fen} of length {file}");
             }
         }
         if rank_id != 0 {
-            return Err(ParseError("There should be 8 ranks".into()));
+            bail!("incorrect FEN: there should be 8 ranks, got {pieces_placement}");
         }
         result.side_to_move = side_to_move.try_into()?;
         // "-" is no-op (empty board already has cleared castling rights).
@@ -188,11 +188,19 @@ impl Position {
         }
         result.halfmove_clock = match halfmove_clock.parse::<u8>() {
             Ok(num) => num,
-            Err(e) => return Err(ParseError(format!("Halfmove clock parsing error: {e}."))),
+            Err(e) => {
+                return Err(e).with_context(|| {
+                    format!("incorrect FEN: halfmove clock can not be parsed {halfmove_clock}")
+                });
+            },
         };
         result.fullmove_counter = match fullmove_counter.parse::<NonZeroU16>() {
             Ok(num) => num,
-            Err(e) => return Err(ParseError(format!("Fullmove counter parsing error: {e}."))),
+            Err(e) => {
+                return Err(e).with_context(|| {
+                    format!("incorrect FEN: fullmove counter can not be parsed {fullmove_counter}")
+                });
+            },
         };
         Ok(result)
     }
@@ -205,7 +213,7 @@ impl Position {
 // TODO: There are many &str <-> String conversions. Memory allocations are
 // expensive, it would be better to consume strings and avoid allocations.
 impl TryFrom<&str> for Position {
-    type Error = ParseError;
+    type Error = anyhow::Error;
 
     fn try_from(input: &str) -> Result<Self, Self::Error> {
         let mut input = input;
@@ -219,10 +227,10 @@ impl TryFrom<&str> for Position {
         match input.split_ascii_whitespace().count() {
             6 => Self::from_fen(input),
             4 => Self::from_fen(&Self::patch_epd(input)),
-            parts => Err(ParseError(format!(
-                "Board representation should be either FEN (6 parts) or EPD body (4 parts), got: \
-                 {parts}."
-            ))),
+            parts => bail!(
+                "incorrect board representation: expected either FEN (6 parts) or EPD body \
+                (4 parts), got: {parts}"
+            ),
         }
     }
 }
@@ -253,6 +261,8 @@ impl fmt::Debug for Position {
 
 #[cfg(test)]
 mod test {
+    use pretty_assertions::assert_eq;
+
     use super::Position;
 
     fn check_correct_fen(fen: &str) {

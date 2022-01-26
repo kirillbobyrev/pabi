@@ -18,6 +18,8 @@
 // TODO: Look at and compare speed with https://github.com/jordanbray/chess
 // TODO: Also implement divide and use <https://github.com/jniemann66/juddperft> to validate the
 // results.
+// TODO: Another source for comparison:
+// https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/movegen.rs#L68-L85
 // TODO: Maybe use python-chess testset of perft moves:
 // https://github.com/niklasf/python-chess/blob/master/examples/perft/random.perft
 // TODO: Compare with other engines and perft generators, e.g. Berserk,
@@ -30,25 +32,63 @@ use crate::chess::bitboard::Bitboard;
 use crate::chess::core::{CastlingSide, PieceKind, Square, BOARD_SIZE};
 use crate::chess::position::Position;
 
+/// Represents any kind of a legal chess move. A move is the only way to mutate
+/// the [`Position`] and change the board state. Moves are not sorted according
+/// to their potential "value" by the move generator. The move representation
+/// has one-to-one correspodance with the UCI move representation and can be
+/// (de)serialized from to it. The moves can also be indexed to be fed as an
+/// input to the Neural Network evaluators that would be able assess their
+/// potential without evaluation the post-state.
+///
+/// For a move to be serialized in Standard Algebraic Notation (SAN), a move
+/// also requires the [`Position`] it will be applied in, because SAN requires
+/// additional flags (e.g. indicating "check"/"checkmate" or moving piece
+/// disambiguation).
+// TODO: Implement bijection for a move and a numeric index.
 #[derive(Debug)]
 pub enum Move {
+    /// Regular moves are "normal" (not originating from en-passant or castling
+    /// rules) chess moves.
     Regular {
+        /// The square a piece is moving from.
         from: Square,
+        /// The square the piece will occupy after the move is made.
         to: Square,
         /// A pawn can be promoted into [`PieceKind::Queen`],
         /// [`PieceKind::Rook`], [`PieceKind::Bishop`] or [`PieceKind::Knight`].
         promotion: Option<Promotion>,
     },
+    /// [En passant] is a capture of opponent's pawn "in passing" (when it
+    /// advances two squares from its original position).
+    ///
+    /// [En passant]: https://en.wikipedia.org/wiki/En_passant
     EnPassant {
+        /// The square a piece is moving from.
         from: Square,
+        /// The square the piece will occupy after the move is made.
         to: Square,
     },
+    /// The [Castling] move that will involve a king and a rook "jummping" over
+    /// each other.
+    ///
+    /// > Castling may be done only if the king has never moved, the rook
+    /// involved has never moved,   the squares between the king and the
+    /// rook involved are unoccupied, the king is not in   check, and the
+    /// king does not cross over or end on a square attacked by an enemy piece.
+    ///
+    /// [Castling]: https://en.wikipedia.org/wiki/Castling
     Castle {
+        /// The king can castle to one of the rooks: either a kingside rook
+        /// ("short castle" or "O-O") or queenside rook ("long castle" or
+        /// "O-O-O").
         side: CastlingSide,
     },
 }
 
 impl ToString for Move {
+    /// Serializes a move in [UCI format].
+    ///
+    /// [UCI format]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
     fn to_string(&self) -> String {
         match &self {
             Move::Regular {
@@ -67,7 +107,14 @@ impl ToString for Move {
                 )
             },
             Move::EnPassant { from, to } => from.to_string() + &to.to_string(),
+            // > Castling is one of the rules of chess and is technically a king move (Hooper &
+            // Whyld 1992:71).
+            //
+            // TODO: Castling target square depends on the rook position. In other chess variants
+            // (most notably, Fischer Random Chess or FRC) this will be different.
             Move::Castle { side } => match *side {
+                // TODO: This should actually be "e1g1", "e1c1", "e8g8", "e8c8" dependnig on the
+                // side. Maybe `Move::to_string()` is the wrong API.
                 CastlingSide::Short => "O-O".to_string(),
                 CastlingSide::Long => "O-O-O".to_string(),
             },
@@ -116,6 +163,7 @@ impl ToString for Promotion {
 ///
 /// This is a performance and correctness-critical path: every modification
 /// should be benchmarked and carefully tested.
+// TODO: Should this be `Position::generate_moves` instead?
 #[must_use]
 pub fn generate_moves(position: &Position) -> Vec<Move> {
     // TODO: let mut vec = Vec::with_capacity(N=60); and tweak the specific number.
@@ -141,18 +189,16 @@ pub fn generate_moves(position: &Position) -> Vec<Move> {
             PieceKind::Queen | PieceKind::Rook | PieceKind::Bishop => todo!(),
             PieceKind::Knight => KNIGHT_ATTACKS[from as usize],
             PieceKind::Pawn => todo!(),
-        };
+        } - our_pieces.all();
         // Loop over the target squares and produce moves for those which are
         // not occupied by our pieces. The empty squares or opponent pieces
         // (captures) are valid.
         for to in targets.iter() {
-            if !our_pieces.all().is_set(to) {
-                result.push(Move::Regular {
-                    from,
-                    to,
-                    promotion: None,
-                })
-            }
+            result.push(Move::Regular {
+                from,
+                to,
+                promotion: None,
+            })
         }
     }
     // TODO: Check afterstate? Our king should not be checked.
@@ -230,4 +276,6 @@ const KNIGHT_ATTACKS: [Bitboard; BOARD_SIZE as usize] = [
 ];
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use pretty_assertions::assert_eq;
+}
