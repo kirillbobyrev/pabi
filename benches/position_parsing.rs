@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pabi::chess::position::Position;
 use pabi::util;
 
@@ -17,7 +17,7 @@ fn parse_positions(positions: &Vec<String>) {
 fn parse(c: &mut Criterion) {
     let mut positions = vec![];
     for book in util::stockfish_books() {
-        for serialized_position in util::read_compressed_book(book).lines() {
+        for serialized_position in util::read_compressed_book(&book).lines() {
             positions.push(serialized_position.to_string());
         }
     }

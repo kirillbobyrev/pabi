@@ -54,9 +54,15 @@ use clap::Parser;
 use sysinfo::{System, SystemExt};
 use tracing::info;
 
-/// Options for invoking through command-line.
+/// Options for Command-Line Driver.
+// TODO: Write a decent message for the CLI options here.
+// TODO: Write a decent help message.
+// TODO: Print version containing features, build type, etc (+BMI2, etc). This
+// will require making build.rs and building the version string out of Cargo env
+// values
+// (https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates).
 #[derive(Parser, Debug)]
-#[clap(about, version, author)]
+#[clap(version, author)]
 pub struct Opts {
     pub fen: String,
 }

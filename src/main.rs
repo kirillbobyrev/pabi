@@ -1,7 +1,6 @@
 use clap::StructOpt;
 use pabi::chess::position::Position;
 use pabi::Opts;
-use tracing_subscriber;
 
 fn main() {
     let opts = Opts::parse();

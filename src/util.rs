@@ -6,6 +6,7 @@ use std::{fs, path};
 
 // TODO: These functions should be tested, documented and maybe eventually
 // turned into something safer.
+#[must_use]
 pub fn stockfish_books() -> Vec<path::PathBuf> {
     let mut books_root = path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     books_root.push("data/books/");
@@ -27,7 +28,8 @@ pub fn stockfish_books() -> Vec<path::PathBuf> {
     result
 }
 
-pub fn read_compressed_book(book: path::PathBuf) -> String {
+#[must_use]
+pub fn read_compressed_book(book: &path::PathBuf) -> String {
     let file = fs::File::open(&book).unwrap();
     let mut archive = zip::read::ZipArchive::new(file).unwrap();
     assert_eq!(archive.len(), 1);

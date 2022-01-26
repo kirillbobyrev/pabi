@@ -10,8 +10,8 @@
 //! [Bitboard]: https://www.chessprogramming.org/Bitboards
 // TODO: This comment needs revamp.
 
-use std::fmt;
-use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor};
+use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Not, Sub};
+use std::{fmt, mem};
 
 use itertools::Itertools;
 use strum::IntoEnumIterator;
@@ -27,78 +27,45 @@ use crate::chess::core::{File, Piece, PieceKind, Player, Rank, Square, BOARD_SIZ
 ///
 /// Bitboard is a thin wrapper around [u64].
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
-pub struct Bitboard(u64);
+pub struct Bitboard {
+    bits: u64,
+}
 
 impl Bitboard {
-    pub fn data(&self) -> u64 {
-        self.0
+    /// Constructs Bitboard from pre-calculated bits.
+    #[must_use]
+    pub const fn from_bits(bits: u64) -> Self {
+        Self { bits }
     }
 
-    pub fn empty() -> Self {
-        Self::default()
+    /// Constructs a bitboard representing empty set of squares.
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
     }
 
-    pub fn full() -> Self {
-        Self(u64::MAX)
+    /// Constructs a bitboard representing a full set of squares: from A1 to H8.
+    #[must_use]
+    pub const fn full() -> Self {
+        Self { bits: u64::MAX }
     }
 
-    pub(in crate::chess) fn with_squares(squares: &[Square]) -> Self {
+    pub(in crate::chess) fn from_squares(squares: &[Square]) -> Self {
         let mut result = Self::default();
         for square in squares {
-            result |= Bitboard::from(*square);
+            result |= Self::from(*square);
         }
         result
     }
 
-    pub(in crate::chess) fn is_set(&self, square: Square) -> bool {
-        (self.data() & (1u64 << square as u8)) > 0
+    pub(in crate::chess) fn is_set(self, square: Square) -> bool {
+        (self.bits & (1u64 << square as u8)) > 0
+    }
+
+    pub(in crate::chess) fn iter(self) -> BitboardIterator {
+        BitboardIterator { bits: self.bits }
     }
 }
-
-impl BitOr for Bitboard {
-    type Output = Self;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.data().bitor(rhs.data()))
-    }
-}
-
-impl BitOrAssign for Bitboard {
-    fn bitor_assign(&mut self, rhs: Self) {
-        self.0.bitor_assign(rhs.data());
-    }
-}
-
-impl BitAnd for Bitboard {
-    type Output = Self;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.data().bitand(rhs.data()))
-    }
-}
-
-impl BitXor for Bitboard {
-    type Output = Self;
-
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.data().bitxor(rhs.data()))
-    }
-}
-
-impl From<Square> for Bitboard {
-    fn from(square: Square) -> Self {
-        (1u64 << square as u8).into()
-    }
-}
-
-impl From<u64> for Bitboard {
-    fn from(data: u64) -> Self {
-        Bitboard(data)
-    }
-}
-
-const LINE_SEPARATOR: &str = "\n";
-const SQUARE_SEPARATOR: &str = " ";
 
 impl fmt::Debug for Bitboard {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -106,7 +73,7 @@ impl fmt::Debug for Bitboard {
         write!(
             f,
             "{}",
-            format!("{:#066b}", self.data())
+            format!("{:#066b}", self.bits)
                 .chars()
                 .rev()
                 .take(BOARD_SIZE as usize)
@@ -124,6 +91,105 @@ impl fmt::Debug for Bitboard {
                 .rev()
                 .join(LINE_SEPARATOR)
         )
+    }
+}
+
+impl BitOr for Bitboard {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self {
+            bits: self.bits.bitor(rhs.bits),
+        }
+    }
+}
+
+impl BitOrAssign for Bitboard {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.bits.bitor_assign(rhs.bits);
+    }
+}
+
+impl BitAnd for Bitboard {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self {
+            bits: self.bits.bitand(rhs.bits),
+        }
+    }
+}
+
+impl BitXor for Bitboard {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Self {
+            bits: self.bits.bitxor(rhs.bits),
+        }
+    }
+}
+
+impl Sub for Bitboard {
+    type Output = Self;
+
+    /// [Relative component], i.e. Result = LHS \ RHS.
+    ///
+    /// [Relative component]: https://en.wikipedia.org/wiki/Complement_%28set_theory%29#Relative_complement
+    fn sub(self, rhs: Self) -> Self::Output {
+        self & !rhs
+    }
+}
+
+impl Not for Bitboard {
+    type Output = Self;
+
+    /// Returns [complement
+    /// set](https://en.wikipedia.org/wiki/Complement_%28set_theory%29) of Self,
+    /// i.e. flipping the set squares to unset and vice versa.
+    fn not(self) -> Self::Output {
+        Self { bits: !self.bits }
+    }
+}
+
+impl From<Square> for Bitboard {
+    fn from(square: Square) -> Self {
+        (1u64 << square as u8).into()
+    }
+}
+
+impl From<u64> for Bitboard {
+    fn from(bits: u64) -> Self {
+        Self { bits }
+    }
+}
+
+/// Iterates over set squares in a given [Bitboard] from least significant bits
+/// to most significant bits.
+pub(in crate::chess) struct BitboardIterator {
+    // TODO: Check if operating on the actual Bitboard will not hurt the
+    // performance. This iterator is likely to be on the hot path, so changing
+    // this code is sensitive. The optimizer might be smart enough do deal with
+    // back-and-forth redundant integer conversions but that has to be
+    // benchmarked.
+    bits: u64,
+}
+
+impl Iterator for BitboardIterator {
+    type Item = Square;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.bits == 0 {
+            return None;
+        }
+        // Get the least significant set 1 and consume it from the iterator by
+        // resetting the bit.
+        let next_index = self.bits.trailing_zeros();
+        self.bits ^= 1 << next_index;
+        // For performance reasons, it's better to convert directly: the
+        // conversion is safe because trailing_zeros() will return a number in
+        // 0..64 range.
+        Some(unsafe { mem::transmute(next_index as u8) })
     }
 }
 
@@ -155,10 +221,10 @@ impl BitboardSet {
         Self {
             king: Square::E1.into(),
             queen: Square::D1.into(),
-            rooks: Bitboard::with_squares(&[Square::A1, Square::H1]),
-            bishops: Bitboard::with_squares(&[Square::C1, Square::F1]),
-            knights: Bitboard::with_squares(&[Square::B1, Square::G1]),
-            pawns: Bitboard::with_squares(&[
+            rooks: Bitboard::from_squares(&[Square::A1, Square::H1]),
+            bishops: Bitboard::from_squares(&[Square::C1, Square::F1]),
+            knights: Bitboard::from_squares(&[Square::B1, Square::G1]),
+            pawns: Bitboard::from_squares(&[
                 Square::A2,
                 Square::B2,
                 Square::C2,
@@ -176,10 +242,10 @@ impl BitboardSet {
         Self {
             king: Square::E8.into(),
             queen: Square::D8.into(),
-            rooks: Bitboard::with_squares(&[Square::A8, Square::H8]),
-            bishops: Bitboard::with_squares(&[Square::C8, Square::F8]),
-            knights: Bitboard::with_squares(&[Square::B8, Square::G8]),
-            pawns: Bitboard::with_squares(&[
+            rooks: Bitboard::from_squares(&[Square::A8, Square::H8]),
+            bishops: Bitboard::from_squares(&[Square::C8, Square::F8]),
+            knights: Bitboard::from_squares(&[Square::B8, Square::G8]),
+            pawns: Bitboard::from_squares(&[
                 Square::A7,
                 Square::B7,
                 Square::C7,
@@ -207,6 +273,8 @@ impl BitboardSet {
         }
     }
 
+    // TODO: Maybe completely disallow this? If we have the Square ->
+    // Option<Piece> mapping, this is potentially obsolete.
     pub(in crate::chess) fn at(self, square: Square) -> Option<PieceKind> {
         if self.all().is_set(square) {
             let mut kind = if self.king.is_set(square) {
@@ -239,29 +307,42 @@ impl BitboardSet {
 /// the "back-end" of the chess engine, efficient board representation is
 /// crucial for performance.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Board {
+pub(in crate::chess) struct Board {
     pub(in crate::chess) white_pieces: BitboardSet,
     pub(in crate::chess) black_pieces: BitboardSet,
 }
 
 impl Board {
-    pub fn starting() -> Self {
+    #[must_use]
+    pub(in crate::chess) fn starting() -> Self {
         Self {
             white_pieces: BitboardSet::new_white(),
             black_pieces: BitboardSet::new_black(),
         }
     }
 
-    pub fn empty() -> Self {
+    // Constructs an empty Board to be filled by the board and position builder.
+    #[must_use]
+    pub(in crate::chess) fn empty() -> Self {
         Self {
             white_pieces: BitboardSet::empty(),
             black_pieces: BitboardSet::empty(),
         }
     }
 
-    /// WARNING: This is slow and inefficient for Bitboard-based piece-centric
-    /// representation. Use with caution.
-    pub fn at(self, square: Square) -> Option<Piece> {
+    #[must_use]
+    pub(in crate::chess) fn our_pieces(&self, player: Player) -> BitboardSet {
+        match player {
+            Player::White => self.white_pieces,
+            Player::Black => self.black_pieces,
+        }
+    }
+
+    // WARNING: This is slow and inefficient for Bitboard-based piece-centric
+    // representation. Use with caution.
+    // TODO: Completely disallow bitboard.at()?
+    #[must_use]
+    pub(in crate::chess) fn at(self, square: Square) -> Option<Piece> {
         if let Some(kind) = self.white_pieces.at(square) {
             return Some(Piece {
                 owner: Player::White,
@@ -338,6 +419,9 @@ impl fmt::Debug for Board {
     }
 }
 
+const LINE_SEPARATOR: &str = "\n";
+const SQUARE_SEPARATOR: &str = " ";
+
 #[cfg(test)]
 mod test {
     use super::{Bitboard, BitboardSet, Board};
@@ -346,13 +430,13 @@ mod test {
     #[test]
     fn basics() {
         assert_eq!(std::mem::size_of::<Bitboard>(), 8);
-        assert_eq!(Bitboard::full().data(), u64::MAX);
-        assert_eq!(Bitboard::default().data(), u64::MIN);
+        assert_eq!(Bitboard::full().bits, u64::MAX);
+        assert_eq!(Bitboard::default().bits, u64::MIN);
 
-        assert_eq!(Bitboard::from(Square::A1).data(), 1);
-        assert_eq!(Bitboard::from(Square::B1).data(), 2);
-        assert_eq!(Bitboard::from(Square::D1).data(), 8);
-        assert_eq!(Bitboard::from(Square::H8).data(), 1u64 << 63);
+        assert_eq!(Bitboard::from(Square::A1).bits, 1);
+        assert_eq!(Bitboard::from(Square::B1).bits, 2);
+        assert_eq!(Bitboard::from(Square::D1).bits, 8);
+        assert_eq!(Bitboard::from(Square::H8).bits, 1u64 << 63);
 
         assert_eq!(
             Bitboard::from(Square::D1) | Bitboard::from(Square::B1),
@@ -367,32 +451,134 @@ mod test {
         let black = BitboardSet::new_black();
 
         // Check that each player has 16 pieces.
-        assert_eq!(white.all().data().count_ones(), 16);
-        assert_eq!(black.all().data().count_ones(), 16);
+        assert_eq!(white.all().bits.count_ones(), 16);
+        assert_eq!(black.all().bits.count_ones(), 16);
         // Check that each player has correct number of pieces (previous check
         // was not enough to confirm there are no overlaps).
-        assert_eq!(white.king.data().count_ones(), 1);
-        assert_eq!(black.king.data().count_ones(), 1);
-        assert_eq!(white.queen.data().count_ones(), 1);
-        assert_eq!(black.queen.data().count_ones(), 1);
-        assert_eq!(white.rooks.data().count_ones(), 2);
-        assert_eq!(black.rooks.data().count_ones(), 2);
-        assert_eq!(white.bishops.data().count_ones(), 2);
-        assert_eq!(black.bishops.data().count_ones(), 2);
-        assert_eq!(white.knights.data().count_ones(), 2);
-        assert_eq!(black.knights.data().count_ones(), 2);
-        assert_eq!(white.pawns.data().count_ones(), 8);
-        assert_eq!(black.pawns.data().count_ones(), 8);
+        assert_eq!(white.king.bits.count_ones(), 1);
+        assert_eq!(black.king.bits.count_ones(), 1);
+        assert_eq!(white.queen.bits.count_ones(), 1);
+        assert_eq!(black.queen.bits.count_ones(), 1);
+        assert_eq!(white.rooks.bits.count_ones(), 2);
+        assert_eq!(black.rooks.bits.count_ones(), 2);
+        assert_eq!(white.bishops.bits.count_ones(), 2);
+        assert_eq!(black.bishops.bits.count_ones(), 2);
+        assert_eq!(white.knights.bits.count_ones(), 2);
+        assert_eq!(black.knights.bits.count_ones(), 2);
+        assert_eq!(white.pawns.bits.count_ones(), 8);
+        assert_eq!(black.pawns.bits.count_ones(), 8);
 
         // Check few positions manually.
-        assert_eq!(white.queen.data(), 1 << 3);
-        assert_eq!(black.queen.data(), 1 << (3 + 8 * 7));
+        assert_eq!(white.queen.bits, 1 << 3);
+        assert_eq!(black.queen.bits, 1 << (3 + 8 * 7));
+    }
+
+    #[test]
+    fn bitboard_iterator() {
+        let white = BitboardSet::new_white();
+
+        let mut it = white.king.iter();
+        assert_eq!(it.next(), Some(Square::E1));
+        assert_eq!(it.next(), None);
+
+        let mut it = white.bishops.iter();
+        assert_eq!(it.next(), Some(Square::C1));
+        assert_eq!(it.next(), Some(Square::F1));
+        assert_eq!(it.next(), None);
+
+        // The order is important here: we are iterating from least significant
+        // bits to most significant bits.
+        assert_eq!(
+            white.pawns.iter().collect::<Vec<_>>(),
+            vec![
+                Square::A2,
+                Square::B2,
+                Square::C2,
+                Square::D2,
+                Square::E2,
+                Square::F2,
+                Square::G2,
+                Square::H2,
+            ]
+        );
+    }
+
+    #[test]
+    fn set_ops() {
+        let bitboard = Bitboard::from_squares(&[
+            Square::A1,
+            Square::B1,
+            Square::C1,
+            Square::D1,
+            Square::E1,
+            Square::F1,
+            Square::H1,
+            Square::A2,
+            Square::B2,
+            Square::C2,
+            Square::D2,
+            Square::G2,
+            Square::F2,
+            Square::H2,
+            Square::F3,
+            Square::E4,
+            Square::E5,
+            Square::C6,
+            Square::A7,
+            Square::B7,
+            Square::C7,
+            Square::D7,
+            Square::F7,
+            Square::G7,
+            Square::H7,
+            Square::A8,
+            Square::C8,
+            Square::D8,
+            Square::E8,
+            Square::F8,
+            Square::G8,
+            Square::H8,
+        ]);
+        assert_eq!(
+            format!("{:?}", bitboard),
+            "1 . 1 1 1 1 1 1\n\
+            1 1 1 1 . 1 1 1\n\
+            . . 1 . . . . .\n\
+            . . . . 1 . . .\n\
+            . . . . 1 . . .\n\
+            . . . . . 1 . .\n\
+            1 1 1 1 . 1 1 1\n\
+            1 1 1 1 1 1 . 1"
+        );
+        assert_eq!(
+            format!("{:?}", !bitboard),
+            ". 1 . . . . . .\n\
+            . . . . 1 . . .\n\
+            1 1 . 1 1 1 1 1\n\
+            1 1 1 1 . 1 1 1\n\
+            1 1 1 1 . 1 1 1\n\
+            1 1 1 1 1 . 1 1\n\
+            . . . . 1 . . .\n\
+            . . . . . . 1 ."
+        );
+        assert_eq!(
+            format!("{:?}", bitboard - Bitboard::from_squares(&[Square::A1, Square::E4, Square::G8])),
+            "1 . 1 1 1 1 . 1\n\
+            1 1 1 1 . 1 1 1\n\
+            . . 1 . . . . .\n\
+            . . . . 1 . . .\n\
+            . . . . . . . .\n\
+            . . . . . 1 . .\n\
+            1 1 1 1 . 1 1 1\n\
+            . 1 1 1 1 1 . 1"
+        );
+        assert_eq!(!!bitboard, bitboard);
+        assert_eq!(bitboard - !bitboard, bitboard);
     }
 
     #[test]
     // Check the debug output for few bitboards.
     fn bitboard_dump() {
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Bitboard::default()),
             ". . . . . . . .\n\
@@ -404,7 +590,6 @@ mod test {
              . . . . . . . .\n\
              . . . . . . . ."
         );
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Bitboard::full()),
             "1 1 1 1 1 1 1 1\n\
@@ -416,9 +601,11 @@ mod test {
              1 1 1 1 1 1 1 1\n\
              1 1 1 1 1 1 1 1"
         );
-        #[rustfmt::skip]
         assert_eq!(
-            format!("{:?}", Bitboard::from(Square::G5) | Bitboard::from(Square::B8)),
+            format!(
+                "{:?}",
+                Bitboard::from(Square::G5) | Bitboard::from(Square::B8)
+            ),
             ". 1 . . . . . .\n\
              . . . . . . . .\n\
              . . . . . . . .\n\
@@ -435,7 +622,6 @@ mod test {
         let white = BitboardSet::new_white();
         let black = BitboardSet::new_black();
 
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", black.all()),
             "1 1 1 1 1 1 1 1\n\
@@ -447,7 +633,6 @@ mod test {
              . . . . . . . .\n\
              . . . . . . . ."
         );
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", white.all() | black.all()),
             "1 1 1 1 1 1 1 1\n\
@@ -460,7 +645,6 @@ mod test {
              1 1 1 1 1 1 1 1"
         );
 
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", white.king),
             ". . . . . . . .\n\
@@ -472,7 +656,6 @@ mod test {
              . . . . . . . .\n\
              . . . . 1 . . ."
         );
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", black.pawns),
             ". . . . . . . .\n\
@@ -484,7 +667,6 @@ mod test {
              . . . . . . . .\n\
              . . . . . . . ."
         );
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", black.knights),
             ". 1 . . . . 1 .\n\
@@ -500,7 +682,6 @@ mod test {
 
     #[test]
     fn board_dump() {
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Board::starting()),
             "r n b q k b n r\n\
@@ -516,7 +697,6 @@ mod test {
             Board::starting().to_string(),
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
         );
-        #[rustfmt::skip]
         assert_eq!(
             format!("{:?}", Board::empty()),
             ". . . . . . . .\n\

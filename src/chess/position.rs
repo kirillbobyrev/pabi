@@ -44,6 +44,8 @@ use crate::chess::core::{CastlingRights, ParseError, Piece, Player, Rank, Square
 // Theoretically, this can still not be "correct" position of the classical
 // chess. However, this is probably sufficient for Pabi's needs. This should
 // probably be a debug assertion.
+// Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
+// TODO: Make the fields private, expose appropriate assessors.
 pub struct Position {
     pub(in crate::chess) board: Board,
     pub(in crate::chess) white_castling: CastlingRights,
@@ -64,6 +66,26 @@ pub struct Position {
 }
 
 impl Position {
+    /// Creates the starting position of the standard chess variant.
+    ///
+    /// ```
+    /// use pabi::chess::position::Position;
+    ///
+    /// let starting_position = Position::starting();
+    /// assert_eq!(
+    ///     &starting_position.to_string(),
+    ///     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    /// );
+    /// ```
+    pub fn starting() -> Self {
+        Self {
+            board: Board::starting(),
+            white_castling: CastlingRights::Both,
+            black_castling: CastlingRights::Both,
+            ..Self::empty()
+        }
+    }
+
     // Creates an empty board to be filled by parser.
     fn empty() -> Self {
         Self {
@@ -196,7 +218,7 @@ impl TryFrom<&str> for Position {
         input = input.trim();
         match input.split_ascii_whitespace().count() {
             6 => Self::from_fen(input),
-            4 => Self::from_fen(&Position::patch_epd(input)),
+            4 => Self::from_fen(&Self::patch_epd(input)),
             parts => Err(ParseError(format!(
                 "Board representation should be either FEN (6 parts) or EPD body (4 parts), got: \
                  {parts}."

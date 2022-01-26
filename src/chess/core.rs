@@ -62,6 +62,8 @@ impl TryFrom<u8> for File {
 /// Represents a horizontal row of the chessboard. In chess notation, it is
 /// represented with a number. The implementation assumes zero-based values
 /// (i.e. rank 1 would be 0).
+// TODO: Check if implementing iterators manually (instead of using strum) would
+// be faster.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
 #[allow(missing_docs)]
@@ -145,21 +147,24 @@ pub enum Square {
 
 impl Square {
     /// Connects file (column) and rank (row) to form a full square.
+    #[must_use]
     pub fn new(file: File, rank: Rank) -> Self {
         unsafe { mem::transmute(file as u8 + (rank as u8) * BOARD_WIDTH) }
     }
 
     /// Returns file (column) on which the square is located.
+    #[must_use]
     pub fn file(self) -> File {
         unsafe { mem::transmute(self as u8 % BOARD_WIDTH) }
     }
 
     /// Returns rank (row) on which the square is located.
+    #[must_use]
     pub fn rank(self) -> Rank {
         unsafe { mem::transmute(self as u8 / BOARD_WIDTH) }
     }
 
-    pub(in crate::chess) fn shift(self, direction: Direction) -> Option<Square> {
+    pub(in crate::chess) fn shift(self, direction: Direction) -> Option<Self> {
         // TODO: Maybe extend this to all cases and don't check for candidate < 0. Check
         // if it's faster on the benchmarks.
         match direction {
@@ -190,7 +195,7 @@ impl Square {
         if candidate < 0 {
             return None;
         }
-        match Square::try_from(candidate as u8) {
+        match Self::try_from(candidate as u8) {
             Ok(square) => Some(square),
             Err(_) => None,
         }
@@ -227,10 +232,10 @@ impl TryFrom<&str> for Square {
             )));
         }
         let (file, rank) = (
-            square.bytes().next().unwrap() as char,
-            square.bytes().nth(1).unwrap() as char,
+            *square.as_bytes().get(0).unwrap() as char,
+            *square.as_bytes().get(1).unwrap() as char,
         );
-        Ok(Square::new(file.try_into()?, rank.try_into()?))
+        Ok(Self::new(file.try_into()?, rank.try_into()?))
     }
 }
 
@@ -254,8 +259,8 @@ impl TryFrom<&str> for Player {
 
     fn try_from(player: &str) -> Result<Self, Self::Error> {
         match player {
-            "w" => Ok(Player::White),
-            "b" => Ok(Player::Black),
+            "w" => Ok(Self::White),
+            "b" => Ok(Self::Black),
             _ => Err(ParseError(format!(
                 "Unknown player ({player}): should be either 'w' or 'b'."
             ))),
@@ -472,11 +477,11 @@ impl TryFrom<&str> for CastlingRights {
 
 impl CastlingRights {
     /// Print castling rights of both sides in FEN format.
-    pub(in crate::chess) fn fen(white: CastlingRights, black: CastlingRights) -> String {
-        if white == CastlingRights::Neither && black == CastlingRights::Neither {
+    pub(in crate::chess) fn fen(white: Self, black: Self) -> String {
+        if white == Self::Neither && black == Self::Neither {
             return "-".into();
         }
-        let render_rights = |rights: CastlingRights| match rights {
+        let render_rights = |rights: Self| match rights {
             Self::Neither => "",
             Self::OnlyShort => "k",
             Self::OnlyLong => "q",
@@ -498,7 +503,7 @@ mod test {
 
     #[test]
     fn rank() {
-        let ranks: Vec<_> = ('1'..='9').map(|rank| Rank::try_from(rank)).collect();
+        let ranks: Vec<_> = ('1'..='9').map(Rank::try_from).collect();
         assert_eq!(
             ranks,
             vec![
@@ -515,7 +520,7 @@ mod test {
                 )),
             ]
         );
-        let ranks: Vec<_> = (0..=BOARD_WIDTH).map(|rank| Rank::try_from(rank)).collect();
+        let ranks: Vec<_> = (0..=BOARD_WIDTH).map(Rank::try_from).collect();
         assert_eq!(
             ranks,
             vec![
@@ -536,7 +541,7 @@ mod test {
 
     #[test]
     fn file() {
-        let files: Vec<_> = ('a'..='i').map(|file| File::try_from(file)).collect();
+        let files: Vec<_> = ('a'..='i').map(File::try_from).collect();
         assert_eq!(
             files,
             vec![
@@ -553,7 +558,7 @@ mod test {
                 ))
             ]
         );
-        let files: Vec<_> = (0..=BOARD_WIDTH).map(|file| File::try_from(file)).collect();
+        let files: Vec<_> = (0..=BOARD_WIDTH).map(File::try_from).collect();
         assert_eq!(
             files,
             vec![

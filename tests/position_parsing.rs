@@ -22,7 +22,7 @@ fn check(serialized_position: &str) {
 #[test]
 fn stockfish_books() {
     for book in util::stockfish_books() {
-        for serialized_position in util::read_compressed_book(book).lines() {
+        for serialized_position in util::read_compressed_book(&book).lines() {
             check(serialized_position);
         }
     }
