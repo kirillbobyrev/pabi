@@ -34,4 +34,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features -- --deny clippy::all --deny clippy::pedantic
       - name: typos-action
-        uses: crate-ci/typos@v1.3.7
+        uses: crate-ci/typos@v1.3.9
