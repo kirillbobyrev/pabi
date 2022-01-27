@@ -29,7 +29,7 @@ pub fn stockfish_books() -> Vec<path::PathBuf> {
 }
 
 #[must_use]
-pub fn read_compressed_book(book: &path::PathBuf) -> String {
+pub fn read_compressed_book(book: &path::Path) -> String {
     let file = fs::File::open(&book).unwrap();
     let mut archive = zip::read::ZipArchive::new(file).unwrap();
     assert_eq!(archive.len(), 1);

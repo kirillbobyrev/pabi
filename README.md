@@ -18,7 +18,7 @@ not functional yet: see documentation below for roadmap and details.
 ## Goals
 
 Pabi is inspired by existing Chess and Go engines (mainly [AlphaGo], [lc0],
-[Ceres] and [KataGo]). It strives to hea.
+[Ceres] and [KataGo]). It strives to be a high-quality hypermodern engine.
 
 **Hypermodern**: Pabi should use up-to-date [Rust] toolchain, is targeting new
 processor architectures, uses latest developments in the domains of programming
@@ -53,9 +53,9 @@ Pabi strives to be **user-** and **developer-friendly**.
   run in each Pull Request.
 
 Pabi strives to be a **platform** for experimentation. Testing new ideas is only
-valuable if the outcome the experiment results can be understood and quantified.
-There are plenty of interesting ideas to be tried (e.g. different evaluation
-network architecture, different training methods and network
+valuable if the outcome the experiment results are quantified and easily
+interpreted. There are plenty of interesting ideas to be tried (e.g. different
+evaluation network architecture, different training methods and network
 distillation/quantization as means of compression). See [Resources] for a list
 of candidates.
 
@@ -104,5 +104,5 @@ The project is in pre-0.1.0 stage and the plan can be changed.
 [2.0.0]: https://github.com/kirillbobyrev/pabi/milestone/3
 
 [^cccc]:
-    More technical and format details on CCCC:
+    More details on CCCC:
     <https://www.chess.com/news/view/announcing-the-new-computer-chess-championship>

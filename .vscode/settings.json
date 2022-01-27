@@ -4,6 +4,7 @@
     "bitboard",
     "bitboards",
     "bitboardset",
+    "bitflags",
     "bitor",
     "bitxor",
     "clippy",

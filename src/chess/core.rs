@@ -1,104 +1,141 @@
-//! Board primitives commonly used within [`crate::chess`].
+//! Chess primitives commonly used within [`crate::chess`].
+
+use std::fmt::{self, Write};
+use std::mem;
 
 use anyhow::bail;
-use std::{fmt, mem};
 
 #[allow(missing_docs)]
 pub const BOARD_WIDTH: u8 = 8;
 #[allow(missing_docs)]
 pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 
-/// Represents a column (vertical row) of the chessboard. In chess notation, it
-/// is normally represented with a lowercase letter.
-// TODO: Re-export in lib.rs for convenience?
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
-#[allow(missing_docs)]
-pub enum File {
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
+/// Represents any kind of a legal chess move. A move is the only way to mutate
+/// [`Position`] and change the board state. Moves are not sorted according to
+/// their potential "value" by the move generator. The move representation has
+/// one-to-one correspondence with the UCI move representation and can be
+/// (de)serialized from to it. The moves can also be indexed to be fed as an
+/// input to the Neural Network evaluators that would be able assess their
+/// potential without evaluation the post-state.
+///
+/// For a move to be serialized in Standard Algebraic Notation (SAN), a move
+/// also requires the [`Position`] it will be applied in, because SAN requires
+/// additional flags (e.g. indicating "check"/"checkmate" or moving piece
+/// disambiguation).
+// TODO: Implement bijection for a move and a numeric index.
+// TODO: Switch this to a compact representation of (from, to, flags)
+#[derive(Debug)]
+pub struct Move {
+    /// The square a piece is moving from.
+    from: Square,
+    /// The square the piece will occupy after the move is made.
+    to: Square,
+    /// Move properties: e.g. castle, en-passant, additional information about
+    /// the move.
+    flags: MoveAttributes,
 }
 
-impl fmt::Display for File {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", (b'a' + *self as u8) as char)
+bitflags::bitflags! {
+    /// More information about [`Move`] that makes it possible to make that move
+    /// and dump it in human-readable format (e.g. Standard Algebraic Notation).
+    ///
+    /// Apart from the "regular" or "quiet" moves (simply moving a piece from
+    /// one square to the other), there are few important rules:
+    ///
+    /// - [En passant] is a capture of opponent's pawn "in passing" (when it
+    /// advances two squares from its original position).
+    /// - The [Castle] move that will involve a king and a rook "jumping" over
+    /// each other. Technically, castling is a king move, so `from` and `to`
+    /// move squares will correspond to the king.
+    ///
+    /// > Castling may be done only if the king has never moved, the rook
+    /// involved has never moved, the squares between the king and the rook
+    /// involved are unoccupied, the king is not in check, and the king does
+    /// not cross over or end on a square attacked by an enemy piece.
+    ///
+    /// The values resemble a common [Move Encoding] technique:
+    ///
+    /// | Index | Promotion | Capture | MSB Special | LSB Special | Move Kind |
+    /// | ----- | --------- | ------- | ----------- | ----------- | --------- |
+    /// | 0  | 0 | 0 | 0 | 0 | Quiet move |
+    /// | 1  | 0 | 0 | 0 | 1 | Double pawn push |
+    /// | 2  | 0 | 0 | 1 | 0 | Kingside castle (short castle or O-O) |
+    /// | 3  | 0 | 0 | 1 | 1 | Queenside castle (long castle or O-O-O) |
+    /// | 4  | 0 | 1 | 0 | 0 | Capture |
+    /// | 5  | 0 | 1 | 0 | 1 | En Passant capture |
+    /// | 8  | 1 | 0 | 0 | 0 | Knight promotion |
+    /// | 9  | 1 | 0 | 0 | 1 | Bishop promotion |
+    /// | 10 | 1 | 0 | 1 | 0 | Rook promotion |
+    /// | 11 | 1 | 0 | 1 | 1 | Queen promotion |
+    /// | 12 | 1 | 1 | 0 | 0 | Capture and knight promotion |
+    /// | 13 | 1 | 1 | 0 | 1 | Capture and bishop promotion |
+    /// | 14 | 1 | 1 | 1 | 0 | Capture and rook promotion |
+    /// | 15 | 1 | 1 | 1 | 1 | Capture and queen promotion |
+    ///
+    /// This representation is compact and allows to conveniently query
+    /// attributes for a specific kind of move.
+    ///
+    /// [Castle]: https://en.wikipedia.org/wiki/Castling
+    /// [En passant]: https://en.wikipedia.org/wiki/En_passant
+    /// [Move Encoding]: https://www.chessprogramming.org/Encoding_Moves
+    pub struct MoveAttributes: u8 {
+        /// Moves that do not change the material balance.
+        const QUIET = 0;
+
+        /// Implementation detail.
+        const MSB_SPECIAL = 0b0010;
+        /// Implementation detail.
+        const LSB_SPECIAL = 0b0001;
+
+        /// Pawn advancement by 2 squares from the original rank (second for white and seventh for black).
+        const DOUBLE_PAWN_PUSH = Self::LSB_SPECIAL.bits;
+        /// Short castle or O-O.
+        const KINGSIDE_CASTLE = Self::MSB_SPECIAL.bits;
+        /// Long castle or O-O-O.
+        const QUEENSIDE_CASTLE = Self::MSB_SPECIAL.bits | Self::LSB_SPECIAL.bits;
+
+        /// Moves that changes the material balance.
+        const CAPTURE = 0b0100;
+
+        /// Pawn move to the opponent's "home" rank and promotion to a queen
+        /// (often a default option), knight, bishop or rook.
+        const PROMOTION = 0b1000;
+
+        /// Pawn promotion to [`PieceKind::Knight`].
+        const KNIGHT_PROMOTION = Self::PROMOTION.bits;
+        /// Pawn promotion to [`PieceKind::Bishop`].
+        const BISHOP_PROMOTION = Self::PROMOTION.bits | Self::LSB_SPECIAL.bits;
+        /// Pawn promotion to [`PieceKind::Rook`].
+        const ROOK_PROMOTION = Self::PROMOTION.bits | Self::MSB_SPECIAL.bits;
+        /// Pawn promotion to [`PieceKind::Queen`].
+        const QUEEN_PROMOTION = Self::PROMOTION.bits
+            | Self::MSB_SPECIAL.bits
+            | Self::LSB_SPECIAL.bits;
+
+        /// Pawn capture and promotion to [`PieceKind::Knight`].
+        const CAPTURE_KNIGHT_PROMOTION = Self::CAPTURE.bits | Self::PROMOTION.bits;
+        /// Pawn capture and promotion to [`PieceKind::Bishop`].
+        const CAPTURE_BISHOP_PROMOTION = Self::CAPTURE.bits
+            | Self::PROMOTION.bits
+            | Self::LSB_SPECIAL.bits;
+        /// Pawn capture and promotion to [`PieceKind::Rook`].
+        const CAPTURE_ROOK_PROMOTION = Self::CAPTURE.bits
+            | Self::PROMOTION.bits
+            | Self::MSB_SPECIAL.bits;
+        /// Pawn capture and promotion to [`PieceKind::Queen`].
+        const CAPTURE_QUEEN_PROMOTION = Self::CAPTURE.bits
+            | Self::PROMOTION.bits
+            | Self::MSB_SPECIAL.bits
+            | Self::LSB_SPECIAL.bits;
     }
 }
 
-// TODO: Here and in Rank: implement From<u8> and see whether/how much faster it
-// is than the safe checked version.
-impl TryFrom<char> for File {
-    type Error = anyhow::Error;
-
-    fn try_from(file: char) -> anyhow::Result<Self> {
-        match file {
-            'a'..='h' => Ok(unsafe { mem::transmute(file as u8 - b'a') }),
-            _ => bail!("unknown file: expected within 'a'..='h', got '{file}'"),
-        }
-    }
-}
-
-impl TryFrom<u8> for File {
-    type Error = anyhow::Error;
-
-    fn try_from(column: u8) -> anyhow::Result<Self> {
-        match column {
-            0..=7 => Ok(unsafe { mem::transmute(column) }),
-            _ => bail!("unknown file: expected within 0..BOARD_WIDTH, got {column}"),
-        }
-    }
-}
-
-/// Represents a horizontal row of the chessboard. In chess notation, it is
-/// represented with a number. The implementation assumes zero-based values
-/// (i.e. rank 1 would be 0).
-// TODO: Check if implementing iterators manually (instead of using strum) would
-// be faster.
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
-#[allow(missing_docs)]
-pub enum Rank {
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-    Eight,
-}
-
-impl TryFrom<char> for Rank {
-    type Error = anyhow::Error;
-
-    fn try_from(rank: char) -> anyhow::Result<Self> {
-        match rank {
-            '1'..='8' => Ok(unsafe { mem::transmute(rank as u8 - b'1') }),
-            _ => bail!("unknown rank: expected within '1'..='8', got '{rank}'"),
-        }
-    }
-}
-
-impl TryFrom<u8> for Rank {
-    type Error = anyhow::Error;
-
-    fn try_from(row: u8) -> anyhow::Result<Self> {
-        match row {
-            0..=7 => Ok(unsafe { mem::transmute(row) }),
-            _ => bail!("unknown rank: expected within 0..BOARD_WIDTH, got {row}"),
-        }
-    }
-}
-
-impl fmt::Display for Rank {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", *self as u8 + 1)
+impl ToString for Move {
+    /// Serializes a move in [UCI format].
+    ///
+    /// [UCI format]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
+    fn to_string(&self) -> String {
+        todo!();
     }
 }
 
@@ -236,6 +273,100 @@ impl fmt::Display for Square {
     }
 }
 
+/// Represents a column (vertical row) of the chessboard. In chess notation, it
+/// is normally represented with a lowercase letter.
+// TODO: Re-export in lib.rs for convenience?
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
+#[allow(missing_docs)]
+pub enum File {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+}
+
+impl fmt::Display for File {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", (b'a' + *self as u8) as char)
+    }
+}
+
+// TODO: Here and in Rank: implement From<u8> and see whether/how much faster it
+// is than the safe checked version.
+impl TryFrom<char> for File {
+    type Error = anyhow::Error;
+
+    fn try_from(file: char) -> anyhow::Result<Self> {
+        match file {
+            'a'..='h' => Ok(unsafe { mem::transmute(file as u8 - b'a') }),
+            _ => bail!("unknown file: expected within 'a'..='h', got '{file}'"),
+        }
+    }
+}
+
+impl TryFrom<u8> for File {
+    type Error = anyhow::Error;
+
+    fn try_from(column: u8) -> anyhow::Result<Self> {
+        match column {
+            0..=7 => Ok(unsafe { mem::transmute(column) }),
+            _ => bail!("unknown file: expected within 0..BOARD_WIDTH, got {column}"),
+        }
+    }
+}
+
+/// Represents a horizontal row of the chessboard. In chess notation, it is
+/// represented with a number. The implementation assumes zero-based values
+/// (i.e. rank 1 would be 0).
+// TODO: Check if implementing iterators manually (instead of using strum) would
+// be faster.
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
+#[allow(missing_docs)]
+pub enum Rank {
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
+    Eight,
+}
+
+impl TryFrom<char> for Rank {
+    type Error = anyhow::Error;
+
+    fn try_from(rank: char) -> anyhow::Result<Self> {
+        match rank {
+            '1'..='8' => Ok(unsafe { mem::transmute(rank as u8 - b'1') }),
+            _ => bail!("unknown rank: expected within '1'..='8', got '{rank}'"),
+        }
+    }
+}
+
+impl TryFrom<u8> for Rank {
+    type Error = anyhow::Error;
+
+    fn try_from(row: u8) -> anyhow::Result<Self> {
+        match row {
+            0..=7 => Ok(unsafe { mem::transmute(row) }),
+            _ => bail!("unknown rank: expected within 0..BOARD_WIDTH, got {row}"),
+        }
+    }
+}
+
+impl fmt::Display for Rank {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", *self as u8 + 1)
+    }
+}
+
 /// A standard game of chess is played between two players: White (having the
 /// advantage of the first turn) and Black.
 #[allow(missing_docs)]
@@ -296,17 +427,21 @@ impl Piece {
     /// Algebraic notation symbol used in FEN. Uppercase for white, lowercase
     /// for black.
     pub(in crate::chess) fn algebraic_symbol(&self) -> char {
-        let result = match &self.kind {
-            PieceKind::King => 'k',
-            PieceKind::Queen => 'q',
-            PieceKind::Rook => 'r',
-            PieceKind::Bishop => 'b',
-            PieceKind::Knight => 'n',
-            PieceKind::Pawn => 'p',
-        };
-        match &self.owner {
-            Player::White => result.to_ascii_uppercase(),
-            Player::Black => result,
+        match (&self.owner, &self.kind) {
+            // White player: uppercase symbols.
+            (Player::White, PieceKind::King) => 'K',
+            (Player::White, PieceKind::Queen) => 'Q',
+            (Player::White, PieceKind::Rook) => 'R',
+            (Player::White, PieceKind::Bishop) => 'B',
+            (Player::White, PieceKind::Knight) => 'N',
+            (Player::White, PieceKind::Pawn) => 'P',
+            // Black player: lowercase symbols.
+            (Player::Black, PieceKind::King) => 'k',
+            (Player::Black, PieceKind::Queen) => 'q',
+            (Player::Black, PieceKind::Rook) => 'r',
+            (Player::Black, PieceKind::Bishop) => 'b',
+            (Player::Black, PieceKind::Knight) => 'n',
+            (Player::Black, PieceKind::Pawn) => 'p',
         }
     }
 }
@@ -375,99 +510,133 @@ impl fmt::Display for Piece {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-#[repr(u8)]
-pub enum CastlingSide {
-    Short,
-    Long,
+bitflags::bitflags! {
+    /// Track the ability to [castle] each side (kingside is often referred to as
+    /// O-O or OO, queenside -- O-O-O or OOO). When the king moves, player loses
+    /// ability to castle both sides. When the rook moves, player loses ability to
+    /// castle its corresponding side.
+    ///
+    /// [castle]: https://www.chessprogramming.org/Castling
+    pub struct CastleRights : u8 {
+        #[allow(missing_docs)]
+        const NONE = 0;
+        #[allow(missing_docs)]
+        const WHITE_KINGSIDE = 0b1000;
+        #[allow(missing_docs)]
+        const WHITE_QUEENSIDE = 0b0100;
+        #[allow(missing_docs)]
+        const WHITE_BOTH = Self::WHITE_KINGSIDE.bits | Self::WHITE_QUEENSIDE.bits;
+        #[allow(missing_docs)]
+        const BLACK_KINGSIDE = 0b0010;
+        #[allow(missing_docs)]
+        const BLACK_QUEENSIDE = 0b0001;
+        #[allow(missing_docs)]
+        const BLACK_BOTH = Self::BLACK_KINGSIDE.bits | Self::BLACK_QUEENSIDE.bits;
+        #[allow(missing_docs)]
+        const ALL = Self::WHITE_BOTH.bits | Self::BLACK_BOTH.bits;
+    }
 }
 
-/// Directions on the board from a perspective of White player.
-///
-/// Traditionally those are North (Up), West (Left), East (Right), South (Down)
-/// and their combinations. However, using cardinal directions is unnecessarily
-/// confusing, hence relative directions are more straightforward to use and
-/// argue about.
-#[derive(Copy, Clone, Debug)]
-#[allow(missing_docs)]
-pub(in crate::chess) enum Direction {
-    UpLeft,
-    Up,
-    UpRight,
-    Right,
-    Left,
-    DownLeft,
-    Down,
-    DownRight,
-}
-
-/// Track the ability to [castle] each side (kingside is often referred to as
-/// O-O or OO, queenside -- O-O-O or OOO). When the king moves, player loses
-/// ability to castle both sides, when the rook moves, player loses ability to
-/// castle its corresponding side.
-///
-/// [castle]: https://www.chessprogramming.org/Castling
-// TODO: This is likely to be cleaner using bitflags.
-#[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(missing_docs)]
-pub enum CastlingRights {
-    Neither,
-    OnlyShort,
-    OnlyLong,
-    Both,
-}
-
-impl TryFrom<&str> for CastlingRights {
+impl TryFrom<&str> for CastleRights {
     type Error = anyhow::Error;
 
-    /// Parses [`CastlingRights`] for one player from the FEN format. The input
-    /// should be ether lowercase ASCII letters or uppercase ones. The user
-    /// is responsible for providing valid input cleaned up from the actual
-    /// FEN chunk (can be "-").
+    /// Parses [`CastleRights`] for both players from the FEN format. The user
+    /// is responsible for providing valid input cleaned up from the actual FEN
+    /// chunk.
     ///
     /// # Errors
     ///
     /// Returns [`ParseError`] if given pattern does not match
     ///
-    /// [`CastlingRights`] := [K/k] [Q/q]
+    /// [`CastleRights`] := [K][Q][k][q]
     ///
     /// Note that both letters have to be either uppercase or lowercase.
-    fn try_from(fen: &str) -> anyhow::Result<Self> {
-        if fen.bytes().len() > 2 {
-            bail!(
-                "unknown castling rights: expected <=2 symbols, got: {fen} with {} symbols",
-                fen.bytes().len()
-            );
-        }
-        match fen {
-            "-" | "" => Ok(Self::Neither),
-            "k" | "K" => Ok(Self::OnlyShort),
-            "q" | "Q" => Ok(Self::OnlyLong),
-            "kq" | "KQ" => Ok(Self::Both),
-            _ => bail!("unknown castling rights: {fen}"),
+    fn try_from(input: &str) -> anyhow::Result<Self> {
+        // Enumerate all possibilities.
+        match input.as_bytes() {
+            // K Q k q
+            // - - - -
+            // 0 0 0 0
+            b"-" => Ok(Self::NONE),
+            // 0 0 0 1
+            b"q" => Ok(Self::BLACK_QUEENSIDE),
+            // 0 0 1 0
+            b"k" => Ok(Self::BLACK_KINGSIDE),
+            // 0 0 1 1
+            b"kq" => Ok(Self::BLACK_BOTH),
+            // 0 1 0 0
+            b"Q" => Ok(Self::WHITE_QUEENSIDE),
+            // 0 1 0 1
+            b"Qq" => Ok(Self::WHITE_QUEENSIDE | Self::BLACK_QUEENSIDE),
+            // 0 1 1 0
+            b"Qk" => Ok(Self::WHITE_QUEENSIDE | Self::BLACK_KINGSIDE),
+            // 0 1 1 1
+            b"Qkq" => Ok(Self::WHITE_QUEENSIDE | Self::BLACK_BOTH),
+            // 1 0 0 0
+            b"K" => Ok(Self::WHITE_KINGSIDE),
+            // 1 0 0 1
+            b"Kq" => Ok(Self::WHITE_KINGSIDE | Self::BLACK_QUEENSIDE),
+            // 1 0 1 0
+            b"Kk" => Ok(Self::WHITE_KINGSIDE | Self::BLACK_KINGSIDE),
+            // 1 0 1 1
+            b"Kkq" => Ok(Self::WHITE_KINGSIDE | Self::BLACK_BOTH),
+            // 1 1 0 0
+            b"KQ" => Ok(Self::WHITE_BOTH),
+            // 1 1 0 1
+            b"KQq" => Ok(Self::WHITE_BOTH | Self::BLACK_QUEENSIDE),
+            // 1 1 1 0
+            b"KQk" => Ok(Self::WHITE_BOTH | Self::BLACK_KINGSIDE),
+            // 1 1 1 1
+            b"KQkq" => Ok(Self::ALL),
+            _ => bail!("unknown castle rights: {input}"),
         }
     }
 }
 
-impl CastlingRights {
-    /// Print castling rights of both sides in FEN format.
-    pub(in crate::chess) fn fen(white: Self, black: Self) -> String {
-        if white == Self::Neither && black == Self::Neither {
-            return "-".into();
+impl fmt::Display for CastleRights {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if *self == Self::NONE {
+            return f.write_char('-');
         }
-        let render_rights = |rights: Self| match rights {
-            Self::Neither => "",
-            Self::OnlyShort => "k",
-            Self::OnlyLong => "q",
-            Self::Both => "kq",
-        };
-        format!(
-            "{}{}",
-            render_rights(white).to_uppercase(),
-            render_rights(black)
-        )
+        if *self & Self::WHITE_KINGSIDE != Self::NONE {
+            f.write_char('K')?;
+        }
+        if *self & Self::WHITE_QUEENSIDE != Self::NONE {
+            f.write_char('Q')?;
+        }
+        if *self & Self::BLACK_KINGSIDE != Self::NONE {
+            f.write_char('k')?;
+        }
+        if *self & Self::BLACK_QUEENSIDE != Self::NONE {
+            f.write_char('q')?;
+        }
+        Ok(())
     }
+}
+
+/// Directions on the board from a perspective of White player.
+///
+/// Traditionally those are North (Up), West (Left), East (Right), South (Down)
+/// and their combinations. However, using cardinal directions is confusing,
+/// hence they are replaced by relative directions.
+#[derive(Copy, Clone, Debug)]
+pub(in crate::chess) enum Direction {
+    /// Also known as NorthWest.
+    UpLeft,
+    /// Also known as North.
+    Up,
+    /// Also known as NorthEast.
+    UpRight,
+    /// Also known as East.
+    Right,
+    /// Also known as West.
+    Left,
+    /// Also known as SouthWest.
+    DownLeft,
+    /// Also known as South.
+    Down,
+    /// Also known as SouthEast.
+    DownRight,
 }
 
 #[cfg(test)]
@@ -600,12 +769,7 @@ mod test {
             (File::E, Rank::Four),
         ]
         .iter()
-        .map(|(file, rank)| {
-            Square::new(
-                File::try_from(*file).unwrap(),
-                Rank::try_from(*rank).unwrap(),
-            )
-        })
+        .map(|(file, rank)| Square::new(*file, *rank))
         .collect();
         assert_eq!(
             squares,
@@ -646,8 +810,7 @@ mod test {
     }
 
     #[test]
-    fn border_squares_shift() {
-        // D1.
+    fn border_squares_shift_d1() {
         let square = Square::D1;
         assert_eq!(square.shift(Direction::Left), Some(Square::C1));
         assert_eq!(square.shift(Direction::Up), Some(Square::D2));
@@ -657,8 +820,10 @@ mod test {
         for direction in [Direction::Down, Direction::DownRight, Direction::DownLeft] {
             assert_eq!(square.shift(direction), None);
         }
+    }
 
-        // A2.
+    #[test]
+    fn border_squares_shift_a2() {
         let square = Square::A2;
         assert_eq!(square.shift(Direction::Up), Some(Square::A3));
         assert_eq!(square.shift(Direction::UpLeft), Some(Square::B3));
@@ -668,8 +833,10 @@ mod test {
         for direction in [Direction::Left, Direction::UpRight, Direction::DownRight] {
             assert_eq!(square.shift(direction), None);
         }
+    }
 
-        // F8.
+    #[test]
+    fn border_squares_shift_f8() {
         let square = Square::F8;
         assert_eq!(square.shift(Direction::Left), Some(Square::E8));
         assert_eq!(square.shift(Direction::Down), Some(Square::F7));
@@ -679,8 +846,10 @@ mod test {
         for direction in [Direction::Up, Direction::UpRight, Direction::UpLeft] {
             assert_eq!(square.shift(direction), None);
         }
+    }
 
-        // H6.
+    #[test]
+    fn border_squares_shift_h6() {
         let square = Square::H6;
         assert_eq!(square.shift(Direction::Left), Some(Square::G6));
         assert_eq!(square.shift(Direction::Up), Some(Square::H7));

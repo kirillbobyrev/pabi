@@ -26,7 +26,7 @@ use crate::chess::core::{File, Piece, PieceKind, Player, Rank, Square, BOARD_SIZ
 /// bit corresponds to A1, and the most significant bit - to H8.
 ///
 /// Bitboard is a thin wrapper around [u64].
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Bitboard {
     bits: u64,
 }
@@ -41,18 +41,18 @@ impl Bitboard {
     /// Constructs a bitboard representing empty set of squares.
     #[must_use]
     pub const fn empty() -> Self {
-        Self { bits: 0 }
+        Self::from_bits(0)
     }
 
     /// Constructs a bitboard representing the universal set, it contains all
     /// squares by setting all bits to binary one.
     #[must_use]
     pub const fn full() -> Self {
-        Self { bits: u64::MAX }
+        Self::from_bits(u64::MAX)
     }
 
     pub(in crate::chess) fn from_squares(squares: &[Square]) -> Self {
-        let mut result = Self::default();
+        let mut result = Self::empty();
         for square in squares {
             result |= Self::from(*square);
         }
@@ -60,7 +60,7 @@ impl Bitboard {
     }
 
     pub(in crate::chess) fn is_set(self, square: Square) -> bool {
-        (self.bits & (1u64 << square as u8)) > 0
+        (self.bits & (1u64 << square as u8)) != 0
     }
 
     pub(in crate::chess) fn iter(self) -> BitboardIterator {
@@ -99,9 +99,7 @@ impl BitOr for Bitboard {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        Self {
-            bits: self.bits.bitor(rhs.bits),
-        }
+        Self::from_bits(self.bits.bitor(rhs.bits))
     }
 }
 
@@ -115,9 +113,7 @@ impl BitAnd for Bitboard {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        Self {
-            bits: self.bits.bitand(rhs.bits),
-        }
+        Self::from_bits(self.bits.bitand(rhs.bits))
     }
 }
 
@@ -125,9 +121,7 @@ impl BitXor for Bitboard {
     type Output = Self;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
-        Self {
-            bits: self.bits.bitxor(rhs.bits),
-        }
+        Self::from_bits(self.bits.bitxor(rhs.bits))
     }
 }
 
@@ -149,24 +143,25 @@ impl Not for Bitboard {
     /// set](https://en.wikipedia.org/wiki/Complement_%28set_theory%29) of Self,
     /// i.e. flipping the set squares to unset and vice versa.
     fn not(self) -> Self::Output {
-        Self { bits: !self.bits }
+        Self::from_bits(!self.bits)
     }
 }
 
 impl From<Square> for Bitboard {
     fn from(square: Square) -> Self {
-        (1u64 << square as u8).into()
+        Self::from_bits(1u64 << square as u8)
     }
 }
 
-impl From<u64> for Bitboard {
-    fn from(bits: u64) -> Self {
-        Self { bits }
-    }
-}
-
-/// Iterates over set squares in a given [Bitboard] from least significant bits
-/// to most significant bits.
+/// Iterates over set squares in a given [Bitboard] from least significant 1
+/// bits (LS1B) to most significant 1 bits (MS1B) through implementing [`BitScan`]
+/// forward operation.
+///
+/// [BitScan]: https://www.chessprogramming.org/BitScan
+// TODO: Try De Brujin Multiplication and see if it's faster (via benchmarks)
+// than trailing zeros as reported by some developers (even though intuitively
+// trailing zeros should be much faster because it would compile to a processor
+// instruction). https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication
 pub(in crate::chess) struct BitboardIterator {
     // TODO: Check if operating on the actual Bitboard will not hurt the
     // performance. This iterator is likely to be on the hot path, so changing
@@ -183,8 +178,7 @@ impl Iterator for BitboardIterator {
         if self.bits == 0 {
             return None;
         }
-        // Get the least significant set 1 and consume it from the iterator by
-        // resetting the bit.
+        // Get the LS1B and consume it from the iterator.
         let next_index = self.bits.trailing_zeros();
         self.bits ^= 1 << next_index;
         // For performance reasons, it's better to convert directly: the
@@ -198,12 +192,10 @@ impl Iterator for BitboardIterator {
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
 /// is [`crate::chess::position::Position`], [Bitboard] is not very useful on
 /// its own.
-///
-/// Defaults to empty board.
 // TODO: Caching all() and either replacing it or adding to the set might
 // improve performance. This is what lc0 does:
 // https://github.com/LeelaChessZero/lc0/blob/d2e372e59cd9188315d5c02a20e0bdce88033bc5/src/chess/board.h
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub(in crate::chess) struct BitboardSet {
     pub(in crate::chess) king: Bitboard,
     pub(in crate::chess) queen: Bitboard,
@@ -215,7 +207,14 @@ pub(in crate::chess) struct BitboardSet {
 
 impl BitboardSet {
     pub(in crate::chess) fn empty() -> Self {
-        Self::default()
+        Self {
+            king: Bitboard::empty(),
+            queen: Bitboard::empty(),
+            rooks: Bitboard::empty(),
+            bishops: Bitboard::empty(),
+            knights: Bitboard::empty(),
+            pawns: Bitboard::empty(),
+        }
     }
 
     pub(in crate::chess) fn new_white() -> Self {
@@ -360,40 +359,32 @@ impl Board {
     }
 }
 
-impl Default for Board {
-    /// Returns a `Board` for starting position.
-    fn default() -> Self {
-        Self::empty()
-    }
-}
-
-impl ToString for Board {
-    /// Returns board representation in FEN format.
-    fn to_string(&self) -> String {
-        let mut result = String::new();
+impl fmt::Display for Board {
+    /// Prints board representation in FEN format.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for rank in Rank::iter().rev() {
             let mut empty_squares = 0i32;
             for file in File::iter() {
                 let square = Square::new(file, rank);
                 if let Some(piece) = self.at(square) {
                     if empty_squares != 0 {
-                        result.push_str(format!("{empty_squares}").as_str());
+                        write!(f, "{empty_squares}")?;
                         empty_squares = 0;
                     }
-                    result.push(piece.algebraic_symbol());
+                    write!(f, "{}", piece.algebraic_symbol())?;
                 } else {
                     empty_squares += 1;
                 }
             }
             if empty_squares != 0 {
-                result.push_str(format!("{empty_squares}").as_str());
+                write!(f, "{empty_squares}")?;
             }
             if rank != Rank::One {
                 const RANK_SEPARATOR: char = '/';
-                result.push(RANK_SEPARATOR);
+                write!(f, "{RANK_SEPARATOR}")?;
             }
         }
-        result
+        Ok(())
     }
 }
 
@@ -434,7 +425,7 @@ mod test {
     fn basics() {
         assert_eq!(std::mem::size_of::<Bitboard>(), 8);
         assert_eq!(Bitboard::full().bits, u64::MAX);
-        assert_eq!(Bitboard::default().bits, u64::MIN);
+        assert_eq!(Bitboard::empty().bits, u64::MIN);
 
         assert_eq!(Bitboard::from(Square::A1).bits, 1);
         assert_eq!(Bitboard::from(Square::B1).bits, 2);
@@ -443,7 +434,7 @@ mod test {
 
         assert_eq!(
             Bitboard::from(Square::D1) | Bitboard::from(Square::B1),
-            Bitboard::from(0b10 | 0b1000)
+            Bitboard::from_bits(0b10 | 0b1000)
         );
     }
 
@@ -586,7 +577,7 @@ mod test {
     // Check the debug output for few bitboards.
     fn bitboard_dump() {
         assert_eq!(
-            format!("{:?}", Bitboard::default()),
+            format!("{:?}", Bitboard::empty()),
             ". . . . . . . .\n\
              . . . . . . . .\n\
              . . . . . . . .\n\

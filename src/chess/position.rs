@@ -1,16 +1,20 @@
 //! Provides fully-specified [Chess Position] implementation: stores information
 //! about the board and tracks the state of castling, 50-move rule draw, etc.
 //!
+//! The core of Move Generator and move making is also implemented here as a way
+//! to produce ways of mutating [`Position`].
+//!
 //! [Chess Position]: https://www.chessprogramming.org/Chess_Position
 
-use anyhow::{bail, Context};
 use std::fmt;
 use std::num::NonZeroU16;
 
+use anyhow::{bail, Context};
 use itertools::Itertools;
 
+use crate::chess::attacks::KNIGHT_ATTACKS;
 use crate::chess::bitboard::{Bitboard, Board};
-use crate::chess::core::{CastlingRights, Piece, Player, Rank, Square, BOARD_WIDTH};
+use crate::chess::core::{CastleRights, Move, Piece, PieceKind, Player, Rank, Square, BOARD_WIDTH};
 
 /// State of the chess game: board, half-move counters and castling rights,
 /// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
@@ -49,8 +53,7 @@ use crate::chess::core::{CastlingRights, Piece, Player, Rank, Square, BOARD_WIDT
 // TODO: Make the fields private, expose appropriate assessors.
 pub struct Position {
     pub(in crate::chess) board: Board,
-    pub(in crate::chess) white_castling: CastlingRights,
-    pub(in crate::chess) black_castling: CastlingRights,
+    pub(in crate::chess) castling: CastleRights,
     pub(in crate::chess) side_to_move: Player,
     /// [Halfmove Clock][^ply] keeps track of the number of (half-)moves
     /// since the last capture or pawn move and is used to enforce
@@ -78,11 +81,10 @@ impl Position {
     ///     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     /// );
     /// ```
-    pub fn starting() -> Self {
+    #[must_use] pub fn starting() -> Self {
         Self {
             board: Board::starting(),
-            white_castling: CastlingRights::Both,
-            black_castling: CastlingRights::Both,
+            castling: CastleRights::ALL,
             ..Self::empty()
         }
     }
@@ -91,13 +93,89 @@ impl Position {
     fn empty() -> Self {
         Self {
             board: Board::empty(),
-            white_castling: CastlingRights::Neither,
-            black_castling: CastlingRights::Neither,
+            castling: CastleRights::NONE,
             side_to_move: Player::White,
             halfmove_clock: 0,
             fullmove_counter: NonZeroU16::new(1).unwrap(),
             en_passant_square: None,
         }
+    }
+
+    /// Produces a list of legal moves (i.e. the moves that do not leave the
+    /// King in check).
+    ///
+    /// This is a performance and correctness-critical path: every modification
+    /// should be benchmarked and carefully tested.
+    ///
+    /// NOTE: [BMI Instruction Set] (and specifically efficient [PEXT]) is not
+    /// widely available on all processors (e.g. the AMD only started providing
+    /// an *efficient* PEXT since Ryzen 3). The current implementation will
+    /// rely on PEXT for performance because it is the most efficient move
+    /// generator technique available.
+    ///
+    /// [generation]: https://www.chessprogramming.org/Table-driven_Move_Generation
+    /// [BMI2 Pext Bitboards]: https://www.chessprogramming.org/BMI2#PEXTBitboards
+    /// [BMI Instruction Set]: https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set
+    /// [PEXT]: https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set#Parallel_bit_deposit_and_extract
+    // TODO: Fall back to Fancy Magic Bitboards if BMI2 is not available for
+    // portability? Maybe for now just implement
+    // https://www.chessprogramming.org/BMI2#Serial_Implementation#Serial_Implementation2
+    // TODO: Look at and compare speed with https://github.com/jordanbray/chess
+    // TODO: Also implement divide and use <https://github.com/jniemann66/juddperft> to validate the
+    // results.
+    // TODO: Another source for comparison:
+    // https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/movegen.rs#L68-L85
+    // TODO: Maybe use python-chess testset of perft moves:
+    // https://github.com/niklasf/python-chess/blob/master/examples/perft/random.perft
+    // TODO: Compare with other engines and perft generators, e.g. Berserk,
+    // shakmaty (https://github.com/jordanbray/chess_perft).
+    // TODO: Check movegen comparison (https://github.com/Gigantua/Chess_Movegen).
+    // TODO: Should this be `Position::generate_moves` instead?
+    #[must_use]
+    pub fn generate_moves(&self) -> Vec<Move> {
+        // TODO: let mut vec = Vec::with_capacity(N=60); and tweak the specific number.
+        let result = vec![];
+        // TODO: Completely delegate to Position since it already has side_to_move?
+        // Cache squares occupied by each player.
+        let our_pieces = &self.board.our_pieces(self.side_to_move);
+        for from in our_pieces.all().iter() {
+            // TODO: Filter out pins?
+            // Only generate moves when the square is non-empty and has the piece of a
+            // correct color on it.
+            let piece = match self.board.at(from) {
+                None => continue,
+                Some(piece) => piece,
+            };
+            if piece.owner != self.side_to_move {
+                continue;
+            }
+            let targets = match piece.kind {
+                PieceKind::King => todo!(),
+                // Sliding pieces.
+                PieceKind::Queen | PieceKind::Rook | PieceKind::Bishop => todo!(),
+                PieceKind::Knight => KNIGHT_ATTACKS[from as usize],
+                PieceKind::Pawn => todo!(),
+            } - our_pieces.all();
+            // Loop over the target squares and produce moves for those which are
+            // not occupied by our pieces. The empty squares or opponent pieces
+            // (captures) are valid.
+            for _to in targets.iter() {
+                // TODO: Create a move if it's possible.
+                todo!();
+            }
+        }
+        // TODO: Check afterstate? Our king should not be checked.
+        // TODO: Castling.
+        // TODO: Pawn moves + en passant.
+        result
+    }
+
+    /// Applies the move in a position
+    // TODO: Make an unchecked version of it? With the move coming from the move
+    // gen, it's probably much faster to make moves without checking whether
+    // they're OK or not. But that would require some benchmarks.
+    pub fn make_move(&mut self) -> anyhow::Result<()> {
+        todo!();
     }
 
     /// Parses board from Forsyth-Edwards Notation.
@@ -110,6 +188,7 @@ impl Position {
     ///   ' ' Halfmove clock
     ///   ' ' Fullmove counter
     // TODO: Delegate from_fen to the fields (board, etc)?
+    // TODO: Test specific errors.
     fn from_fen(fen: &str) -> anyhow::Result<Self> {
         let parts = fen.split_ascii_whitespace();
         let (
@@ -168,21 +247,7 @@ impl Position {
             bail!("incorrect FEN: there should be 8 ranks, got {pieces_placement}");
         }
         result.side_to_move = side_to_move.try_into()?;
-        // "-" is no-op (empty board already has cleared castling rights).
-        if castling_ability != "-" {
-            result.white_castling = castling_ability
-                .chars()
-                .filter(|x| x.is_uppercase())
-                .collect::<String>()
-                .as_str()
-                .try_into()?;
-            result.black_castling = castling_ability
-                .chars()
-                .filter(|x| x.is_lowercase())
-                .collect::<String>()
-                .as_str()
-                .try_into()?;
-        }
+        result.castling = castling_ability.try_into()?;
         if en_passant_square != "-" {
             result.en_passant_square = Some(en_passant_square.try_into()?);
         }
@@ -235,21 +300,19 @@ impl TryFrom<&str> for Position {
     }
 }
 
-impl ToString for Position {
-    /// Dumps board in Forsyth-Edwards Notation.
-    fn to_string(&self) -> String {
-        format!(
-            "{} {} {} {} {} {}",
-            self.board.to_string(),
-            self.side_to_move,
-            CastlingRights::fen(self.white_castling, self.black_castling),
-            match self.en_passant_square {
-                Some(square) => format!("{square}"),
-                None => "-".to_string(),
-            },
-            self.halfmove_clock,
-            self.fullmove_counter
-        )
+impl fmt::Display for Position {
+    /// Prints board in Forsyth-Edwards Notation.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} ", &self.board)?;
+        write!(f, "{} ", &self.side_to_move)?;
+        write!(f, "{} ", &self.castling)?;
+        match self.en_passant_square {
+            Some(square) => write!(f, "{square} "),
+            None => write!(f, "- "),
+        }?;
+        write!(f, "{} ", &self.halfmove_clock)?;
+        write!(f, "{}", &self.fullmove_counter)?;
+        Ok(())
     }
 }
 
@@ -267,9 +330,9 @@ mod test {
 
     fn check_correct_fen(fen: &str) {
         let position = Position::from_fen(fen);
-        assert!(position.is_ok());
+        assert!(position.is_ok(), "input: {fen}");
         let position = position.unwrap();
-        assert_eq!(position.to_string(), fen);
+        assert_eq!(position.to_string(), fen, "input: {fen}");
     }
 
     // TODO: Validate the precise contents of the bitboard directly.
