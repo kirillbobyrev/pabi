@@ -172,7 +172,29 @@ impl Position {
         todo!();
     }
 
-    /// Parses board from Forsyth-Edwards Notation.
+    // TODO: Add checks for board validity? Not sure if it'd be useful, but here are
+    // the heuristics:
+    // - Pawns can't be on ranks 1 and 8.
+    // - There can't be more than 8 pawns per side.
+    // - There should be exactly two kings.
+    // - If there is a check, there should only be one.
+    // - En passant squares can not be in squares with ranks other than 3 and 6.
+    // Theoretically, this can still not be "correct" position of the classical
+    // chess. However, this is probably sufficient for Pabi's needs. This should
+    // probably be a debug assertion.
+    // Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
+    fn is_valid() -> anyhow::Result<()> {
+        todo!()
+    }
+}
+
+// TODO: There are many &str <-> String conversions. Memory allocations are
+// expensive, it would be better to consume strings and avoid allocations.
+impl TryFrom<&str> for Position {
+    type Error = anyhow::Error;
+
+    /// Parses board from Forsyth-Edwards Notation. It will also accept trimmed
+    /// FEN (EPD with 4 parts).
     ///
     /// FEN ::=
     ///       Piece Placement
@@ -181,26 +203,25 @@ impl Position {
     ///   ' ' En passant target square
     ///   ' ' Halfmove clock
     ///   ' ' Fullmove counter
-    // TODO: Delegate from_fen to the fields (board, etc)?
+    ///
+    /// The last two parts (together) are optional and will default to "0 1".
     // TODO: Test specific errors.
-    fn from_fen(fen: &str) -> anyhow::Result<Self> {
-        let parts = fen.split_ascii_whitespace();
-        let (
-            pieces_placement,
-            side_to_move,
-            castling_ability,
-            en_passant_square,
-            halfmove_clock,
-            fullmove_counter,
-        ) = match parts.collect_tuple() {
-            Some(t) => t,
-            None => bail!(
-                "incorrect FEN: expected 6 parts, got: {}",
-                fen.split_ascii_whitespace().count()
-            ),
-        };
+    fn try_from(input: &str) -> anyhow::Result<Self> {
+        let mut input = input;
+        for prefix in ["fen", "epd"] {
+            if input.starts_with(prefix) {
+                input = input.split_at(prefix.len()).1;
+                break;
+            }
+        }
+
+        let mut parts = input.trim().split_ascii_whitespace();
         // Parse Piece Placement.
         let mut result = Self::empty();
+        let pieces_placement = match parts.next() {
+            Some(placement) => placement,
+            None => bail!("incorrect FEN: missing pieces placement"),
+        };
         let ranks = pieces_placement.split('/');
         let mut rank_id = 8;
         for rank_fen in ranks {
@@ -240,72 +261,43 @@ impl Position {
         if rank_id != 0 {
             bail!("incorrect FEN: there should be 8 ranks, got {pieces_placement}");
         }
-        result.side_to_move = side_to_move.try_into()?;
-        result.castling = castling_ability.try_into()?;
-        if en_passant_square != "-" {
-            result.en_passant_square = Some(en_passant_square.try_into()?);
-        }
-        result.halfmove_clock = match halfmove_clock.parse::<u8>() {
-            Ok(num) => num,
-            Err(e) => {
-                return Err(e).with_context(|| {
-                    format!("incorrect FEN: halfmove clock can not be parsed {halfmove_clock}")
-                });
-            },
+        result.side_to_move = match parts.next() {
+            Some(value) => value.try_into()?,
+            None => bail!("incorrect FEN: missing side to move"),
         };
-        result.fullmove_counter = match fullmove_counter.parse::<NonZeroU16>() {
-            Ok(num) => num,
-            Err(e) => {
-                return Err(e).with_context(|| {
-                    format!("incorrect FEN: fullmove counter can not be parsed {fullmove_counter}")
-                });
+        result.castling = match parts.next() {
+            Some(value) => value.try_into()?,
+            None => bail!("incorrect FEN: missing castling rights"),
+        };
+        result.en_passant_square = match parts.next() {
+            Some("-") => None,
+            Some(value) => Some(value.try_into()?),
+            None => bail!("incorrect FEN: missing en passant square"),
+        };
+        result.halfmove_clock = match parts.next() {
+            Some(value) => match value.parse::<u8>() {
+                Ok(num) => num,
+                Err(e) => {
+                    return Err(e).with_context(|| {
+                        format!("incorrect FEN: halfmove clock can not be parsed {value}")
+                    });
+                },
             },
+            // This is a correct EPD: exit early.
+            None => return Ok(result),
+        };
+        result.fullmove_counter = match parts.next() {
+            Some(value) => match value.parse::<NonZeroU16>() {
+                Ok(num) => num,
+                Err(e) => {
+                    return Err(e).with_context(|| {
+                        format!("incorrect FEN: fullmove counter can not be parsed {value}")
+                    });
+                },
+            },
+            None => bail!("incorrect FEN: missing halfmove clock"),
         };
         Ok(result)
-    }
-
-    fn patch_epd(epd: &str) -> String {
-        epd.trim().to_string() + " 0 1"
-    }
-
-    // TODO: Add checks for board validity? Not sure if it'd be useful, but here are
-    // the heuristics:
-    // - Pawns can't be on ranks 1 and 8.
-    // - There can't be more than 8 pawns per side.
-    // - There should be exactly two kings.
-    // - If there is a check, there should only be one.
-    // - En passant squares can not be in squares with ranks other than 3 and 6.
-    // Theoretically, this can still not be "correct" position of the classical
-    // chess. However, this is probably sufficient for Pabi's needs. This should
-    // probably be a debug assertion.
-    // Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
-    fn is_valid() -> anyhow::Result<()> {
-        todo!()
-    }
-}
-
-// TODO: There are many &str <-> String conversions. Memory allocations are
-// expensive, it would be better to consume strings and avoid allocations.
-impl TryFrom<&str> for Position {
-    type Error = anyhow::Error;
-
-    fn try_from(input: &str) -> Result<Self, Self::Error> {
-        let mut input = input;
-        for prefix in ["fen", "epd"] {
-            if input.starts_with(prefix) {
-                input = input.split_at(prefix.len()).1;
-                break;
-            }
-        }
-        input = input.trim();
-        match input.split_ascii_whitespace().count() {
-            6 => Self::from_fen(input),
-            4 => Self::from_fen(&Self::patch_epd(input)),
-            parts => bail!(
-                "incorrect board representation: expected either FEN (6 parts) or EPD body \
-                (4 parts), got: {parts}"
-            ),
-        }
     }
 }
 
@@ -345,7 +337,7 @@ mod test {
     use super::Position;
 
     fn check_correct_fen(fen: &str) {
-        let position = Position::from_fen(fen);
+        let position = Position::try_from(fen);
         assert!(position.is_ok(), "input: {fen}");
         let position = position.unwrap();
         assert_eq!(position.to_string(), fen, "input: {fen}");
@@ -367,7 +359,6 @@ mod test {
     #[test]
     fn correct_epd() {
         let epd = "rnbqkb1r/pp2pppp/3p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R b KQkq -";
-        assert!(Position::from_fen(epd).is_err());
         assert!(Position::try_from(epd).is_ok());
     }
 

@@ -160,6 +160,7 @@ fn generate_version() -> Result<(), Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    println!("cargo:rerun-if-changed=src/build.rs");
     generate_version()?;
     generate_attack_tables()?;
     Ok(())
