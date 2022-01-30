@@ -7,6 +7,9 @@
 //! [README]: https://github.com/kirillbobyrev/pabi/blob/main/README.md
 //! [Resources]: https://github.com/kirillbobyrev/pabi/wiki/Resources
 
+#![feature(const_eval_limit)]
+#![const_eval_limit = "0"]
+
 // TODO: Gradually move most of warnings to deny.
 #![warn(missing_docs, variant_size_differences)]
 // Rustc lints.

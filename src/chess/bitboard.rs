@@ -231,12 +231,12 @@ impl Iterator for BitboardIterator {
             return None;
         }
         // Get the LS1B and consume it from the iterator.
-        let next_index = self.bits.trailing_zeros();
-        self.bits ^= 1 << next_index;
+        let ls1b = self.bits.trailing_zeros();
+        self.bits ^= 1 << ls1b;
         // For performance reasons, it's better to convert directly: the
         // conversion is safe because trailing_zeros() will return a number in
         // 0..64 range.
-        Some(unsafe { mem::transmute(next_index as u8) })
+        Some(unsafe { mem::transmute(ls1b as u8) })
     }
 }
 
