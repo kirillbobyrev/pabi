@@ -12,8 +12,7 @@
 
 [![Dependencies](https://deps.rs/repo/github/kirillbobyrev/pabi/status.svg)](https://deps.rs/repo/github/kirillbobyrev/pabi)
 
-Pabi is a hypermodern chess engine. It is in the early days of development and
-not functional yet: see documentation below for roadmap and details.
+Pabi is a hypermodern Monte-Carlo Tree Search-based chess engine.
 
 ## Goals
 

@@ -5,7 +5,7 @@ use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
 fn main() {
-    let opts = Opts::parse();
+    let _opts = Opts::parse();
     // TODO: Allow configuring tracer.
     tracing_subscriber::fmt::init();
     pabi::log_system_info();

@@ -10,7 +10,7 @@ use crate::chess::core::BOARD_SIZE;
 const BISHOP_ATTACKS_COUNT: usize = 5248;
 const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] =
     include!(concat!(env!("OUT_DIR"), "/bishop_attacks"));
-const ROOK_ATTACKS_COUNT: usize = 102400;
+const ROOK_ATTACKS_COUNT: usize = 102_400;
 const ROOK_ATTACKS: [Bitboard; ROOK_ATTACKS_COUNT] =
     include!(concat!(env!("OUT_DIR"), "/rook_attacks"));
 const BISHOP_RELEVANT_OCCUPANCIES: [Bitboard; BOARD_SIZE as usize] =

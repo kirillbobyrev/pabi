@@ -67,6 +67,11 @@ impl Bitboard {
         (self.bits & (1u64 << square as u8)) != 0
     }
 
+    #[must_use]
+    pub(super) fn count_ones(self) -> u32 {
+        self.bits.count_ones()
+    }
+
     /// An efficient way to iterate over the set squares.
     #[must_use]
     pub(super) fn iter(self) -> BitboardIterator {
@@ -76,27 +81,27 @@ impl Bitboard {
     /// Returns a pre-calculated bitboard mask with 1s set for squares of the
     /// given rank.
     #[must_use]
-    pub(super) const fn rank_mask(rank: Rank) -> Bitboard {
+    pub(super) const fn rank_mask(rank: Rank) -> Self {
         match rank {
-            Rank::One => Bitboard::from_bits(0x0000_0000_0000_00FF),
-            Rank::Two => Bitboard::from_bits(0x0000_0000_0000_FF00),
-            Rank::Three => Bitboard::from_bits(0x0000_0000_00FF_0000),
-            Rank::Four => Bitboard::from_bits(0x0000_0000_FF00_0000),
-            Rank::Five => Bitboard::from_bits(0x0000_00FF_0000_0000),
-            Rank::Six => Bitboard::from_bits(0x0000_FF00_0000_0000),
-            Rank::Seven => Bitboard::from_bits(0x00FF_0000_0000_0000),
-            Rank::Eight => Bitboard::from_bits(0xFF00_0000_0000_0000),
+            Rank::One => Self::from_bits(0x0000_0000_0000_00FF),
+            Rank::Two => Self::from_bits(0x0000_0000_0000_FF00),
+            Rank::Three => Self::from_bits(0x0000_0000_00FF_0000),
+            Rank::Four => Self::from_bits(0x0000_0000_FF00_0000),
+            Rank::Five => Self::from_bits(0x0000_00FF_0000_0000),
+            Rank::Six => Self::from_bits(0x0000_FF00_0000_0000),
+            Rank::Seven => Self::from_bits(0x00FF_0000_0000_0000),
+            Rank::Eight => Self::from_bits(0xFF00_0000_0000_0000),
         }
     }
 
     #[must_use]
-    pub(super) fn shift_rank_up(self) -> Bitboard {
-        self << BOARD_WIDTH as u32
+    pub(super) fn shift_rank_up(self) -> Self {
+        self << u32::from(BOARD_WIDTH)
     }
 
     #[must_use]
-    pub(super) fn shift_rank_down(self) -> Bitboard {
-        self << BOARD_WIDTH as u32
+    pub(super) fn shift_rank_down(self) -> Self {
+        self << u32::from(BOARD_WIDTH)
     }
 }
 
@@ -207,7 +212,7 @@ impl From<Square> for Bitboard {
 
 /// Iterates over set squares in a given [Bitboard] from least significant 1
 /// bits (LS1B) to most significant 1 bits (MS1B) through implementing
-/// [BitScan] forward operation.
+/// [`BitScan`] forward operation.
 ///
 /// [BitScan]: https://www.chessprogramming.org/BitScan
 // TODO: Try De Brujin Multiplication and see if it's faster (via benchmarks)
@@ -522,11 +527,11 @@ mod test {
 
         // Rank masks.
         assert_eq!(
-            Bitboard::rank_mask(Rank::One) << BOARD_WIDTH as u32,
+            Bitboard::rank_mask(Rank::One) << u32::from(BOARD_WIDTH),
             Bitboard::rank_mask(Rank::Two)
         );
         assert_eq!(
-            Bitboard::rank_mask(Rank::Five) >> BOARD_WIDTH as u32,
+            Bitboard::rank_mask(Rank::Five) >> u32::from(BOARD_WIDTH),
             Bitboard::rank_mask(Rank::Four)
         );
     }

@@ -190,6 +190,7 @@ impl Square {
         unsafe { mem::transmute(self as u8 / BOARD_WIDTH) }
     }
 
+    #[must_use]
     pub fn shift(self, direction: Direction) -> Option<Self> {
         // TODO: Maybe extend this to all cases and don't check for candidate < 0. Check
         // if it's faster on the benchmarks.

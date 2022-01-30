@@ -1,6 +1,5 @@
 // TODO: Describe why this is needed and what the details are.
 
-use core::arch::x86_64::_pdep_u64;
 use std::error::Error;
 use std::fmt::Write;
 use std::path::Path;
@@ -16,7 +15,30 @@ fn to_square(column: i32, row: i32) -> u64 {
 }
 
 fn is_within_board(column: i32, row: i32) -> bool {
-    0 <= column && column < BOARD_WIDTH && 0 <= row && row < BOARD_WIDTH
+    (0..BOARD_WIDTH).contains(&column) && (0..BOARD_WIDTH).contains(&row)
+}
+
+// Use PDEP instruction or provide a serial implementation.
+fn pdep(a: u64, mask: u64) -> u64 {
+    if cfg!(target_feature = "bmi2") {
+        unsafe { core::arch::x86_64::_pdep_u64(a, mask) }
+    } else {
+        let mut result = 0u64;
+        let mut mask = mask;
+        let mut scanning_bit = 0u64;
+        while scanning_bit < 64 {
+            if mask == 0 {
+                break;
+            }
+            let ls1b = 1u64 << mask.trailing_zeros();
+            if (a & (1 << scanning_bit)) != 0 {
+                result |= ls1b;
+            }
+            mask ^= ls1b;
+            scanning_bit += 1;
+        }
+        result
+    }
 }
 
 fn generate_file(filename: &str, contents: &str) {
@@ -29,7 +51,7 @@ fn serialize_bitboard_array(array: &[u64]) -> Result<String, Box<dyn Error>> {
     let mut result = String::new();
     result.push('[');
     for element in array {
-        write!(result, "Bitboard::from_bits({element}), \n")?;
+        writeln!(result, "Bitboard::from_bits({element}), ")?;
     }
     result.push(']');
     Ok(result)
@@ -39,7 +61,7 @@ fn serialize_array(array: &[u64]) -> Result<String, Box<dyn Error>> {
     let mut result = String::new();
     result.push('[');
     for element in array {
-        write!(result, "{element}, \n")?;
+        writeln!(result, "{element}, ")?;
     }
     result.push(']');
     Ok(result)
@@ -102,7 +124,7 @@ fn generate_table(identifier: &str, directions: &[(i32, i32); 4]) -> Result<usiz
             table_offsets.push(offset);
             let indices = (1 << relevant_occupancy_mask.count_ones()) as u64;
             for index in 0..indices {
-                let occupancies = unsafe { _pdep_u64(index, relevant_occupancy_mask) };
+                let occupancies = pdep(index, relevant_occupancy_mask);
                 attacks.push(generate_attacks(
                     source_column,
                     source_row,
@@ -147,13 +169,13 @@ fn git_revision_hash() -> String {
 
 fn generate_version() -> Result<(), Box<dyn Error>> {
     let mut version = String::new();
-    write!(
+    writeln!(
         version,
-        "{} ({})\n",
+        "{} ({})",
         clap::crate_version!(),
         git_revision_hash()
     )?;
-    write!(version, "Build type: {}\n", env::var("PROFILE").unwrap())?;
+    writeln!(version, "Build type: {}", env::var("PROFILE").unwrap())?;
     write!(version, "Target: {}", env::var("TARGET").unwrap())?;
     generate_file("version", &version);
     Ok(())

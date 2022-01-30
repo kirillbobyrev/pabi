@@ -10,7 +10,6 @@ use std::fmt;
 use std::num::NonZeroU16;
 
 use anyhow::{bail, Context};
-use itertools::Itertools;
 
 use crate::chess::attacks::KNIGHT_ATTACKS;
 use crate::chess::bitboard::{Bitboard, BitboardSet, Board};
@@ -183,13 +182,12 @@ impl Position {
     // chess. However, this is probably sufficient for Pabi's needs. This should
     // probably be a debug assertion.
     // Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
-    fn is_valid() -> anyhow::Result<()> {
+    fn is_valid(&self) -> anyhow::Result<()> {
+        if self.board.white_pieces.king.count_ones() != 1 {}
         todo!()
     }
 }
 
-// TODO: There are many &str <-> String conversions. Memory allocations are
-// expensive, it would be better to consume strings and avoid allocations.
 impl TryFrom<&str> for Position {
     type Error = anyhow::Error;
 
@@ -209,8 +207,8 @@ impl TryFrom<&str> for Position {
     fn try_from(input: &str) -> anyhow::Result<Self> {
         let mut input = input;
         for prefix in ["fen", "epd"] {
-            if input.starts_with(prefix) {
-                input = input.split_at(prefix.len()).1;
+            if let Some(stripped) = input.strip_prefix(prefix) {
+                input = stripped;
                 break;
             }
         }
@@ -319,13 +317,13 @@ impl fmt::Display for Position {
 
 impl fmt::Debug for Position {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}\n", &self.board)?;
-        write!(f, "Player to move: {:?}\n", &self.side_to_move)?;
-        write!(f, "Fullmove counter: {:?}\n", &self.fullmove_counter)?;
-        write!(f, "En Passant: {:?}\n", &self.en_passant_square)?;
+        writeln!(f, "{:?}", &self.board)?;
+        writeln!(f, "Player to move: {:?}", &self.side_to_move)?;
+        writeln!(f, "Fullmove counter: {:?}", &self.fullmove_counter)?;
+        writeln!(f, "En Passant: {:?}", &self.en_passant_square)?;
         // bitflags default fmt::Debug implementation is not very convenient.
-        write!(f, "Castling rights: {}\n", &self.castling)?;
-        write!(f, "FEN: {}\n", &self.to_string())?;
+        writeln!(f, "Castling rights: {}", &self.castling)?;
+        writeln!(f, "FEN: {}", &self.to_string())?;
         Ok(())
     }
 }
