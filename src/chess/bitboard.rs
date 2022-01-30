@@ -1,16 +1,17 @@
-//! [`Bitboard`]-based representation for [`Board`]. Bitboard utilizes the fact
-//! that modern processors operate on 64 bit integers, and the bit operations
-//! can be performed simultaneously. This results in very efficient calculation
-//! of possible attack vectors and other meaningful features that are calculated
-//! to evaluate a position on the board. The disadvantage is complexity that
-//! comes with bitboard implementation and inefficiency of some operations like
-//! "get piece type on given square" (efficiently handled by Square-centric
-//! board implementations).
+//! [`Bitboard`]-based representation for [`crate::chess::position::Position`].
+//! Bitboard utilizes the fact that modern processors operate on 64 bit
+//! integers, and the bit operations can be performed simultaneously. This
+//! results in very efficient calculation of possible attack vectors and other
+//! meaningful features that are calculated to evaluate a position on the board.
+//! The disadvantage is complexity that comes with bitboard implementation and
+//! inefficiency of some operations like "get piece type on given square"
+//! (efficiently handled by Square-centric board implementations).
 //!
 //! [Bitboard]: https://www.chessprogramming.org/Bitboards
 // TODO: This comment needs revamp.
 
-use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Not, Sub};
+use std::fmt::Write;
+use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Not, Shl, Shr, Sub};
 use std::{fmt, mem};
 
 use itertools::Itertools;
@@ -51,7 +52,8 @@ impl Bitboard {
         Self::from_bits(u64::MAX)
     }
 
-    pub(in crate::chess) fn from_squares(squares: &[Square]) -> Self {
+    #[must_use]
+    pub(super) fn from_squares(squares: &[Square]) -> Self {
         let mut result = Self::empty();
         for square in squares {
             result |= Self::from(*square);
@@ -59,12 +61,42 @@ impl Bitboard {
         result
     }
 
-    pub(in crate::chess) fn is_set(self, square: Square) -> bool {
+    /// Returns true if this bitboard contains given square.
+    #[must_use]
+    pub(super) fn is_set(self, square: Square) -> bool {
         (self.bits & (1u64 << square as u8)) != 0
     }
 
-    pub(in crate::chess) fn iter(self) -> BitboardIterator {
+    /// An efficient way to iterate over the set squares.
+    #[must_use]
+    pub(super) fn iter(self) -> BitboardIterator {
         BitboardIterator { bits: self.bits }
+    }
+
+    /// Returns a pre-calculated bitboard mask with 1s set for squares of the
+    /// given rank.
+    #[must_use]
+    pub(super) const fn rank_mask(rank: Rank) -> Bitboard {
+        match rank {
+            Rank::One => Bitboard::from_bits(0x0000_0000_0000_00FF),
+            Rank::Two => Bitboard::from_bits(0x0000_0000_0000_FF00),
+            Rank::Three => Bitboard::from_bits(0x0000_0000_00FF_0000),
+            Rank::Four => Bitboard::from_bits(0x0000_0000_FF00_0000),
+            Rank::Five => Bitboard::from_bits(0x0000_00FF_0000_0000),
+            Rank::Six => Bitboard::from_bits(0x0000_FF00_0000_0000),
+            Rank::Seven => Bitboard::from_bits(0x00FF_0000_0000_0000),
+            Rank::Eight => Bitboard::from_bits(0xFF00_0000_0000_0000),
+        }
+    }
+
+    #[must_use]
+    pub(super) fn shift_rank_up(self) -> Bitboard {
+        self << BOARD_WIDTH as u32
+    }
+
+    #[must_use]
+    pub(super) fn shift_rank_down(self) -> Bitboard {
+        self << BOARD_WIDTH as u32
     }
 }
 
@@ -147,6 +179,26 @@ impl Not for Bitboard {
     }
 }
 
+impl Shl<u32> for Bitboard {
+    type Output = Self;
+
+    /// Shifts the bits to the left and ignores overflow.
+    fn shl(self, rhs: u32) -> Self::Output {
+        let (bits, _) = self.bits.overflowing_shl(rhs);
+        Self::from_bits(bits)
+    }
+}
+
+impl Shr<u32> for Bitboard {
+    type Output = Self;
+
+    /// Shifts the bits to the right and ignores overflow.
+    fn shr(self, rhs: u32) -> Self::Output {
+        let (bits, _) = self.bits.overflowing_shr(rhs);
+        Self::from_bits(bits)
+    }
+}
+
 impl From<Square> for Bitboard {
     fn from(square: Square) -> Self {
         Self::from_bits(1u64 << square as u8)
@@ -154,15 +206,15 @@ impl From<Square> for Bitboard {
 }
 
 /// Iterates over set squares in a given [Bitboard] from least significant 1
-/// bits (LS1B) to most significant 1 bits (MS1B) through implementing [`BitScan`]
-/// forward operation.
+/// bits (LS1B) to most significant 1 bits (MS1B) through implementing
+/// [BitScan] forward operation.
 ///
 /// [BitScan]: https://www.chessprogramming.org/BitScan
 // TODO: Try De Brujin Multiplication and see if it's faster (via benchmarks)
 // than trailing zeros as reported by some developers (even though intuitively
 // trailing zeros should be much faster because it would compile to a processor
 // instruction). https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication
-pub(in crate::chess) struct BitboardIterator {
+pub(super) struct BitboardIterator {
     // TODO: Check if operating on the actual Bitboard will not hurt the
     // performance. This iterator is likely to be on the hot path, so changing
     // this code is sensitive. The optimizer might be smart enough do deal with
@@ -196,17 +248,17 @@ impl Iterator for BitboardIterator {
 // improve performance. This is what lc0 does:
 // https://github.com/LeelaChessZero/lc0/blob/d2e372e59cd9188315d5c02a20e0bdce88033bc5/src/chess/board.h
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub(in crate::chess) struct BitboardSet {
-    pub(in crate::chess) king: Bitboard,
-    pub(in crate::chess) queen: Bitboard,
-    pub(in crate::chess) rooks: Bitboard,
-    pub(in crate::chess) bishops: Bitboard,
-    pub(in crate::chess) knights: Bitboard,
-    pub(in crate::chess) pawns: Bitboard,
+pub(super) struct BitboardSet {
+    pub(super) king: Bitboard,
+    pub(super) queen: Bitboard,
+    pub(super) rooks: Bitboard,
+    pub(super) bishops: Bitboard,
+    pub(super) knights: Bitboard,
+    pub(super) pawns: Bitboard,
 }
 
 impl BitboardSet {
-    pub(in crate::chess) fn empty() -> Self {
+    pub(super) fn empty() -> Self {
         Self {
             king: Bitboard::empty(),
             queen: Bitboard::empty(),
@@ -217,7 +269,7 @@ impl BitboardSet {
         }
     }
 
-    pub(in crate::chess) fn new_white() -> Self {
+    pub(super) fn new_white() -> Self {
         Self {
             king: Square::E1.into(),
             queen: Square::D1.into(),
@@ -237,7 +289,7 @@ impl BitboardSet {
         }
     }
 
-    pub(in crate::chess) fn new_black() -> Self {
+    pub(super) fn new_black() -> Self {
         // TODO: Implement flip and return new_white().flip() to prevent copying code.
         Self {
             king: Square::E8.into(),
@@ -258,11 +310,11 @@ impl BitboardSet {
         }
     }
 
-    pub(in crate::chess) fn all(self) -> Bitboard {
+    pub(super) fn all(self) -> Bitboard {
         self.king | self.queen | self.rooks | self.bishops | self.knights | self.pawns
     }
 
-    pub(in crate::chess) fn bitboard_for(&mut self, piece: PieceKind) -> &mut Bitboard {
+    pub(super) fn bitboard_for(&mut self, piece: PieceKind) -> &mut Bitboard {
         match piece {
             PieceKind::King => &mut self.king,
             PieceKind::Queen => &mut self.queen,
@@ -275,7 +327,7 @@ impl BitboardSet {
 
     // TODO: Maybe completely disallow this? If we have the Square ->
     // Option<Piece> mapping, this is potentially obsolete.
-    pub(in crate::chess) fn at(self, square: Square) -> Option<PieceKind> {
+    pub(super) fn at(self, square: Square) -> Option<PieceKind> {
         if self.all().is_set(square) {
             let mut kind = if self.king.is_set(square) {
                 PieceKind::King
@@ -303,18 +355,21 @@ impl BitboardSet {
     }
 }
 
-/// Piece-centric implementation of the chess board. This is
-/// the "back-end" of the chess engine, efficient board representation is
-/// crucial for performance.
+/// Piece-centric implementation of the chess board. This is the "back-end" of
+/// the chess engine, an efficient board representation is crucial for
+/// performance. An alternative implementation would be Square-Piece table but
+/// both have different trade-offs and scenarios where they are efficient. It is
+/// likely that the best overall performance can be achieved by keeping both to
+/// complement each other.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub(in crate::chess) struct Board {
-    pub(in crate::chess) white_pieces: BitboardSet,
-    pub(in crate::chess) black_pieces: BitboardSet,
+pub(super) struct Board {
+    pub(super) white_pieces: BitboardSet,
+    pub(super) black_pieces: BitboardSet,
 }
 
 impl Board {
     #[must_use]
-    pub(in crate::chess) fn starting() -> Self {
+    pub(super) fn starting() -> Self {
         Self {
             white_pieces: BitboardSet::new_white(),
             black_pieces: BitboardSet::new_black(),
@@ -323,7 +378,7 @@ impl Board {
 
     // Constructs an empty Board to be filled by the board and position builder.
     #[must_use]
-    pub(in crate::chess) fn empty() -> Self {
+    pub(super) fn empty() -> Self {
         Self {
             white_pieces: BitboardSet::empty(),
             black_pieces: BitboardSet::empty(),
@@ -331,10 +386,10 @@ impl Board {
     }
 
     #[must_use]
-    pub(in crate::chess) fn our_pieces(&self, player: Player) -> BitboardSet {
+    pub(super) fn player_pieces(&self, player: Player) -> &BitboardSet {
         match player {
-            Player::White => self.white_pieces,
-            Player::Black => self.black_pieces,
+            Player::White => &self.white_pieces,
+            Player::Black => &self.black_pieces,
         }
     }
 
@@ -342,7 +397,7 @@ impl Board {
     // representation. Use with caution.
     // TODO: Completely disallow bitboard.at()?
     #[must_use]
-    pub(in crate::chess) fn at(self, square: Square) -> Option<Piece> {
+    pub(super) fn at(self, square: Square) -> Option<Piece> {
         if let Some(kind) = self.white_pieces.at(square) {
             return Some(Piece {
                 owner: Player::White,
@@ -371,7 +426,7 @@ impl fmt::Display for Board {
                         write!(f, "{empty_squares}")?;
                         empty_squares = 0;
                     }
-                    write!(f, "{}", piece.algebraic_symbol())?;
+                    write!(f, "{}", piece)?;
                 } else {
                     empty_squares += 1;
                 }
@@ -394,11 +449,10 @@ impl fmt::Debug for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for rank in Rank::iter().rev() {
             for file in File::iter() {
-                let ascii_symbol = match self.at(Square::new(file, rank)) {
-                    Some(piece) => piece.algebraic_symbol(),
-                    None => '.',
-                };
-                write!(f, "{}", ascii_symbol)?;
+                match self.at(Square::new(file, rank)) {
+                    Some(piece) => write!(f, "{piece}"),
+                    None => f.write_char('.'),
+                }?;
                 if file != File::H {
                     write!(f, "{}", SQUARE_SEPARATOR)?;
                 }
@@ -419,7 +473,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use super::{Bitboard, BitboardSet, Board};
-    use crate::chess::core::Square;
+    use crate::chess::core::{Rank, Square, BOARD_WIDTH};
 
     #[test]
     fn basics() {
@@ -465,6 +519,16 @@ mod test {
         // Check few positions manually.
         assert_eq!(white.queen.bits, 1 << 3);
         assert_eq!(black.queen.bits, 1 << (3 + 8 * 7));
+
+        // Rank masks.
+        assert_eq!(
+            Bitboard::rank_mask(Rank::One) << BOARD_WIDTH as u32,
+            Bitboard::rank_mask(Rank::Two)
+        );
+        assert_eq!(
+            Bitboard::rank_mask(Rank::Five) >> BOARD_WIDTH as u32,
+            Bitboard::rank_mask(Rank::Four)
+        );
     }
 
     #[test]
@@ -678,9 +742,10 @@ mod test {
     }
 
     #[test]
-    fn board_dump() {
+    fn starting_board() {
+        let starting_board = Board::starting();
         assert_eq!(
-            format!("{:?}", Board::starting()),
+            format!("{:?}", starting_board),
             "r n b q k b n r\n\
              p p p p p p p p\n\
              . . . . . . . .\n\
@@ -691,9 +756,27 @@ mod test {
              R N B Q K B N R"
         );
         assert_eq!(
-            Board::starting().to_string(),
+            starting_board.white_pieces.all() | starting_board.black_pieces.all(),
+            Bitboard::rank_mask(Rank::One)
+                | Bitboard::rank_mask(Rank::Two)
+                | Bitboard::rank_mask(Rank::Seven)
+                | Bitboard::rank_mask(Rank::Eight)
+        );
+        assert_eq!(
+            !(starting_board.white_pieces.all() | starting_board.black_pieces.all()),
+            Bitboard::rank_mask(Rank::Three)
+                | Bitboard::rank_mask(Rank::Four)
+                | Bitboard::rank_mask(Rank::Five)
+                | Bitboard::rank_mask(Rank::Six)
+        );
+        assert_eq!(
+            starting_board.to_string(),
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
         );
+    }
+
+    #[test]
+    fn empty_board() {
         assert_eq!(
             format!("{:?}", Board::empty()),
             ". . . . . . . .\n\

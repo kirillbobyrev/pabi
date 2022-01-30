@@ -4,6 +4,7 @@ use std::fmt::{self, Write};
 use std::mem;
 
 use anyhow::bail;
+use strum;
 
 #[allow(missing_docs)]
 pub const BOARD_WIDTH: u8 = 8;
@@ -11,17 +12,17 @@ pub const BOARD_WIDTH: u8 = 8;
 pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 
 /// Represents any kind of a legal chess move. A move is the only way to mutate
-/// [`Position`] and change the board state. Moves are not sorted according to
-/// their potential "value" by the move generator. The move representation has
-/// one-to-one correspondence with the UCI move representation and can be
-/// (de)serialized from to it. The moves can also be indexed to be fed as an
-/// input to the Neural Network evaluators that would be able assess their
-/// potential without evaluation the post-state.
+/// [`crate::chess::position::Position`] and change the board state. Moves are
+/// not sorted according to their potential "value" by the move generator. The
+/// move representation has one-to-one correspondence with the UCI move
+/// representation. The moves can also be indexed and fed as an input to the
+/// Neural Network evaluators that would be able assess their potential without
+/// evaluating post-states.
 ///
-/// For a move to be serialized in Standard Algebraic Notation (SAN), a move
-/// also requires the [`Position`] it will be applied in, because SAN requires
-/// additional flags (e.g. indicating "check"/"checkmate" or moving piece
-/// disambiguation).
+/// For a move to be serialized in Standard Algebraic Notation (SAN), it also
+/// also requires the [`crate::chess::position::Position`] it will be applied
+/// in, because SAN requires additional flags (e.g. indicating
+/// "check"/"checkmate" or moving piece disambiguation).
 // TODO: Implement bijection for a move and a numeric index.
 // TODO: Switch this to a compact representation of (from, to, flags)
 #[derive(Debug)]
@@ -30,9 +31,8 @@ pub struct Move {
     from: Square,
     /// The square the piece will occupy after the move is made.
     to: Square,
-    /// Move properties: e.g. castle, en-passant, additional information about
-    /// the move.
-    flags: MoveAttributes,
+    /// Whether this move is a pawn promotion.
+    promotion: Option<Promotion>,
 }
 
 bitflags::bitflags! {
@@ -47,11 +47,6 @@ bitflags::bitflags! {
     /// - The [Castle] move that will involve a king and a rook "jumping" over
     /// each other. Technically, castling is a king move, so `from` and `to`
     /// move squares will correspond to the king.
-    ///
-    /// > Castling may be done only if the king has never moved, the rook
-    /// involved has never moved, the squares between the king and the rook
-    /// involved are unoccupied, the king is not in check, and the king does
-    /// not cross over or end on a square attacked by an enemy piece.
     ///
     /// The values resemble a common [Move Encoding] technique:
     ///
@@ -78,6 +73,8 @@ bitflags::bitflags! {
     /// [Castle]: https://en.wikipedia.org/wiki/Castling
     /// [En passant]: https://en.wikipedia.org/wiki/En_passant
     /// [Move Encoding]: https://www.chessprogramming.org/Encoding_Moves
+    // TODO: For now, this is the dead code. Maybe it will be used as an input
+    // for the evaluators.
     pub struct MoveAttributes: u8 {
         /// Moves that do not change the material balance.
         const QUIET = 0;
@@ -193,7 +190,7 @@ impl Square {
         unsafe { mem::transmute(self as u8 / BOARD_WIDTH) }
     }
 
-    pub(in crate::chess) fn shift(self, direction: Direction) -> Option<Self> {
+    pub fn shift(self, direction: Direction) -> Option<Self> {
         // TODO: Maybe extend this to all cases and don't check for candidate < 0. Check
         // if it's faster on the benchmarks.
         match direction {
@@ -280,14 +277,14 @@ impl fmt::Display for Square {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
 #[allow(missing_docs)]
 pub enum File {
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
+    A = 0,
+    B = 1,
+    C = 2,
+    D = 3,
+    E = 4,
+    F = 5,
+    G = 6,
+    H = 7,
 }
 
 impl fmt::Display for File {
@@ -329,14 +326,14 @@ impl TryFrom<u8> for File {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
 #[allow(missing_docs)]
 pub enum Rank {
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-    Eight,
+    One = 0,
+    Two = 1,
+    Three = 2,
+    Four = 3,
+    Five = 4,
+    Six = 5,
+    Seven = 6,
+    Eight = 7,
 }
 
 impl TryFrom<char> for Rank {
@@ -374,6 +371,15 @@ impl fmt::Display for Rank {
 pub enum Player {
     White,
     Black,
+}
+
+impl Player {
+    fn opponent(self) -> Self {
+        match self {
+            Self::White => Self::Black,
+            Self::Black => Self::White,
+        }
+    }
 }
 
 impl TryFrom<&str> for Player {
@@ -421,29 +427,6 @@ pub struct Piece {
     pub owner: Player,
     #[allow(missing_docs)]
     pub kind: PieceKind,
-}
-
-impl Piece {
-    /// Algebraic notation symbol used in FEN. Uppercase for white, lowercase
-    /// for black.
-    pub(in crate::chess) fn algebraic_symbol(&self) -> char {
-        match (&self.owner, &self.kind) {
-            // White player: uppercase symbols.
-            (Player::White, PieceKind::King) => 'K',
-            (Player::White, PieceKind::Queen) => 'Q',
-            (Player::White, PieceKind::Rook) => 'R',
-            (Player::White, PieceKind::Bishop) => 'B',
-            (Player::White, PieceKind::Knight) => 'N',
-            (Player::White, PieceKind::Pawn) => 'P',
-            // Black player: lowercase symbols.
-            (Player::Black, PieceKind::King) => 'k',
-            (Player::Black, PieceKind::Queen) => 'q',
-            (Player::Black, PieceKind::Rook) => 'r',
-            (Player::Black, PieceKind::Bishop) => 'b',
-            (Player::Black, PieceKind::Knight) => 'n',
-            (Player::Black, PieceKind::Pawn) => 'p',
-        }
-    }
 }
 
 impl TryFrom<char> for Piece {
@@ -506,32 +489,65 @@ impl TryFrom<char> for Piece {
 
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.algebraic_symbol())
+        f.write_char(match (&self.owner, &self.kind) {
+            // White player: uppercase symbols.
+            (Player::White, PieceKind::King) => 'K',
+            (Player::White, PieceKind::Queen) => 'Q',
+            (Player::White, PieceKind::Rook) => 'R',
+            (Player::White, PieceKind::Bishop) => 'B',
+            (Player::White, PieceKind::Knight) => 'N',
+            (Player::White, PieceKind::Pawn) => 'P',
+            // Black player: lowercase symbols.
+            (Player::Black, PieceKind::King) => 'k',
+            (Player::Black, PieceKind::Queen) => 'q',
+            (Player::Black, PieceKind::Rook) => 'r',
+            (Player::Black, PieceKind::Bishop) => 'b',
+            (Player::Black, PieceKind::Knight) => 'n',
+            (Player::Black, PieceKind::Pawn) => 'p',
+        })
     }
 }
 
 bitflags::bitflags! {
-    /// Track the ability to [castle] each side (kingside is often referred to as
-    /// O-O or OO, queenside -- O-O-O or OOO). When the king moves, player loses
-    /// ability to castle both sides. When the rook moves, player loses ability to
-    /// castle its corresponding side.
+    /// Track the ability to [castle] each side (kingside is often referred to
+    /// as O-O or h-side castle, queenside -- O-O-O or a-side castle). When the
+    /// king moves, player loses ability to castle both sides. When the rook
+    /// moves, player loses ability to castle its corresponding side.
+    ///
+    /// Castling is relatively straightforward in the Standard Chess but is
+    /// often misunderstood in Fischer Random Chess (also known as FRC or
+    /// Chess960). An easy mnemonic is that the king and the rook end up on the
+    /// same files for both Standard and FRC:
+    ///
+    /// - When castling h-side, the king ends up on [`File::G`] and the rook on [`File::F`]
+    /// - When castling a-side, the king ends up on [`File::C`] and the rook on [`File::D`]
+    ///
+    /// The full rules are:
+    ///
+    /// - The king and the castling rook must not have previously moved.
+    /// - No square from the king's initial square to its final square may be under
+    ///   attack by an enemy piece.
+    /// - All the squares between the king's initial and
+    ///   final squares (including the final square), and all the squares between the
+    ///   castling rook's initial and final squares (including the final square), must
+    ///   be vacant except for the king and castling rook.
     ///
     /// [castle]: https://www.chessprogramming.org/Castling
     pub struct CastleRights : u8 {
         #[allow(missing_docs)]
         const NONE = 0;
         #[allow(missing_docs)]
-        const WHITE_KINGSIDE = 0b1000;
+        const WHITE_H_SIDE = 0b1000;
         #[allow(missing_docs)]
-        const WHITE_QUEENSIDE = 0b0100;
+        const WHITE_A_SIDE = 0b0100;
         #[allow(missing_docs)]
-        const WHITE_BOTH = Self::WHITE_KINGSIDE.bits | Self::WHITE_QUEENSIDE.bits;
+        const WHITE_BOTH = Self::WHITE_H_SIDE.bits | Self::WHITE_A_SIDE.bits;
         #[allow(missing_docs)]
-        const BLACK_KINGSIDE = 0b0010;
+        const BLACK_H_SIDE = 0b0010;
         #[allow(missing_docs)]
-        const BLACK_QUEENSIDE = 0b0001;
+        const BLACK_A_SIDE = 0b0001;
         #[allow(missing_docs)]
-        const BLACK_BOTH = Self::BLACK_KINGSIDE.bits | Self::BLACK_QUEENSIDE.bits;
+        const BLACK_BOTH = Self::BLACK_H_SIDE.bits | Self::BLACK_A_SIDE.bits;
         #[allow(missing_docs)]
         const ALL = Self::WHITE_BOTH.bits | Self::BLACK_BOTH.bits;
     }
@@ -546,9 +562,9 @@ impl TryFrom<&str> for CastleRights {
     ///
     /// # Errors
     ///
-    /// Returns [`ParseError`] if given pattern does not match
+    /// Returns [`anyhow::Error`] if given pattern does not match
     ///
-    /// [`CastleRights`] := [K][Q][k][q]
+    /// [`CastleRights`] := (K)? (Q)? (k)? (q)?
     ///
     /// Note that both letters have to be either uppercase or lowercase.
     fn try_from(input: &str) -> anyhow::Result<Self> {
@@ -559,33 +575,33 @@ impl TryFrom<&str> for CastleRights {
             // 0 0 0 0
             b"-" => Ok(Self::NONE),
             // 0 0 0 1
-            b"q" => Ok(Self::BLACK_QUEENSIDE),
+            b"q" => Ok(Self::BLACK_A_SIDE),
             // 0 0 1 0
-            b"k" => Ok(Self::BLACK_KINGSIDE),
+            b"k" => Ok(Self::BLACK_H_SIDE),
             // 0 0 1 1
             b"kq" => Ok(Self::BLACK_BOTH),
             // 0 1 0 0
-            b"Q" => Ok(Self::WHITE_QUEENSIDE),
+            b"Q" => Ok(Self::WHITE_A_SIDE),
             // 0 1 0 1
-            b"Qq" => Ok(Self::WHITE_QUEENSIDE | Self::BLACK_QUEENSIDE),
+            b"Qq" => Ok(Self::WHITE_A_SIDE | Self::BLACK_A_SIDE),
             // 0 1 1 0
-            b"Qk" => Ok(Self::WHITE_QUEENSIDE | Self::BLACK_KINGSIDE),
+            b"Qk" => Ok(Self::WHITE_A_SIDE | Self::BLACK_H_SIDE),
             // 0 1 1 1
-            b"Qkq" => Ok(Self::WHITE_QUEENSIDE | Self::BLACK_BOTH),
+            b"Qkq" => Ok(Self::WHITE_A_SIDE | Self::BLACK_BOTH),
             // 1 0 0 0
-            b"K" => Ok(Self::WHITE_KINGSIDE),
+            b"K" => Ok(Self::WHITE_H_SIDE),
             // 1 0 0 1
-            b"Kq" => Ok(Self::WHITE_KINGSIDE | Self::BLACK_QUEENSIDE),
+            b"Kq" => Ok(Self::WHITE_H_SIDE | Self::BLACK_A_SIDE),
             // 1 0 1 0
-            b"Kk" => Ok(Self::WHITE_KINGSIDE | Self::BLACK_KINGSIDE),
+            b"Kk" => Ok(Self::WHITE_H_SIDE | Self::BLACK_H_SIDE),
             // 1 0 1 1
-            b"Kkq" => Ok(Self::WHITE_KINGSIDE | Self::BLACK_BOTH),
+            b"Kkq" => Ok(Self::WHITE_H_SIDE | Self::BLACK_BOTH),
             // 1 1 0 0
             b"KQ" => Ok(Self::WHITE_BOTH),
             // 1 1 0 1
-            b"KQq" => Ok(Self::WHITE_BOTH | Self::BLACK_QUEENSIDE),
+            b"KQq" => Ok(Self::WHITE_BOTH | Self::BLACK_A_SIDE),
             // 1 1 1 0
-            b"KQk" => Ok(Self::WHITE_BOTH | Self::BLACK_KINGSIDE),
+            b"KQk" => Ok(Self::WHITE_BOTH | Self::BLACK_H_SIDE),
             // 1 1 1 1
             b"KQkq" => Ok(Self::ALL),
             _ => bail!("unknown castle rights: {input}"),
@@ -598,20 +614,30 @@ impl fmt::Display for CastleRights {
         if *self == Self::NONE {
             return f.write_char('-');
         }
-        if *self & Self::WHITE_KINGSIDE != Self::NONE {
+        if *self & Self::WHITE_H_SIDE != Self::NONE {
             f.write_char('K')?;
         }
-        if *self & Self::WHITE_QUEENSIDE != Self::NONE {
+        if *self & Self::WHITE_A_SIDE != Self::NONE {
             f.write_char('Q')?;
         }
-        if *self & Self::BLACK_KINGSIDE != Self::NONE {
+        if *self & Self::BLACK_H_SIDE != Self::NONE {
             f.write_char('k')?;
         }
-        if *self & Self::BLACK_QUEENSIDE != Self::NONE {
+        if *self & Self::BLACK_A_SIDE != Self::NONE {
             f.write_char('q')?;
         }
         Ok(())
     }
+}
+
+/// A pawn can be promoted to a queen, rook, bishop or a knight.
+#[allow(missing_docs)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub enum Promotion {
+    Queen,
+    Rook,
+    Bishop,
+    Knight,
 }
 
 /// Directions on the board from a perspective of White player.
@@ -620,7 +646,7 @@ impl fmt::Display for CastleRights {
 /// and their combinations. However, using cardinal directions is confusing,
 /// hence they are replaced by relative directions.
 #[derive(Copy, Clone, Debug)]
-pub(in crate::chess) enum Direction {
+pub enum Direction {
     /// Also known as NorthWest.
     UpLeft,
     /// Also known as North.

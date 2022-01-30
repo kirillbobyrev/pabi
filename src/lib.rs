@@ -1,7 +1,8 @@
-//! Modern and high-quality chess engine. See
+//! Modern and high-quality chess engine. For more information, see
 //!
-//! - [README] for information about design and implementation goals.
-//! - [Resources] for information on important papers and other engines.
+//! - [README] explaining about design and implementation goals
+//! - [Resources] for information on important papers, other engines and
+//!   prominent research ideas
 //!
 //! [README]: https://github.com/kirillbobyrev/pabi/blob/main/README.md
 //! [Resources]: https://github.com/kirillbobyrev/pabi/wiki/Resources
@@ -54,6 +55,8 @@ use clap::Parser;
 use sysinfo::{System, SystemExt};
 use tracing::info;
 
+const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
+
 /// Options for Command-Line Driver.
 // TODO: Write a decent message for the CLI options here.
 // TODO: Write a decent help message.
@@ -62,10 +65,8 @@ use tracing::info;
 // values
 // (https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates).
 #[derive(Parser, Debug)]
-#[clap(version, author)]
-pub struct Opts {
-    pub fen: String,
-}
+#[clap(version=VERSION, author)]
+pub struct Opts {}
 
 /// Prints information about the host system.
 pub fn log_system_info() {

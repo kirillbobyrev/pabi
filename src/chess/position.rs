@@ -13,7 +13,7 @@ use anyhow::{bail, Context};
 use itertools::Itertools;
 
 use crate::chess::attacks::KNIGHT_ATTACKS;
-use crate::chess::bitboard::{Bitboard, Board};
+use crate::chess::bitboard::{Bitboard, BitboardSet, Board};
 use crate::chess::core::{CastleRights, Move, Piece, PieceKind, Player, Rank, Square, BOARD_WIDTH};
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -29,9 +29,6 @@ use crate::chess::core::{CastleRights, Move, Piece, PieceKind, Player, Rank, Squ
 /// Fullmove Counter). Parsing these positions is important to utilize that
 /// data.
 ///
-/// Similarly, [`Position::to_string()`] will dump position in FEN
-/// representation.
-///
 /// [Forsyth-Edwards Notation]: https://www.chessprogramming.org/Forsyth-Edwards_Notation
 /// [Extended Position Description]: https://www.chessprogramming.org/Extended_Position_Description
 /// [Operations]: https://www.chessprogramming.org/Extended_Position_Description#Operations
@@ -39,22 +36,11 @@ use crate::chess::core::{CastleRights, Move, Piece, PieceKind, Player, Rank, Squ
 // and many other engines maintain both piece- and square-centric
 // representations at once to speed up querying the piece on a specific square.
 // Implement and benchmark this.
-// TODO: Add checks for board validity? Not sure if it'd be useful, but here are
-// the heuristics:
-// - Pawns can't be on ranks 1 and 8.
-// - There can't be more than 8 pawns per side.
-// - There should be exactly two kings.
-// - If there is a check, there should only be one.
-// - En passant squares can not be ni ranks other than 3 and 6.
-// Theoretically, this can still not be "correct" position of the classical
-// chess. However, this is probably sufficient for Pabi's needs. This should
-// probably be a debug assertion.
-// Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
 // TODO: Make the fields private, expose appropriate assessors.
 pub struct Position {
-    pub(in crate::chess) board: Board,
-    pub(in crate::chess) castling: CastleRights,
-    pub(in crate::chess) side_to_move: Player,
+    pub(super) board: Board,
+    pub(super) castling: CastleRights,
+    pub(super) side_to_move: Player,
     /// [Halfmove Clock][^ply] keeps track of the number of (half-)moves
     /// since the last capture or pawn move and is used to enforce
     /// fifty[^fifty]-move draw rule.
@@ -64,9 +50,9 @@ pub struct Position {
     /// [^ply]: "Half-move" or ["ply"](https://www.chessprogramming.org/Ply) means a move of only
     ///     one side.
     /// [^fifty]: 50 __full__ moves
-    pub(in crate::chess) halfmove_clock: u8,
-    pub(in crate::chess) fullmove_counter: NonZeroU16,
-    pub(in crate::chess) en_passant_square: Option<Square>,
+    pub(super) halfmove_clock: u8,
+    pub(super) fullmove_counter: NonZeroU16,
+    pub(super) en_passant_square: Option<Square>,
 }
 
 impl Position {
@@ -81,7 +67,8 @@ impl Position {
     ///     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     /// );
     /// ```
-    #[must_use] pub fn starting() -> Self {
+    #[must_use]
+    pub fn starting() -> Self {
         Self {
             board: Board::starting(),
             castling: CastleRights::ALL,
@@ -98,6 +85,13 @@ impl Position {
             halfmove_clock: 0,
             fullmove_counter: NonZeroU16::new(1).unwrap(),
             en_passant_square: None,
+        }
+    }
+
+    fn our_pieces(&self) -> &BitboardSet {
+        match self.side_to_move {
+            Player::White => &self.board.white_pieces,
+            Player::Black => &self.board.black_pieces,
         }
     }
 
@@ -133,22 +127,22 @@ impl Position {
     // TODO: Should this be `Position::generate_moves` instead?
     #[must_use]
     pub fn generate_moves(&self) -> Vec<Move> {
-        // TODO: let mut vec = Vec::with_capacity(N=60); and tweak the specific number.
+        // TODO: let mut vec = Vec::with_capacity(35); and tweak the specific
+        // number. The average branching factor for chess is 35 but we probably
+        // have to account for a healthy percentile instead of the average.
+        // https://en.wikipedia.org/wiki/Branching_factor
         let result = vec![];
         // TODO: Completely delegate to Position since it already has side_to_move?
         // Cache squares occupied by each player.
-        let our_pieces = &self.board.our_pieces(self.side_to_move);
+        let our_pieces = self.our_pieces();
         for from in our_pieces.all().iter() {
             // TODO: Filter out pins?
             // Only generate moves when the square is non-empty and has the piece of a
             // correct color on it.
             let piece = match self.board.at(from) {
-                None => continue,
+                None => unreachable!(),
                 Some(piece) => piece,
             };
-            if piece.owner != self.side_to_move {
-                continue;
-            }
             let targets = match piece.kind {
                 PieceKind::King => todo!(),
                 // Sliding pieces.
@@ -273,6 +267,21 @@ impl Position {
     fn patch_epd(epd: &str) -> String {
         epd.trim().to_string() + " 0 1"
     }
+
+    // TODO: Add checks for board validity? Not sure if it'd be useful, but here are
+    // the heuristics:
+    // - Pawns can't be on ranks 1 and 8.
+    // - There can't be more than 8 pawns per side.
+    // - There should be exactly two kings.
+    // - If there is a check, there should only be one.
+    // - En passant squares can not be in squares with ranks other than 3 and 6.
+    // Theoretically, this can still not be "correct" position of the classical
+    // chess. However, this is probably sufficient for Pabi's needs. This should
+    // probably be a debug assertion.
+    // Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
+    fn is_valid() -> anyhow::Result<()> {
+        todo!()
+    }
 }
 
 // TODO: There are many &str <-> String conversions. Memory allocations are
@@ -318,7 +327,14 @@ impl fmt::Display for Position {
 
 impl fmt::Debug for Position {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.board)
+        write!(f, "{:?}\n", &self.board)?;
+        write!(f, "Player to move: {:?}\n", &self.side_to_move)?;
+        write!(f, "Fullmove counter: {:?}\n", &self.fullmove_counter)?;
+        write!(f, "En Passant: {:?}\n", &self.en_passant_square)?;
+        // bitflags default fmt::Debug implementation is not very convenient.
+        write!(f, "Castling rights: {}\n", &self.castling)?;
+        write!(f, "FEN: {}\n", &self.to_string())?;
+        Ok(())
     }
 }
 

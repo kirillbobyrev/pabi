@@ -1,12 +1,29 @@
 //! Mappings of occupied squares to the attacked squares for each piece. The
-//! mappings are pre-calculated where possible to provide the efficient way of
-//! generating moves and attack maps.
+//! mappings are pre-calculated where possible to provide an efficient way of
+//! generating moves.
 
 use crate::chess::bitboard::Bitboard;
 use crate::chess::core::BOARD_SIZE;
 
+// Generated in build.rs.
+// TODO: Document PEXT bitboards.
+const BISHOP_ATTACKS_COUNT: usize = 5248;
+const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] =
+    include!(concat!(env!("OUT_DIR"), "/bishop_attacks"));
+const ROOK_ATTACKS_COUNT: usize = 102400;
+const ROOK_ATTACKS: [Bitboard; ROOK_ATTACKS_COUNT] =
+    include!(concat!(env!("OUT_DIR"), "/rook_attacks"));
+const BISHOP_RELEVANT_OCCUPANCIES: [Bitboard; BOARD_SIZE as usize] =
+    include!(concat!(env!("OUT_DIR"), "/bishop_occupancies"));
+const ROOK_RELEVANT_OCCUPANCIES: [Bitboard; BOARD_SIZE as usize] =
+    include!(concat!(env!("OUT_DIR"), "/rook_occupancies"));
+const BISHOP_OFFSETS: [usize; BOARD_SIZE as usize] =
+    include!(concat!(env!("OUT_DIR"), "/bishop_offsets"));
+const ROOK_OFFSETS: [usize; BOARD_SIZE as usize] =
+    include!(concat!(env!("OUT_DIR"), "/rook_offsets"));
+
 // Pre-calculated attacks of a knight from each square.
-pub(in crate::chess) const KNIGHT_ATTACKS: [Bitboard; BOARD_SIZE as usize] = [
+pub(super) const KNIGHT_ATTACKS: [Bitboard; BOARD_SIZE as usize] = [
     Bitboard::from_bits(0x0000_0000_0002_0400),
     Bitboard::from_bits(0x0000_0000_0005_0800),
     Bitboard::from_bits(0x0000_0000_000A_1100),
