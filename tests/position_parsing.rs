@@ -14,6 +14,7 @@ fn check(serialized_position: &str) {
             _ => unreachable!(),
         }
     );
+    assert!(position.check_validity().is_ok());
 }
 
 // This test is very expensive in the Debug setting (could take 200+ seconds):

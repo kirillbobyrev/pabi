@@ -27,12 +27,32 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 // TODO: Switch this to a compact representation of (from, to, flags)
 #[derive(Debug)]
 pub struct Move {
-    /// The square a piece is moving from.
     from: Square,
-    /// The square the piece will occupy after the move is made.
     to: Square,
-    /// Whether this move is a pawn promotion.
     promotion: Option<Promotion>,
+}
+
+impl Move {
+    pub fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
+        Self {
+            from,
+            to,
+            promotion,
+        }
+    }
+}
+
+impl fmt::Display for Move {
+    /// Serializes a move in [UCI format].
+    ///
+    /// [UCI format]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.from, self.to)?;
+        if let Some(promotion) = self.promotion {
+            write!(f, "{}", PieceKind::from(promotion))?;
+        }
+        Ok(())
+    }
 }
 
 bitflags::bitflags! {
@@ -124,15 +144,6 @@ bitflags::bitflags! {
             | Self::PROMOTION.bits
             | Self::MSB_SPECIAL.bits
             | Self::LSB_SPECIAL.bits;
-    }
-}
-
-impl ToString for Move {
-    /// Serializes a move in [UCI format].
-    ///
-    /// [UCI format]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
-    fn to_string(&self) -> String {
-        todo!();
     }
 }
 
@@ -375,7 +386,8 @@ pub enum Player {
 }
 
 impl Player {
-    fn opponent(self) -> Self {
+    /// "Flips" the color.
+    pub fn opponent(self) -> Self {
         match self {
             Self::White => Self::Black,
             Self::Black => Self::White,
@@ -420,6 +432,30 @@ pub enum PieceKind {
     Bishop,
     Knight,
     Pawn,
+}
+
+impl From<Promotion> for PieceKind {
+    fn from(promotion: Promotion) -> PieceKind {
+        match promotion {
+            Promotion::Queen => Self::Queen,
+            Promotion::Rook => Self::Rook,
+            Promotion::Bishop => Self::Bishop,
+            Promotion::Knight => Self::Knight,
+        }
+    }
+}
+
+impl fmt::Display for PieceKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_char(match &self {
+            Self::King => 'k',
+            Self::Queen => 'q',
+            Self::Rook => 'r',
+            Self::Bishop => 'b',
+            Self::Knight => 'n',
+            Self::Pawn => 'p',
+        })
+    }
 }
 
 /// Represents a specific piece owned by a player.

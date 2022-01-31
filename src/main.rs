@@ -15,8 +15,8 @@ fn main() {
         let readline = rl.readline("pabi> ");
         match readline {
             Ok(line) => {
-                if line.starts_with("position ") {
-                    position = Position::try_from(&line["position ".len()..]).unwrap();
+                if let Some(pos) = line.strip_prefix("position ") {
+                    position = Position::try_from(pos).unwrap();
                 } else if line == "d" {
                     println!("{position:?}");
                 }

@@ -52,6 +52,12 @@ impl Bitboard {
         Self::from_bits(u64::MAX)
     }
 
+    /// Returns raw bits.
+    #[must_use]
+    pub const fn bits(self) -> u64 {
+        self.bits
+    }
+
     #[must_use]
     pub(super) fn from_squares(squares: &[Square]) -> Self {
         let mut result = Self::empty();

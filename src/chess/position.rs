@@ -11,9 +11,9 @@ use std::num::NonZeroU16;
 
 use anyhow::{bail, Context};
 
-use crate::chess::attacks::KNIGHT_ATTACKS;
+use crate::chess::attacks::{get_bishop_attacks, get_rook_attacks, KNIGHT_ATTACKS};
 use crate::chess::bitboard::{Bitboard, BitboardSet, Board};
-use crate::chess::core::{CastleRights, Move, Piece, PieceKind, Player, Rank, Square, BOARD_WIDTH};
+use crate::chess::core::{CastleRights, Move, Piece, Player, Rank, Square, BOARD_WIDTH};
 
 /// State of the chess game: board, half-move counters and castling rights,
 /// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
@@ -94,6 +94,13 @@ impl Position {
         }
     }
 
+    fn opponent_pieces(&self) -> &BitboardSet {
+        match self.side_to_move.opponent() {
+            Player::White => &self.board.white_pieces,
+            Player::Black => &self.board.black_pieces,
+        }
+    }
+
     /// Produces a list of legal moves (i.e. the moves that do not leave the
     /// King in check).
     ///
@@ -130,37 +137,36 @@ impl Position {
         // number. The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
         // https://en.wikipedia.org/wiki/Branching_factor
-        let result = vec![];
+        let mut moves = vec![];
         // TODO: Completely delegate to Position since it already has side_to_move?
         // Cache squares occupied by each player.
         let our_pieces = self.our_pieces();
-        for from in our_pieces.all().iter() {
-            // TODO: Filter out pins?
-            // Only generate moves when the square is non-empty and has the piece of a
-            // correct color on it.
-            let piece = match self.board.at(from) {
-                None => unreachable!(),
-                Some(piece) => piece,
-            };
-            let targets = match piece.kind {
-                PieceKind::King => todo!(),
-                // Sliding pieces.
-                PieceKind::Queen | PieceKind::Rook | PieceKind::Bishop => todo!(),
-                PieceKind::Knight => KNIGHT_ATTACKS[from as usize],
-                PieceKind::Pawn => todo!(),
-            } - our_pieces.all();
-            // Loop over the target squares and produce moves for those which are
-            // not occupied by our pieces. The empty squares or opponent pieces
-            // (captures) are valid.
-            for _to in targets.iter() {
-                // TODO: Create a move if it's possible.
-                todo!();
+        let opponent_pieces = self.opponent_pieces();
+        let non_capture_mask = our_pieces.all() | opponent_pieces.king;
+        for from in our_pieces.knights.iter() {
+            let targets = KNIGHT_ATTACKS[from as usize] - non_capture_mask;
+            for to in targets.iter() {
+                moves.push(Move::new(from, to, None));
+            }
+        }
+        for from in our_pieces.bishops.iter() {
+            let targets = get_bishop_attacks(from, our_pieces.all() | opponent_pieces.all())
+                - non_capture_mask;
+            for to in targets.iter() {
+                moves.push(Move::new(from, to, None));
+            }
+        }
+        for from in our_pieces.rooks.iter() {
+            let targets =
+                get_rook_attacks(from, our_pieces.all() | opponent_pieces.all()) - non_capture_mask;
+            for to in targets.iter() {
+                moves.push(Move::new(from, to, None));
             }
         }
         // TODO: Check afterstate? Our king should not be checked.
         // TODO: Castling.
         // TODO: Pawn moves + en passant.
-        result
+        moves
     }
 
     /// Applies the move in a position
@@ -173,18 +179,61 @@ impl Position {
 
     // TODO: Add checks for board validity? Not sure if it'd be useful, but here are
     // the heuristics:
-    // - Pawns can't be on ranks 1 and 8.
-    // - There can't be more than 8 pawns per side.
-    // - There should be exactly two kings.
     // - If there is a check, there should only be one.
-    // - En passant squares can not be in squares with ranks other than 3 and 6.
     // Theoretically, this can still not be "correct" position of the classical
     // chess. However, this is probably sufficient for Pabi's needs. This should
     // probably be a debug assertion.
     // Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
-    fn is_valid(&self) -> anyhow::Result<()> {
-        if self.board.white_pieces.king.count_ones() != 1 {}
-        todo!()
+    pub fn check_validity(&self) -> anyhow::Result<()> {
+        // TODO: The following patterns look repetitive; maybe refactor the
+        // common structure even though it's quite short?
+        if self.board.white_pieces.king.count_ones() != 1 {
+            bail!(
+                "incorrect number of white kings: expected 1, got {}",
+                self.board.white_pieces.king.count_ones()
+            );
+        }
+        if self.board.black_pieces.king.count_ones() != 1 {
+            bail!(
+                "incorrect number of black kings: expected 1, got {}",
+                self.board.black_pieces.king.count_ones()
+            );
+        }
+        if self.board.white_pieces.pawns.count_ones() > 8 {
+            bail!(
+                "incorrect number of white pawns: expected <= 8, got {}",
+                self.board.white_pieces.pawns.count_ones()
+            );
+        }
+        if self.board.black_pieces.pawns.count_ones() > 8 {
+            bail!(
+                "incorrect number of black pawns: expected <= 8, got {}",
+                self.board.black_pieces.pawns.count_ones()
+            );
+        }
+        if ((self.board.white_pieces.pawns & self.board.black_pieces.pawns)
+            & (Bitboard::rank_mask(Rank::One) | Bitboard::rank_mask(Rank::Eight)))
+        .count_ones()
+            != 0
+        {
+            bail!("pawns can not be on the first and last rank");
+        }
+        if let Some(en_passant_square) = self.en_passant_square {
+            let expected_rank = match self.side_to_move {
+                Player::White => Rank::Six,
+                Player::Black => Rank::Three,
+            };
+            if en_passant_square.rank() != expected_rank {
+                bail!(
+                    "incorrect en passant rank: expected {expected_rank}, got {}",
+                    en_passant_square.rank()
+                );
+            }
+            // TODO: Moreover, en passant square should be behind a doubly
+            // pushed pawn.
+        }
+        // TODO: The rest of the checks.
+        Ok(())
     }
 }
 

@@ -14,14 +14,19 @@ jobs:
           - os: ubuntu-latest
             toolchain: nightly
             experimental: true
+            # Windows is possibly the second-most important OS for Chess Engines
+            # due to most users having it.
+          - os: windows-latest
+            toolchain: stable
+            experimental: true
+          - os: windows-latest
+            toolchain: nightly
+            experimental: true
           - os: macos-latest
             toolchain: stable
             experimental: true
           - os: macos-latest
             toolchain: nightly
-            experimental: true
-          - os: windows-latest
-            toolchain: stable
             experimental: true
     steps:
       - name: Checkout sources
