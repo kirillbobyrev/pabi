@@ -17,6 +17,9 @@ fn main() {
             Ok(line) => {
                 if let Some(pos) = line.strip_prefix("position ") {
                     position = Position::try_from(pos).unwrap();
+                    position.check_validity().unwrap();
+                } else if line == "moves" {
+                    println!("{:?}", position.generate_moves());
                 } else if line == "d" {
                     println!("{position:?}");
                 }

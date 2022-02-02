@@ -4,7 +4,9 @@ use std::fmt::{self, Write};
 use std::mem;
 
 use anyhow::bail;
-use strum;
+use strum::{self};
+
+use crate::chess::bitboard::Bitboard;
 
 #[allow(missing_docs)]
 pub const BOARD_WIDTH: u8 = 8;
@@ -33,7 +35,8 @@ pub struct Move {
 }
 
 impl Move {
-    pub fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
+    #[must_use]
+    pub const fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
         Self {
             from,
             to,
@@ -185,22 +188,25 @@ pub enum Square {
 impl Square {
     /// Connects file (column) and rank (row) to form a full square.
     #[must_use]
-    pub fn new(file: File, rank: Rank) -> Self {
+    pub const fn new(file: File, rank: Rank) -> Self {
         unsafe { mem::transmute(file as u8 + (rank as u8) * BOARD_WIDTH) }
     }
 
     /// Returns file (column) on which the square is located.
     #[must_use]
-    pub fn file(self) -> File {
+    pub const fn file(self) -> File {
         unsafe { mem::transmute(self as u8 % BOARD_WIDTH) }
     }
 
     /// Returns rank (row) on which the square is located.
     #[must_use]
-    pub fn rank(self) -> Rank {
+    pub const fn rank(self) -> Rank {
         unsafe { mem::transmute(self as u8 / BOARD_WIDTH) }
     }
 
+    // TODO: Is this needed at all? I thought this could be useful for
+    // compile-/build-time computations but this doesn't look useful and is dead
+    // code right now.
     #[must_use]
     pub fn shift(self, direction: Direction) -> Option<Self> {
         // TODO: Maybe extend this to all cases and don't check for candidate < 0. Check
@@ -299,6 +305,39 @@ pub enum File {
     H = 7,
 }
 
+impl File {
+    /// Returns a pre-calculated bitboard mask with 1s set for squares of the
+    /// given file.
+    pub(super) fn mask(self) -> Bitboard {
+        match self {
+            File::A => Bitboard::from_bits(
+                0b0000_0001_0000_0001_0000_0001_0000_0001_0000_0001_0000_0001_0000_0001_0000_0001,
+            ),
+            File::B => Bitboard::from_bits(
+                0b0000_0010_0000_0010_0000_0010_0000_0010_0000_0010_0000_0010_0000_0010_0000_0010,
+            ),
+            File::C => Bitboard::from_bits(
+                0b0000_0100_0000_0100_0000_0100_0000_0100_0000_0100_0000_0100_0000_0100_0000_0100,
+            ),
+            File::D => Bitboard::from_bits(
+                0b0000_1000_0000_1000_0000_1000_0000_1000_0000_1000_0000_1000_0000_1000_0000_1000,
+            ),
+            File::E => Bitboard::from_bits(
+                0b0001_0000_0001_0000_0001_0000_0001_0000_0001_0000_0001_0000_0001_0000_0001_0000,
+            ),
+            File::F => Bitboard::from_bits(
+                0b0010_0000_0010_0000_0010_0000_0010_0000_0010_0000_0010_0000_0010_0000_0010_0000,
+            ),
+            File::G => Bitboard::from_bits(
+                0b0100_0000_0100_0000_0100_0000_0100_0000_0100_0000_0100_0000_0100_0000_0100_0000,
+            ),
+            File::H => Bitboard::from_bits(
+                0b1000_0000_1000_0000_1000_0000_1000_0000_1000_0000_1000_0000_1000_0000_1000_0000,
+            ),
+        }
+    }
+}
+
 impl fmt::Display for File {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", (b'a' + *self as u8) as char)
@@ -348,6 +387,37 @@ pub enum Rank {
     Eight = 7,
 }
 
+impl Rank {
+    /// Returns a pre-calculated bitboard mask with 1s set for squares of the
+    /// given rank.
+    pub(super) fn mask(self) -> Bitboard {
+        match self {
+            Rank::One => Bitboard::from_bits(0x0000_0000_0000_00FF),
+            Rank::Two => Bitboard::from_bits(0x0000_0000_0000_FF00),
+            Rank::Three => Bitboard::from_bits(0x0000_0000_00FF_0000),
+            Rank::Four => Bitboard::from_bits(0x0000_0000_FF00_0000),
+            Rank::Five => Bitboard::from_bits(0x0000_00FF_0000_0000),
+            Rank::Six => Bitboard::from_bits(0x0000_FF00_0000_0000),
+            Rank::Seven => Bitboard::from_bits(0x00FF_0000_0000_0000),
+            Rank::Eight => Bitboard::from_bits(0xFF00_0000_0000_0000),
+        }
+    }
+
+    pub(super) fn home(player: Player) -> Self {
+        match player {
+            Player::White => Self::One,
+            Player::Black => Self::Eight,
+        }
+    }
+
+    pub(super) fn pawns_starting(player: Player) -> Self {
+        match player {
+            Player::White => Self::Two,
+            Player::Black => Self::Seven,
+        }
+    }
+}
+
 impl TryFrom<char> for Rank {
     type Error = anyhow::Error;
 
@@ -387,10 +457,18 @@ pub enum Player {
 
 impl Player {
     /// "Flips" the color.
+    #[must_use]
     pub fn opponent(self) -> Self {
         match self {
             Self::White => Self::Black,
             Self::Black => Self::White,
+        }
+    }
+
+    pub(super) fn push_direction(self) -> Direction {
+        match self {
+            Self::White => Direction::Up,
+            Self::Black => Direction::Down,
         }
     }
 }
@@ -426,7 +504,7 @@ impl fmt::Display for Player {
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum PieceKind {
-    King,
+    King = 1,
     Queen,
     Rook,
     Bishop,
@@ -435,7 +513,7 @@ pub enum PieceKind {
 }
 
 impl From<Promotion> for PieceKind {
-    fn from(promotion: Promotion) -> PieceKind {
+    fn from(promotion: Promotion) -> Self {
         match promotion {
             Promotion::Queen => Self::Queen,
             Promotion::Rook => Self::Rook,
@@ -682,7 +760,7 @@ pub enum Promotion {
 /// Traditionally those are North (Up), West (Left), East (Right), South (Down)
 /// and their combinations. However, using cardinal directions is confusing,
 /// hence they are replaced by relative directions.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, strum::EnumIter)]
 pub enum Direction {
     /// Also known as NorthWest.
     UpLeft,
@@ -702,13 +780,28 @@ pub enum Direction {
     DownRight,
 }
 
+impl Direction {
+    pub(super) fn opposite(self) -> Self {
+        match self {
+            Self::UpLeft => Self::DownRight,
+            Self::Up => Self::Down,
+            Self::UpRight => Self::DownLeft,
+            Self::Right => Self::Left,
+            Self::Left => Self::Right,
+            Self::DownLeft => Self::UpRight,
+            Self::Down => Self::Up,
+            Self::DownRight => Self::UpLeft,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::mem::{size_of, size_of_val};
 
     use pretty_assertions::assert_eq;
 
-    use super::{Direction, File, PieceKind, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
+    use super::*;
 
     #[test]
     fn rank() {

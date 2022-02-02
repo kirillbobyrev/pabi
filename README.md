@@ -12,7 +12,7 @@
 
 [![Dependencies](https://deps.rs/repo/github/kirillbobyrev/pabi/status.svg)](https://deps.rs/repo/github/kirillbobyrev/pabi)
 
-Pabi is a hypermodern Monte-Carlo Tree Search-based chess engine.
+Pabi is a hypermodern chess engine.
 
 ## Goals
 
@@ -73,10 +73,9 @@ The project is in pre-0.1.0 stage and the plan can be changed.
   implemented or drafted, the performance testing is in-place. There is a
   Command-Line Interface for interacting with the engine, debugging it and
   trying it out.
-- [1.0.0]: Pabi is a conventional AlphaGo era lc0-compatible chess engine. It
-  uses Monte Carlo Tree Search + Neural Networks for search and evaluation. It
-  can be played locally or online against other engines or human players,
-  although its strength is not State-of-The-Art strength yet.
+- [1.0.0]: Pabi is a conventional and fairly strong chess engine. It can be
+    played locally or online against other engines or human players, although
+    its strength is not State-of-The-Art strength yet.
 - [2.0.0] is possibly the ultimate goal. The Neural Networks architectures and
   training are designed specifically with Pabi architecture in mind and new
   ideas are explored.

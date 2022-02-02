@@ -10,10 +10,22 @@ use std::fmt;
 use std::num::NonZeroU16;
 
 use anyhow::{bail, Context};
+use strum::IntoEnumIterator;
 
-use crate::chess::attacks::{get_bishop_attacks, get_rook_attacks, KNIGHT_ATTACKS};
-use crate::chess::bitboard::{Bitboard, BitboardSet, Board};
-use crate::chess::core::{CastleRights, Move, Piece, Player, Rank, Square, BOARD_WIDTH};
+use crate::chess::attacks;
+use crate::chess::bitboard::{Bitboard, Board, Pieces};
+use crate::chess::core::{
+    CastleRights,
+    Direction,
+    Move,
+    Piece,
+    PieceKind,
+    Player,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
+};
 
 /// State of the chess game: board, half-move counters and castling rights,
 /// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
@@ -37,9 +49,9 @@ use crate::chess::core::{CastleRights, Move, Piece, Player, Rank, Square, BOARD_
 // Implement and benchmark this.
 // TODO: Make the fields private, expose appropriate assessors.
 pub struct Position {
-    pub(super) board: Board,
-    pub(super) castling: CastleRights,
-    pub(super) side_to_move: Player,
+    board: Board,
+    castling: CastleRights,
+    side_to_move: Player,
     /// [Halfmove Clock][^ply] keeps track of the number of (half-)moves
     /// since the last capture or pawn move and is used to enforce
     /// fifty[^fifty]-move draw rule.
@@ -49,9 +61,9 @@ pub struct Position {
     /// [^ply]: "Half-move" or ["ply"](https://www.chessprogramming.org/Ply) means a move of only
     ///     one side.
     /// [^fifty]: 50 __full__ moves
-    pub(super) halfmove_clock: u8,
-    pub(super) fullmove_counter: NonZeroU16,
-    pub(super) en_passant_square: Option<Square>,
+    halfmove_clock: u8,
+    fullmove_counter: NonZeroU16,
+    en_passant_square: Option<Square>,
 }
 
 impl Position {
@@ -87,22 +99,20 @@ impl Position {
         }
     }
 
-    fn our_pieces(&self) -> &BitboardSet {
-        match self.side_to_move {
-            Player::White => &self.board.white_pieces,
-            Player::Black => &self.board.black_pieces,
-        }
+    fn us(&self) -> Player {
+        self.side_to_move
     }
 
-    fn opponent_pieces(&self) -> &BitboardSet {
-        match self.side_to_move.opponent() {
-            Player::White => &self.board.white_pieces,
-            Player::Black => &self.board.black_pieces,
-        }
+    fn opponent(&self) -> Player {
+        self.us().opponent()
     }
 
-    /// Produces a list of legal moves (i.e. the moves that do not leave the
-    /// King in check).
+    fn pieces(&self, player: Player) -> &Pieces {
+        self.board.player_pieces(player)
+    }
+
+    /// Calculates a list of legal moves (i.e. the moves that do not leave our
+    /// king in check).
     ///
     /// This is a performance and correctness-critical path: every modification
     /// should be benchmarked and carefully tested.
@@ -118,8 +128,7 @@ impl Position {
     /// [BMI Instruction Set]: https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set
     /// [PEXT]: https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set#Parallel_bit_deposit_and_extract
     // TODO: Fall back to Fancy Magic Bitboards if BMI2 is not available for
-    // portability? Maybe for now just implement
-    // https://www.chessprogramming.org/BMI2#Serial_Implementation#Serial_Implementation2
+    // portability?
     // TODO: Look at and compare speed with https://github.com/jordanbray/chess
     // TODO: Also implement divide and use <https://github.com/jniemann66/juddperft> to validate the
     // results.
@@ -130,42 +139,96 @@ impl Position {
     // TODO: Compare with other engines and perft generators, e.g. Berserk,
     // shakmaty (https://github.com/jordanbray/chess_perft).
     // TODO: Check movegen comparison (https://github.com/Gigantua/Chess_Movegen).
-    // TODO: Should this be `Position::generate_moves` instead?
+    // TODO:: Store the moves on the stack instead? It might be faster, see
+    // https://github.com/niklasf/shakmaty/blob/e0020c0ab4b5f8601486c17c87b3313476a3cf12/src/movelist.rs
     #[must_use]
     pub fn generate_moves(&self) -> Vec<Move> {
-        // TODO: let mut vec = Vec::with_capacity(35); and tweak the specific
-        // number. The average branching factor for chess is 35 but we probably
+        // TODO: The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
         // https://en.wikipedia.org/wiki/Branching_factor
-        let mut moves = vec![];
-        // TODO: Completely delegate to Position since it already has side_to_move?
+        let mut moves = Vec::with_capacity(50);
         // Cache squares occupied by each player.
-        let our_pieces = self.our_pieces();
-        let opponent_pieces = self.opponent_pieces();
-        let non_capture_mask = our_pieces.all() | opponent_pieces.king;
-        for from in our_pieces.knights.iter() {
-            let targets = KNIGHT_ATTACKS[from as usize] - non_capture_mask;
-            for to in targets.iter() {
-                moves.push(Move::new(from, to, None));
+        // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
+        // improvement.
+        let our_pieces = self.pieces(self.us());
+        let opponent_pieces = self.pieces(self.opponent());
+        let non_capture_mask = our_pieces.all() | *opponent_pieces.king();
+        let occupancy = our_pieces.all() | opponent_pieces.all();
+        for (kind, bitboard) in self.pieces(self.us()).iter() {
+            for from in bitboard.iter() {
+                let targets = match kind {
+                    PieceKind::King => attacks::king_attacks(from),
+                    PieceKind::Queen => attacks::queen_attacks(from, occupancy),
+                    PieceKind::Rook => attacks::rook_attacks(from, occupancy),
+                    PieceKind::Bishop => attacks::bishop_attacks(from, occupancy),
+                    PieceKind::Knight => attacks::knight_attacks(from),
+                    _ => continue,
+                } - non_capture_mask;
+                for to in targets.iter() {
+                    moves.push(Move::new(from, to, None));
+                }
             }
         }
-        for from in our_pieces.bishops.iter() {
-            let targets = get_bishop_attacks(from, our_pieces.all() | opponent_pieces.all())
-                - non_capture_mask;
-            for to in targets.iter() {
-                moves.push(Move::new(from, to, None));
+        // Regular pawn pushes.
+        let occupancy = our_pieces.all() | opponent_pieces.all();
+        let push_direction = self.us().push_direction();
+        let pawn_pushes = our_pieces.pawns().shift(push_direction) - occupancy;
+        let original_squares = pawn_pushes.shift(push_direction.opposite());
+        let add_pawn_moves = |moves: &mut Vec<Move>, from, to: Square| {
+            // TODO: This is probably better with self.side_to_move.opponent().home_rank()
+            // but might be slower.
+            match to.rank() {
+                Rank::Eight | Rank::One => {
+                    moves.push(Move::new(from, to, Some(Promotion::Queen)));
+                    moves.push(Move::new(from, to, Some(Promotion::Rook)));
+                    moves.push(Move::new(from, to, Some(Promotion::Bishop)));
+                    moves.push(Move::new(from, to, Some(Promotion::Knight)));
+                },
+                _ => moves.push(Move::new(from, to, None)),
+            }
+        };
+        for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
+            add_pawn_moves(&mut moves, from, to);
+        }
+        // Double pawn pushes.
+        // TODO: Come up with a better name for it.
+        let third_rank = Rank::pawns_starting(self.us()).mask().shift(push_direction);
+        let double_pushes = (pawn_pushes & third_rank).shift(push_direction) - occupancy;
+        let original_squares = double_pushes
+            .shift(push_direction.opposite())
+            .shift(push_direction.opposite());
+        // Double pawn pushes are never promoting.
+        for (from, to) in itertools::zip(original_squares.iter(), double_pushes.iter()) {
+            moves.push(Move::new(from, to, None));
+        }
+        // TODO: En passant.
+        // Pawn captures.
+        let capture_directions = match self.us() {
+            Player::White => [Direction::UpLeft, Direction::UpRight],
+            Player::Black => [Direction::DownLeft, Direction::DownRight],
+        };
+        // TODO: This actually doesn't require taking the opponent king away
+        // because in valid positions the enemy king is not in check when the
+        // moves are generated.
+        // TODO: Should en_passant_square just be a Bitboard instead?
+        let capturable = match self.en_passant_square {
+            Some(square) => {
+                (opponent_pieces.all() - *opponent_pieces.king()) | Bitboard::from(square)
+            },
+            None => opponent_pieces.all() - *opponent_pieces.king(),
+        };
+        for from in our_pieces.pawns().iter() {
+            for direction in capture_directions {
+                let to = match from.shift(direction) {
+                    Some(to) => to,
+                    None => continue,
+                };
+                if capturable.contains(to) {
+                    add_pawn_moves(&mut moves, from, to);
+                }
             }
         }
-        for from in our_pieces.rooks.iter() {
-            let targets =
-                get_rook_attacks(from, our_pieces.all() | opponent_pieces.all()) - non_capture_mask;
-            for to in targets.iter() {
-                moves.push(Move::new(from, to, None));
-            }
-        }
-        // TODO: Check afterstate? Our king should not be checked.
         // TODO: Castling.
-        // TODO: Pawn moves + en passant.
         moves
     }
 
@@ -187,32 +250,32 @@ impl Position {
     pub fn check_validity(&self) -> anyhow::Result<()> {
         // TODO: The following patterns look repetitive; maybe refactor the
         // common structure even though it's quite short?
-        if self.board.white_pieces.king.count_ones() != 1 {
+        if self.board.white_pieces.king().count_ones() != 1 {
             bail!(
                 "incorrect number of white kings: expected 1, got {}",
-                self.board.white_pieces.king.count_ones()
+                self.board.white_pieces.king().count_ones()
             );
         }
-        if self.board.black_pieces.king.count_ones() != 1 {
+        if self.board.black_pieces.king().count_ones() != 1 {
             bail!(
                 "incorrect number of black kings: expected 1, got {}",
-                self.board.black_pieces.king.count_ones()
+                self.board.black_pieces.king().count_ones()
             );
         }
-        if self.board.white_pieces.pawns.count_ones() > 8 {
+        if self.board.white_pieces.pawns().count_ones() > 8 {
             bail!(
                 "incorrect number of white pawns: expected <= 8, got {}",
-                self.board.white_pieces.pawns.count_ones()
+                self.board.white_pieces.pawns().count_ones()
             );
         }
-        if self.board.black_pieces.pawns.count_ones() > 8 {
+        if self.board.black_pieces.pawns().count_ones() > 8 {
             bail!(
                 "incorrect number of black pawns: expected <= 8, got {}",
-                self.board.black_pieces.pawns.count_ones()
+                self.board.black_pieces.pawns().count_ones()
             );
         }
-        if ((self.board.white_pieces.pawns & self.board.black_pieces.pawns)
-            & (Bitboard::rank_mask(Rank::One) | Bitboard::rank_mask(Rank::Eight)))
+        if ((*self.board.white_pieces.pawns() & *self.board.black_pieces.pawns())
+            & (Rank::One.mask() | Rank::Eight.mask()))
         .count_ones()
             != 0
         {
@@ -234,6 +297,11 @@ impl Position {
         }
         // TODO: The rest of the checks.
         Ok(())
+    }
+
+    #[must_use]
+    pub fn has_insufficient_material(&self) -> bool {
+        todo!()
     }
 }
 
@@ -370,7 +438,8 @@ impl fmt::Debug for Position {
         writeln!(f, "Player to move: {:?}", &self.side_to_move)?;
         writeln!(f, "Fullmove counter: {:?}", &self.fullmove_counter)?;
         writeln!(f, "En Passant: {:?}", &self.en_passant_square)?;
-        // bitflags default fmt::Debug implementation is not very convenient.
+        // bitflags default fmt::Debug implementation is not very convenient:
+        // dump FEN instead.
         writeln!(f, "Castling rights: {}", &self.castling)?;
         writeln!(f, "FEN: {}", &self.to_string())?;
         Ok(())
@@ -379,28 +448,31 @@ impl fmt::Debug for Position {
 
 #[cfg(test)]
 mod test {
+    use itertools::Itertools;
     use pretty_assertions::assert_eq;
 
-    use super::Position;
+    use super::*;
+    use crate::chess::core::Move;
 
-    fn check_correct_fen(fen: &str) {
+    fn setup(fen: &str) -> Position {
         let position = Position::try_from(fen);
         assert!(position.is_ok(), "input: {fen}");
         let position = position.unwrap();
         assert_eq!(position.to_string(), fen, "input: {fen}");
+        assert!(position.check_validity().is_ok());
+        position
     }
 
     // TODO: Validate the precise contents of the bitboard directly.
     // TODO: Add incorrect ones and validate parsing errors.
     #[test]
+    #[allow(unused_results)]
     fn correct_fen() {
-        check_correct_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        check_correct_fen("2r3r1/p3k3/1p3pp1/1B5p/5P2/2P1p1P1/PP4KP/3R4 w - - 0 34");
-        check_correct_fen("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq c6 0 7");
-        check_correct_fen(
-            "r2qkb1r/1pp1pp1p/p1np1np1/1B6/3PP1b1/2N1BN2/PPP2PPP/R2QK2R w KQkq - 0 7",
-        );
-        check_correct_fen("r3k3/5p2/2p5/p7/P3r3/2N2n2/1PP2P2/2K2B2 w q - 0 24");
+        setup("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        setup("2r3r1/p3k3/1p3pp1/1B5p/5P2/2P1p1P1/PP4KP/3R4 w - - 0 34");
+        setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq c6 0 7");
+        setup("r2qkb1r/1pp1pp1p/p1np1np1/1B6/3PP1b1/2N1BN2/PPP2PPP/R2QK2R w KQkq - 0 7");
+        setup("r3k3/5p2/2p5/p7/P3r3/2N2n2/1PP2P2/2K2B2 w q - 0 24");
     }
 
     #[test]
@@ -448,5 +520,33 @@ mod test {
         .is_err());
         // Don't crash on unicode symbols.
         assert!(Position::try_from("8/8/8/8/8/8/8/8 b 88 🔠 🔠 ").is_err());
+    }
+
+    #[test]
+    fn starting_moves() {
+        assert_eq!(
+            Position::starting()
+                .generate_moves()
+                .iter()
+                .map(Move::to_string)
+                .sorted()
+                .collect::<Vec<_>>(),
+            [
+                "a2a3", "a2a4", "b1a3", "b1c3", "b2b3", "b2b4", "c2c3", "c2c4", "d2d3", "d2d4",
+                "e2e3", "e2e4", "f2f3", "f2f4", "g1f3", "g1h3", "g2g3", "g2g4", "h2h3", "h2h4"
+            ]
+            .iter()
+            .map(|m| (*m).to_string())
+            .sorted()
+            .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn basic_moves() {
+        let position = setup("2n4k/1PP5/6K1/6Q1/3N4/3P4/P3R3/8 w - - 0 1");
+        let moves = position.generate_moves();
+        let serialized: Vec<String> = moves.iter().map(Move::to_string).sorted().collect();
+        dbg!(serialized);
     }
 }

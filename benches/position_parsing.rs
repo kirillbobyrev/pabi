@@ -37,7 +37,7 @@ criterion_group! {
     name = position;
     config = Criterion::default()
         .sample_size(10)
-        .warm_up_time(Duration::from_secs(20))
+        .warm_up_time(Duration::from_secs(120))
         .measurement_time(Duration::from_secs(60));
     targets = parse
 }

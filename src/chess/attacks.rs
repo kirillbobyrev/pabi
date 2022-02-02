@@ -1,26 +1,45 @@
 //! Mappings of occupied squares to the attacked squares for each piece. The
 //! mappings are pre-calculated where possible to provide an efficient way of
 //! generating moves.
+// TODO: This code is probably by far the less appealing in the project.
+// Refactor it and make it nicer.
 
 use crate::chess::bitboard::Bitboard;
-use crate::chess::core::{Square, BOARD_SIZE};
+use crate::chess::core::{Player, Square, BOARD_SIZE};
 
-// Generated in build.rs.
-// TODO: Document PEXT bitboards.
-const BISHOP_ATTACKS_COUNT: usize = 5248;
-const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] =
-    include!(concat!(env!("OUT_DIR"), "/bishop_attacks"));
-const ROOK_ATTACKS_COUNT: usize = 102_400;
-const ROOK_ATTACKS: [Bitboard; ROOK_ATTACKS_COUNT] =
-    include!(concat!(env!("OUT_DIR"), "/rook_attacks"));
-const BISHOP_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] =
-    include!(concat!(env!("OUT_DIR"), "/bishop_occupancies"));
-const ROOK_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] =
-    include!(concat!(env!("OUT_DIR"), "/rook_occupancies"));
-const BISHOP_OFFSETS: [usize; BOARD_SIZE as usize] =
-    include!(concat!(env!("OUT_DIR"), "/bishop_offsets"));
-const ROOK_OFFSETS: [usize; BOARD_SIZE as usize] =
-    include!(concat!(env!("OUT_DIR"), "/rook_offsets"));
+// TODO: Here and elsewhere: get_unchecked instead.
+pub(super) fn king_attacks(from: Square) -> Bitboard {
+    KING_ATTACKS[from as usize]
+}
+
+pub(super) fn queen_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
+    bishop_attacks(from, occupancy) | rook_attacks(from, occupancy)
+}
+
+pub(super) fn rook_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
+    ROOK_ATTACKS[ROOK_OFFSETS[from as usize]
+        + pext(occupancy.bits(), ROOK_RELEVANT_OCCUPANCIES[from as usize]) as usize]
+}
+
+pub(super) fn bishop_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
+    BISHOP_ATTACKS[BISHOP_OFFSETS[from as usize]
+        + pext(occupancy.bits(), BISHOP_RELEVANT_OCCUPANCIES[from as usize]) as usize]
+}
+
+pub(super) fn knight_attacks(square: Square) -> Bitboard {
+    KNIGHT_ATTACKS[square as usize]
+}
+
+pub(super) fn pawn_attacks(square: Square, player: Player) -> Bitboard {
+    match player {
+        Player::White => WHITE_PAWN_ATTACKS[square as usize],
+        Player::Black => BLACK_PAWN_ATTACKS[square as usize],
+    }
+}
+
+pub(super) fn ray(from: Square, to: Square) -> Bitboard {
+    RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
+}
 
 fn pext(a: u64, mask: u64) -> u64 {
     if cfg!(target_feature = "bmi2") {
@@ -41,101 +60,40 @@ fn pext(a: u64, mask: u64) -> u64 {
     }
 }
 
-pub(super) fn get_bishop_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
-    BISHOP_ATTACKS[BISHOP_OFFSETS[square as usize]
-        + pext(
-            occupancy.bits(),
-            BISHOP_RELEVANT_OCCUPANCIES[square as usize],
-        ) as usize]
-}
+// Generated in build.rs.
+// TODO: Document PEXT bitboards.
+const BISHOP_ATTACKS_COUNT: usize = 5248;
+const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] =
+    include!(concat!(env!("OUT_DIR"), "/bishop_attacks"));
+const ROOK_ATTACKS_COUNT: usize = 102_400;
+const ROOK_ATTACKS: [Bitboard; ROOK_ATTACKS_COUNT] =
+    include!(concat!(env!("OUT_DIR"), "/rook_attacks"));
+const BISHOP_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] =
+    include!(concat!(env!("OUT_DIR"), "/bishop_occupancies"));
+const ROOK_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] =
+    include!(concat!(env!("OUT_DIR"), "/rook_occupancies"));
+const BISHOP_OFFSETS: [usize; BOARD_SIZE as usize] =
+    include!(concat!(env!("OUT_DIR"), "/bishop_offsets"));
+const ROOK_OFFSETS: [usize; BOARD_SIZE as usize] =
+    include!(concat!(env!("OUT_DIR"), "/rook_offsets"));
 
-pub(super) fn get_rook_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
-    ROOK_ATTACKS[ROOK_OFFSETS[square as usize]
-        + pext(occupancy.bits(), ROOK_RELEVANT_OCCUPANCIES[square as usize]) as usize]
-}
+include!("generated/knight_attacks.rs");
+include!("generated/king_attacks.rs");
+include!("generated/white_pawn_attacks.rs");
+include!("generated/black_pawn_attacks.rs");
 
-// Pre-calculated attacks of a knight from each square.
-pub(super) const KNIGHT_ATTACKS: [Bitboard; BOARD_SIZE as usize] = [
-    Bitboard::from_bits(0x0000_0000_0002_0400),
-    Bitboard::from_bits(0x0000_0000_0005_0800),
-    Bitboard::from_bits(0x0000_0000_000A_1100),
-    Bitboard::from_bits(0x0000_0000_0014_2200),
-    Bitboard::from_bits(0x0000_0000_0028_4400),
-    Bitboard::from_bits(0x0000_0000_0050_8800),
-    Bitboard::from_bits(0x0000_0000_00A0_1000),
-    Bitboard::from_bits(0x0000_0000_0040_2000),
-    Bitboard::from_bits(0x0000_0000_0204_0004),
-    Bitboard::from_bits(0x0000_0000_0508_0008),
-    Bitboard::from_bits(0x0000_0000_0A11_0011),
-    Bitboard::from_bits(0x0000_0000_1422_0022),
-    Bitboard::from_bits(0x0000_0000_2844_0044),
-    Bitboard::from_bits(0x0000_0000_5088_0088),
-    Bitboard::from_bits(0x0000_0000_A010_0010),
-    Bitboard::from_bits(0x0000_0000_4020_0020),
-    Bitboard::from_bits(0x0000_0002_0400_0402),
-    Bitboard::from_bits(0x0000_0005_0800_0805),
-    Bitboard::from_bits(0x0000_000A_1100_110A),
-    Bitboard::from_bits(0x0000_0014_2200_2214),
-    Bitboard::from_bits(0x0000_0028_4400_4428),
-    Bitboard::from_bits(0x0000_0050_8800_8850),
-    Bitboard::from_bits(0x0000_00A0_1000_10A0),
-    Bitboard::from_bits(0x0000_0040_2000_2040),
-    Bitboard::from_bits(0x0000_0204_0004_0200),
-    Bitboard::from_bits(0x0000_0508_0008_0500),
-    Bitboard::from_bits(0x0000_0A11_0011_0A00),
-    Bitboard::from_bits(0x0000_1422_0022_1400),
-    Bitboard::from_bits(0x0000_2844_0044_2800),
-    Bitboard::from_bits(0x0000_5088_0088_5000),
-    Bitboard::from_bits(0x0000_A010_0010_A000),
-    Bitboard::from_bits(0x0000_4020_0020_4000),
-    Bitboard::from_bits(0x0002_0400_0402_0000),
-    Bitboard::from_bits(0x0005_0800_0805_0000),
-    Bitboard::from_bits(0x000A_1100_110A_0000),
-    Bitboard::from_bits(0x0014_2200_2214_0000),
-    Bitboard::from_bits(0x0028_4400_4428_0000),
-    Bitboard::from_bits(0x0050_8800_8850_0000),
-    Bitboard::from_bits(0x00A0_1000_10A0_0000),
-    Bitboard::from_bits(0x0040_2000_2040_0000),
-    Bitboard::from_bits(0x0204_0004_0200_0000),
-    Bitboard::from_bits(0x0508_0008_0500_0000),
-    Bitboard::from_bits(0x0A11_0011_0A00_0000),
-    Bitboard::from_bits(0x1422_0022_1400_0000),
-    Bitboard::from_bits(0x2844_0044_2800_0000),
-    Bitboard::from_bits(0x5088_0088_5000_0000),
-    Bitboard::from_bits(0xA010_0010_A000_0000),
-    Bitboard::from_bits(0x4020_0020_4000_0000),
-    Bitboard::from_bits(0x0400_0402_0000_0000),
-    Bitboard::from_bits(0x0800_0805_0000_0000),
-    Bitboard::from_bits(0x1100_110A_0000_0000),
-    Bitboard::from_bits(0x2200_2214_0000_0000),
-    Bitboard::from_bits(0x4400_4428_0000_0000),
-    Bitboard::from_bits(0x8800_8850_0000_0000),
-    Bitboard::from_bits(0x1000_10A0_0000_0000),
-    Bitboard::from_bits(0x2000_2040_0000_0000),
-    Bitboard::from_bits(0x0004_0200_0000_0000),
-    Bitboard::from_bits(0x0008_0500_0000_0000),
-    Bitboard::from_bits(0x0011_0A00_0000_0000),
-    Bitboard::from_bits(0x0022_1400_0000_0000),
-    Bitboard::from_bits(0x0044_2800_0000_0000),
-    Bitboard::from_bits(0x0088_5000_0000_0000),
-    Bitboard::from_bits(0x0010_A000_0000_0000),
-    Bitboard::from_bits(0x0020_4000_0000_0000),
-];
+include!("generated/rays.rs");
 
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
+    use strum::IntoEnumIterator;
 
-    use super::{Bitboard, Square};
-    use crate::chess::attacks::{
-        get_bishop_attacks,
-        get_rook_attacks,
-        BISHOP_RELEVANT_OCCUPANCIES,
-        ROOK_RELEVANT_OCCUPANCIES,
-    };
+    use super::*;
+    use crate::chess::core::Rank;
 
     #[test]
-    fn bishop_attacks() {
+    fn sliders() {
         let occupancy = Bitboard::from_squares(&[
             Square::F4,
             Square::C4,
@@ -172,7 +130,7 @@ mod test {
             . . 1 . . . 1 .\n\
             . . . . . . . ."
         );
-        let attacks = get_bishop_attacks(Square::E4, occupancy);
+        let attacks = bishop_attacks(Square::E4, occupancy);
         println!("{:064b}", attacks.bits());
         assert_eq!(
             format!("{:?}", attacks),
@@ -199,7 +157,7 @@ mod test {
             . . . . 1 . . .\n\
             . . . . . . . ."
         );
-        let attacks = get_rook_attacks(Square::E4, occupancy);
+        let attacks = rook_attacks(Square::E4, occupancy);
         println!("{:064b}", attacks.bits());
         assert_eq!(
             format!("{:?}", attacks),
@@ -210,6 +168,256 @@ mod test {
             . . 1 1 . 1 . .\n\
             . . . . 1 . . .\n\
             . . . . 1 . . .\n\
+            . . . . . . . ."
+        );
+    }
+
+    #[test]
+    fn king() {
+        assert_eq!(
+            format!("{:?}", king_attacks(Square::A1)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            1 1 . . . . . .\n\
+            . 1 . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", king_attacks(Square::H3)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . 1 1\n\
+            . . . . . . 1 .\n\
+            . . . . . . 1 1\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", king_attacks(Square::D4)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . 1 1 1 . . .\n\
+            . . 1 . 1 . . .\n\
+            . . 1 1 1 . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", king_attacks(Square::F8)),
+            ". . . . 1 . 1 .\n\
+            . . . . 1 1 1 .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+    }
+
+    #[test]
+    fn knight() {
+        assert_eq!(
+            format!("{:?}", knight_attacks(Square::A1)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . 1 . . . . . .\n\
+            . . 1 . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", knight_attacks(Square::B1)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            1 . 1 . . . . .\n\
+            . . . 1 . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", knight_attacks(Square::H3)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . 1 .\n\
+            . . . . . 1 . .\n\
+            . . . . . . . .\n\
+            . . . . . 1 . .\n\
+            . . . . . . 1 ."
+        );
+        assert_eq!(
+            format!("{:?}", knight_attacks(Square::D4)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . 1 . 1 . . .\n\
+            . 1 . . . 1 . .\n\
+            . . . . . . . .\n\
+            . 1 . . . 1 . .\n\
+            . . 1 . 1 . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", knight_attacks(Square::F8)),
+            ". . . . . . . .\n\
+            . . . 1 . . . 1\n\
+            . . . . 1 . 1 .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+    }
+
+    #[test]
+    fn pawn() {
+        // Pawns can not be on the back ranks, hence the attack maps are empty.
+        for square in Rank::One.mask().iter().chain(Rank::Eight.mask().iter()) {
+            assert!(pawn_attacks(square, Player::White).is_empty());
+            assert!(pawn_attacks(square, Player::Black).is_empty());
+        }
+        assert_eq!(
+            format!("{:?}", pawn_attacks(Square::A2, Player::White)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . 1 . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", pawn_attacks(Square::A2, Player::Black)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . 1 . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", pawn_attacks(Square::D4, Player::White)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . 1 . 1 . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", pawn_attacks(Square::D4, Player::Black)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . 1 . 1 . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", pawn_attacks(Square::H5, Player::White)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . 1 .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", pawn_attacks(Square::H5, Player::Black)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . 1 .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+    }
+
+    #[test]
+    fn rays() {
+        // Rays with source == destination don't exist.
+        for square in Square::iter() {
+            assert!(ray(square, square).is_empty());
+        }
+        // Rays don't exist for squares not on the same diagonal or vertical.
+        assert!(ray(Square::A1, Square::B3).is_empty());
+        assert!(ray(Square::A1, Square::H7).is_empty());
+        assert!(ray(Square::B2, Square::H5).is_empty());
+        assert!(ray(Square::F2, Square::H8).is_empty());
+        assert_eq!(
+            format!("{:?}", ray(Square::B3, Square::F7)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . 1 . . .\n\
+            . . . 1 . . . .\n\
+            . . 1 . . . . .\n\
+            . 1 . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", ray(Square::F7, Square::B3)),
+            ". . . . . . . .\n\
+            . . . . . 1 . .\n\
+            . . . . 1 . . .\n\
+            . . . 1 . . . .\n\
+            . . 1 . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", ray(Square::C8, Square::H8)),
+            ". . 1 1 1 1 1 .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", ray(Square::H1, Square::H8)),
+            ". . . . . . . .\n\
+            . . . . . . . 1\n\
+            . . . . . . . 1\n\
+            . . . . . . . 1\n\
+            . . . . . . . 1\n\
+            . . . . . . . 1\n\
+            . . . . . . . 1\n\
+            . . . . . . . 1"
+        );
+        assert_eq!(
+            format!("{:?}", ray(Square::E4, Square::B4)),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . 1 1 1 . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
             . . . . . . . ."
         );
     }

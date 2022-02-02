@@ -17,7 +17,17 @@ use std::{fmt, mem};
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::chess::core::{File, Piece, PieceKind, Player, Rank, Square, BOARD_SIZE, BOARD_WIDTH};
+use crate::chess::core::{
+    Direction,
+    File,
+    Piece,
+    PieceKind,
+    Player,
+    Rank,
+    Square,
+    BOARD_SIZE,
+    BOARD_WIDTH,
+};
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
@@ -34,8 +44,10 @@ pub struct Bitboard {
 
 impl Bitboard {
     /// Constructs Bitboard from pre-calculated bits.
+    // TODO: Maybe just use From<u64> if I don't end up using it in compile-time
+    // computations?
     #[must_use]
-    pub const fn from_bits(bits: u64) -> Self {
+    pub(super) const fn from_bits(bits: u64) -> Self {
         Self { bits }
     }
 
@@ -69,7 +81,7 @@ impl Bitboard {
 
     /// Returns true if this bitboard contains given square.
     #[must_use]
-    pub(super) fn is_set(self, square: Square) -> bool {
+    pub(super) fn contains(self, square: Square) -> bool {
         (self.bits & (1u64 << square as u8)) != 0
     }
 
@@ -78,36 +90,26 @@ impl Bitboard {
         self.bits.count_ones()
     }
 
+    #[must_use]
+    pub(super) fn is_empty(self) -> bool {
+        self.count_ones() == 0
+    }
+
     /// An efficient way to iterate over the set squares.
     #[must_use]
     pub(super) fn iter(self) -> BitboardIterator {
         BitboardIterator { bits: self.bits }
     }
 
-    /// Returns a pre-calculated bitboard mask with 1s set for squares of the
-    /// given rank.
     #[must_use]
-    pub(super) const fn rank_mask(rank: Rank) -> Self {
-        match rank {
-            Rank::One => Self::from_bits(0x0000_0000_0000_00FF),
-            Rank::Two => Self::from_bits(0x0000_0000_0000_FF00),
-            Rank::Three => Self::from_bits(0x0000_0000_00FF_0000),
-            Rank::Four => Self::from_bits(0x0000_0000_FF00_0000),
-            Rank::Five => Self::from_bits(0x0000_00FF_0000_0000),
-            Rank::Six => Self::from_bits(0x0000_FF00_0000_0000),
-            Rank::Seven => Self::from_bits(0x00FF_0000_0000_0000),
-            Rank::Eight => Self::from_bits(0xFF00_0000_0000_0000),
+    pub(super) fn shift(self, direction: Direction) -> Self {
+        match direction {
+            Direction::Up => self << u32::from(BOARD_WIDTH),
+            Direction::Down => self >> u32::from(BOARD_WIDTH),
+            Direction::Left => self << 1,
+            Direction::Right => self >> 1,
+            _ => unreachable!(),
         }
-    }
-
-    #[must_use]
-    pub(super) fn shift_rank_up(self) -> Self {
-        self << u32::from(BOARD_WIDTH)
-    }
-
-    #[must_use]
-    pub(super) fn shift_rank_down(self) -> Self {
-        self << u32::from(BOARD_WIDTH)
     }
 }
 
@@ -251,6 +253,27 @@ impl Iterator for BitboardIterator {
     }
 }
 
+impl ExactSizeIterator for BitboardIterator {
+    fn len(&self) -> usize {
+        self.bits.count_ones() as usize
+    }
+}
+
+impl TryInto<Square> for Bitboard {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> anyhow::Result<Square> {
+        if self.bits.count_ones() != 1 {
+            anyhow::bail!(
+                "bitboard should contain exactly 1 bit, got {}",
+                self.bits.count_ones()
+            );
+        }
+        // TODO: This unwrap should actually be safe, do unchecked..
+        Square::try_from(self.bits.trailing_zeros() as u8)
+    }
+}
+
 /// Piece-centric representation of all material owned by one player. Uses
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
 /// is [`crate::chess::position::Position`], [Bitboard] is not very useful on
@@ -259,20 +282,55 @@ impl Iterator for BitboardIterator {
 // improve performance. This is what lc0 does:
 // https://github.com/LeelaChessZero/lc0/blob/d2e372e59cd9188315d5c02a20e0bdce88033bc5/src/chess/board.h
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub(super) struct BitboardSet {
-    pub(super) king: Bitboard,
-    pub(super) queen: Bitboard,
-    pub(super) rooks: Bitboard,
-    pub(super) bishops: Bitboard,
-    pub(super) knights: Bitboard,
-    pub(super) pawns: Bitboard,
+pub(super) struct Pieces {
+    king: Bitboard,
+    queens: Bitboard,
+    rooks: Bitboard,
+    bishops: Bitboard,
+    knights: Bitboard,
+    pawns: Bitboard,
 }
 
-impl BitboardSet {
+impl Pieces {
+    pub(super) fn king(&self) -> &Bitboard {
+        &self.king
+    }
+
+    pub(super) fn queens(&self) -> &Bitboard {
+        &self.queens
+    }
+
+    pub(super) fn rooks(&self) -> &Bitboard {
+        &self.rooks
+    }
+
+    pub(super) fn bishops(&self) -> &Bitboard {
+        &self.bishops
+    }
+
+    pub(super) fn knights(&self) -> &Bitboard {
+        &self.knights
+    }
+
+    pub(super) fn occupancy(&self, piece_kind: PieceKind) -> &Bitboard {
+        match piece_kind {
+            PieceKind::King => self.king(),
+            PieceKind::Queen => self.queens(),
+            PieceKind::Rook => self.rooks(),
+            PieceKind::Bishop => self.bishops(),
+            PieceKind::Knight => self.knights(),
+            PieceKind::Pawn => self.pawns(),
+        }
+    }
+
+    pub(super) fn pawns(&self) -> &Bitboard {
+        &self.pawns
+    }
+
     pub(super) fn empty() -> Self {
         Self {
             king: Bitboard::empty(),
-            queen: Bitboard::empty(),
+            queens: Bitboard::empty(),
             rooks: Bitboard::empty(),
             bishops: Bitboard::empty(),
             knights: Bitboard::empty(),
@@ -283,7 +341,7 @@ impl BitboardSet {
     pub(super) fn new_white() -> Self {
         Self {
             king: Square::E1.into(),
-            queen: Square::D1.into(),
+            queens: Square::D1.into(),
             rooks: Bitboard::from_squares(&[Square::A1, Square::H1]),
             bishops: Bitboard::from_squares(&[Square::C1, Square::F1]),
             knights: Bitboard::from_squares(&[Square::B1, Square::G1]),
@@ -304,7 +362,7 @@ impl BitboardSet {
         // TODO: Implement flip and return new_white().flip() to prevent copying code.
         Self {
             king: Square::E8.into(),
-            queen: Square::D8.into(),
+            queens: Square::D8.into(),
             rooks: Bitboard::from_squares(&[Square::A8, Square::H8]),
             bishops: Bitboard::from_squares(&[Square::C8, Square::F8]),
             knights: Bitboard::from_squares(&[Square::B8, Square::G8]),
@@ -321,14 +379,14 @@ impl BitboardSet {
         }
     }
 
-    pub(super) fn all(self) -> Bitboard {
-        self.king | self.queen | self.rooks | self.bishops | self.knights | self.pawns
+    pub(super) fn all(&self) -> Bitboard {
+        self.king | self.queens | self.rooks | self.bishops | self.knights | self.pawns
     }
 
     pub(super) fn bitboard_for(&mut self, piece: PieceKind) -> &mut Bitboard {
         match piece {
             PieceKind::King => &mut self.king,
-            PieceKind::Queen => &mut self.queen,
+            PieceKind::Queen => &mut self.queens,
             PieceKind::Rook => &mut self.rooks,
             PieceKind::Bishop => &mut self.bishops,
             PieceKind::Knight => &mut self.knights,
@@ -338,31 +396,63 @@ impl BitboardSet {
 
     // TODO: Maybe completely disallow this? If we have the Square ->
     // Option<Piece> mapping, this is potentially obsolete.
-    pub(super) fn at(self, square: Square) -> Option<PieceKind> {
-        if self.all().is_set(square) {
-            let mut kind = if self.king.is_set(square) {
+    pub(super) fn at(&self, square: Square) -> Option<PieceKind> {
+        if self.all().contains(square) {
+            let mut kind = if self.king.contains(square) {
                 PieceKind::King
             } else {
                 PieceKind::Pawn
             };
-            if self.king.is_set(square) {
+            if self.king.contains(square) {
                 kind = PieceKind::King;
             }
-            if self.queen.is_set(square) {
+            if self.queens.contains(square) {
                 kind = PieceKind::Queen;
             }
-            if self.rooks.is_set(square) {
+            if self.rooks.contains(square) {
                 kind = PieceKind::Rook;
             }
-            if self.bishops.is_set(square) {
+            if self.bishops.contains(square) {
                 kind = PieceKind::Bishop;
             }
-            if self.knights.is_set(square) {
+            if self.knights.contains(square) {
                 kind = PieceKind::Knight;
             }
             return Some(kind);
         }
         None
+    }
+
+    pub(super) fn iter(&self) -> PiecesIterator {
+        PiecesIterator {
+            pieces: self,
+            index: 0,
+        }
+    }
+}
+
+// TODO: Document.
+pub(super) struct PiecesIterator<'a> {
+    pieces: &'a Pieces,
+    index: u8,
+}
+
+impl Iterator for PiecesIterator<'_> {
+    type Item = (PieceKind, Bitboard);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = match self.index {
+            0 => Some((PieceKind::King, self.pieces.king)),
+            1 => Some((PieceKind::Queen, self.pieces.queens)),
+            2 => Some((PieceKind::Rook, self.pieces.rooks)),
+            3 => Some((PieceKind::Bishop, self.pieces.bishops)),
+            4 => Some((PieceKind::Knight, self.pieces.knights)),
+            5 => Some((PieceKind::Pawn, self.pieces.pawns)),
+            6 => None,
+            _ => unreachable!(),
+        };
+        self.index += 1;
+        result
     }
 }
 
@@ -374,16 +464,16 @@ impl BitboardSet {
 /// complement each other.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub(super) struct Board {
-    pub(super) white_pieces: BitboardSet,
-    pub(super) black_pieces: BitboardSet,
+    pub(super) white_pieces: Pieces,
+    pub(super) black_pieces: Pieces,
 }
 
 impl Board {
     #[must_use]
     pub(super) fn starting() -> Self {
         Self {
-            white_pieces: BitboardSet::new_white(),
-            black_pieces: BitboardSet::new_black(),
+            white_pieces: Pieces::new_white(),
+            black_pieces: Pieces::new_black(),
         }
     }
 
@@ -391,13 +481,13 @@ impl Board {
     #[must_use]
     pub(super) fn empty() -> Self {
         Self {
-            white_pieces: BitboardSet::empty(),
-            black_pieces: BitboardSet::empty(),
+            white_pieces: Pieces::empty(),
+            black_pieces: Pieces::empty(),
         }
     }
 
     #[must_use]
-    pub(super) fn player_pieces(&self, player: Player) -> &BitboardSet {
+    pub(super) fn player_pieces(&self, player: Player) -> &Pieces {
         match player {
             Player::White => &self.white_pieces,
             Player::Black => &self.black_pieces,
@@ -483,7 +573,7 @@ const SQUARE_SEPARATOR: &str = " ";
 mod test {
     use pretty_assertions::assert_eq;
 
-    use super::{Bitboard, BitboardSet, Board};
+    use super::*;
     use crate::chess::core::{Rank, Square, BOARD_WIDTH};
 
     #[test]
@@ -506,8 +596,8 @@ mod test {
     #[test]
     fn set_basics() {
         // Create a starting position.
-        let white = BitboardSet::new_white();
-        let black = BitboardSet::new_black();
+        let white = Pieces::new_white();
+        let black = Pieces::new_black();
 
         // Check that each player has 16 pieces.
         assert_eq!(white.all().bits.count_ones(), 16);
@@ -516,8 +606,8 @@ mod test {
         // was not enough to confirm there are no overlaps).
         assert_eq!(white.king.bits.count_ones(), 1);
         assert_eq!(black.king.bits.count_ones(), 1);
-        assert_eq!(white.queen.bits.count_ones(), 1);
-        assert_eq!(black.queen.bits.count_ones(), 1);
+        assert_eq!(white.queens.bits.count_ones(), 1);
+        assert_eq!(black.queens.bits.count_ones(), 1);
         assert_eq!(white.rooks.bits.count_ones(), 2);
         assert_eq!(black.rooks.bits.count_ones(), 2);
         assert_eq!(white.bishops.bits.count_ones(), 2);
@@ -528,23 +618,20 @@ mod test {
         assert_eq!(black.pawns.bits.count_ones(), 8);
 
         // Check few positions manually.
-        assert_eq!(white.queen.bits, 1 << 3);
-        assert_eq!(black.queen.bits, 1 << (3 + 8 * 7));
+        assert_eq!(white.queens.bits, 1 << 3);
+        assert_eq!(black.queens.bits, 1 << (3 + 8 * 7));
 
         // Rank masks.
+        assert_eq!(Rank::One.mask() << u32::from(BOARD_WIDTH), Rank::Two.mask());
         assert_eq!(
-            Bitboard::rank_mask(Rank::One) << u32::from(BOARD_WIDTH),
-            Bitboard::rank_mask(Rank::Two)
-        );
-        assert_eq!(
-            Bitboard::rank_mask(Rank::Five) >> u32::from(BOARD_WIDTH),
-            Bitboard::rank_mask(Rank::Four)
+            Rank::Five.mask() >> u32::from(BOARD_WIDTH),
+            Rank::Four.mask()
         );
     }
 
     #[test]
     fn bitboard_iterator() {
-        let white = BitboardSet::new_white();
+        let white = Pieces::new_white();
 
         let mut it = white.king.iter();
         assert_eq!(it.next(), Some(Square::E1));
@@ -691,8 +778,8 @@ mod test {
 
     #[test]
     fn set_dump() {
-        let white = BitboardSet::new_white();
-        let black = BitboardSet::new_black();
+        let white = Pieces::new_white();
+        let black = Pieces::new_black();
 
         assert_eq!(
             format!("{:?}", black.all()),
@@ -768,17 +855,11 @@ mod test {
         );
         assert_eq!(
             starting_board.white_pieces.all() | starting_board.black_pieces.all(),
-            Bitboard::rank_mask(Rank::One)
-                | Bitboard::rank_mask(Rank::Two)
-                | Bitboard::rank_mask(Rank::Seven)
-                | Bitboard::rank_mask(Rank::Eight)
+            Rank::One.mask() | Rank::Two.mask() | Rank::Seven.mask() | Rank::Eight.mask()
         );
         assert_eq!(
             !(starting_board.white_pieces.all() | starting_board.black_pieces.all()),
-            Bitboard::rank_mask(Rank::Three)
-                | Bitboard::rank_mask(Rank::Four)
-                | Bitboard::rank_mask(Rank::Five)
-                | Bitboard::rank_mask(Rank::Six)
+            Rank::Three.mask() | Rank::Four.mask() | Rank::Five.mask() | Rank::Six.mask()
         );
         assert_eq!(
             starting_board.to_string(),
