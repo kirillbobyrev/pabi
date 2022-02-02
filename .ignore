@@ -1,0 +1,2 @@
+# Tokei should ignore generated files
+/src/chess/generated/
