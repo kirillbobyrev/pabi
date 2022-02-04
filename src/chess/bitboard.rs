@@ -11,7 +11,7 @@
 // TODO: This comment needs revamp.
 
 use std::fmt::Write;
-use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Not, Shl, Shr, Sub};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, Not, Shl, Shr, Sub, SubAssign};
 use std::{fmt, mem};
 
 use itertools::Itertools;
@@ -77,6 +77,16 @@ impl Bitboard {
             result |= Self::from(*square);
         }
         result
+    }
+
+    /// Adds given square to the set.
+    pub(super) fn extend(&mut self, square: Square) {
+        *self |= Self::from(square)
+    }
+
+    /// Adds given square to the set.
+    pub(super) fn erase(&mut self, square: Square) {
+        *self &= !Self::from(square)
     }
 
     /// Returns true if this bitboard contains given square.
@@ -162,6 +172,12 @@ impl BitAnd for Bitboard {
     }
 }
 
+impl BitAndAssign for Bitboard {
+    fn bitand_assign(&mut self, rhs: Self) {
+        self.bits.bitand_assign(rhs.bits)
+    }
+}
+
 impl BitXor for Bitboard {
     type Output = Self;
 
@@ -178,6 +194,12 @@ impl Sub for Bitboard {
     /// [Relative component]: https://en.wikipedia.org/wiki/Complement_%28set_theory%29#Relative_complement
     fn sub(self, rhs: Self) -> Self::Output {
         self & !rhs
+    }
+}
+
+impl SubAssign for Bitboard {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.bitand_assign(!rhs)
     }
 }
 
@@ -269,7 +291,7 @@ impl TryInto<Square> for Bitboard {
                 self.bits.count_ones()
             );
         }
-        // TODO: This unwrap should actually be safe, do unchecked..
+        // TODO: This unwrap should actually be safe, do unchecked.
         Square::try_from(self.bits.trailing_zeros() as u8)
     }
 }
@@ -281,50 +303,26 @@ impl TryInto<Square> for Bitboard {
 // TODO: Caching all() and either replacing it or adding to the set might
 // improve performance. This is what lc0 does:
 // https://github.com/LeelaChessZero/lc0/blob/d2e372e59cd9188315d5c02a20e0bdce88033bc5/src/chess/board.h
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct Pieces {
-    king: Bitboard,
-    queens: Bitboard,
-    rooks: Bitboard,
-    bishops: Bitboard,
-    knights: Bitboard,
-    pawns: Bitboard,
+    pub(super) king: Bitboard,
+    pub(super) queens: Bitboard,
+    pub(super) rooks: Bitboard,
+    pub(super) bishops: Bitboard,
+    pub(super) knights: Bitboard,
+    pub(super) pawns: Bitboard,
 }
 
 impl Pieces {
-    pub(super) fn king(&self) -> &Bitboard {
-        &self.king
-    }
-
-    pub(super) fn queens(&self) -> &Bitboard {
-        &self.queens
-    }
-
-    pub(super) fn rooks(&self) -> &Bitboard {
-        &self.rooks
-    }
-
-    pub(super) fn bishops(&self) -> &Bitboard {
-        &self.bishops
-    }
-
-    pub(super) fn knights(&self) -> &Bitboard {
-        &self.knights
-    }
-
-    pub(super) fn occupancy(&self, piece_kind: PieceKind) -> &Bitboard {
+    pub(super) fn occupancy(&self, piece_kind: PieceKind) -> Bitboard {
         match piece_kind {
-            PieceKind::King => self.king(),
-            PieceKind::Queen => self.queens(),
-            PieceKind::Rook => self.rooks(),
-            PieceKind::Bishop => self.bishops(),
-            PieceKind::Knight => self.knights(),
-            PieceKind::Pawn => self.pawns(),
+            PieceKind::King => self.king,
+            PieceKind::Queen => self.queens,
+            PieceKind::Rook => self.rooks,
+            PieceKind::Bishop => self.bishops,
+            PieceKind::Knight => self.knights,
+            PieceKind::Pawn => self.pawns,
         }
-    }
-
-    pub(super) fn pawns(&self) -> &Bitboard {
-        &self.pawns
     }
 
     pub(super) fn empty() -> Self {
@@ -423,6 +421,15 @@ impl Pieces {
         None
     }
 
+    pub(super) fn clear_square(&mut self, square: Square) {
+        self.king.erase(square);
+        self.queens.erase(square);
+        self.rooks.erase(square);
+        self.bishops.erase(square);
+        self.knights.erase(square);
+        self.pawns.erase(square);
+    }
+
     pub(super) fn iter(&self) -> PiecesIterator {
         PiecesIterator {
             pieces: self,
@@ -462,7 +469,7 @@ impl Iterator for PiecesIterator<'_> {
 /// both have different trade-offs and scenarios where they are efficient. It is
 /// likely that the best overall performance can be achieved by keeping both to
 /// complement each other.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct Board {
     pub(super) white_pieces: Pieces,
     pub(super) black_pieces: Pieces,
@@ -498,7 +505,7 @@ impl Board {
     // representation. Use with caution.
     // TODO: Completely disallow bitboard.at()?
     #[must_use]
-    pub(super) fn at(self, square: Square) -> Option<Piece> {
+    pub(super) fn at(&self, square: Square) -> Option<Piece> {
         if let Some(kind) = self.white_pieces.at(square) {
             return Some(Piece {
                 owner: Player::White,

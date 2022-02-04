@@ -10,21 +10,11 @@ use std::fmt;
 use std::num::NonZeroU16;
 
 use anyhow::{bail, Context};
-use strum::IntoEnumIterator;
 
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    Direction,
-    Move,
-    Piece,
-    PieceKind,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, Move, Piece, PieceKind, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -88,7 +78,8 @@ impl Position {
     }
 
     // Creates an empty board to be filled by parser.
-    fn empty() -> Self {
+    #[must_use]
+    pub fn empty() -> Self {
         Self {
             board: Board::empty(),
             castling: CastleRights::NONE,
@@ -99,15 +90,15 @@ impl Position {
         }
     }
 
-    fn us(&self) -> Player {
+    pub(super) fn us(&self) -> Player {
         self.side_to_move
     }
 
-    fn opponent(&self) -> Player {
+    pub(super) fn opponent(&self) -> Player {
         self.us().opponent()
     }
 
-    fn pieces(&self, player: Player) -> &Pieces {
+    pub(super) fn pieces(&self, player: Player) -> &Pieces {
         self.board.player_pieces(player)
     }
 
@@ -141,8 +132,12 @@ impl Position {
     // TODO: Check movegen comparison (https://github.com/Gigantua/Chess_Movegen).
     // TODO:: Store the moves on the stack instead? It might be faster, see
     // https://github.com/niklasf/shakmaty/blob/e0020c0ab4b5f8601486c17c87b3313476a3cf12/src/movelist.rs
+    // TODO: Use monomorphization to generate code for calculating attacks for both sides to reduce
+    // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
     #[must_use]
     pub fn generate_moves(&self) -> Vec<Move> {
+        debug_assert!(self.check_validity().is_ok());
+        let attack_info = attacks::AttackInfo::new(self);
         // TODO: The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
         // https://en.wikipedia.org/wiki/Branching_factor
@@ -152,27 +147,72 @@ impl Position {
         // improvement.
         let our_pieces = self.pieces(self.us());
         let opponent_pieces = self.pieces(self.opponent());
-        let non_capture_mask = our_pieces.all() | *opponent_pieces.king();
+        let non_capture_mask = our_pieces.all();
         let occupancy = our_pieces.all() | opponent_pieces.all();
+        let our_king: Square = our_pieces
+            .king
+            .try_into()
+            .expect("There can only be one king");
+        for safe_square in attack_info.safe_king_squares.iter() {
+            moves.push(Move::new(our_king, safe_square, None));
+        }
+        if attack_info.checkers.count_ones() == 2 {
+            return moves;
+        }
+        let blocking_ray = match attack_info.checkers.count_ones() {
+            0 => Bitboard::empty(),
+            1 => {
+                let checker: Square = attack_info
+                    .checkers
+                    .try_into()
+                    .expect("we already checked that there is exactly one checker");
+                attacks::ray(checker, our_king)
+            },
+            _ => unreachable!("there is at most one checker at this point"),
+        };
+        // TODO: Maybe iterating manually would be faster.
         for (kind, bitboard) in self.pieces(self.us()).iter() {
             for from in bitboard.iter() {
                 let targets = match kind {
-                    PieceKind::King => attacks::king_attacks(from),
+                    PieceKind::King => Bitboard::empty(),
                     PieceKind::Queen => attacks::queen_attacks(from, occupancy),
                     PieceKind::Rook => attacks::rook_attacks(from, occupancy),
                     PieceKind::Bishop => attacks::bishop_attacks(from, occupancy),
                     PieceKind::Knight => attacks::knight_attacks(from),
-                    _ => continue,
+                    PieceKind::Pawn => {
+                        attacks::pawn_attacks(from, self.us())
+                            & (opponent_pieces.all()
+                                | match self.en_passant_square {
+                                    Some(square) => Bitboard::from(square),
+                                    None => Bitboard::empty(),
+                                })
+                    },
                 } - non_capture_mask;
                 for to in targets.iter() {
-                    moves.push(Move::new(from, to, None));
+                    // TODO: This block is repeated several times; abstract it out.
+                    if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+                        continue;
+                    }
+                    if attack_info.pins.contains(from)
+                        && (attacks::ray(from, our_king) & attacks::ray(to, our_king)).is_empty()
+                    {
+                        continue;
+                    }
+                    match (kind, to.rank()) {
+                        (PieceKind::Pawn, Rank::Eight | Rank::One) => {
+                            moves.push(Move::new(from, to, Some(Promotion::Queen)));
+                            moves.push(Move::new(from, to, Some(Promotion::Rook)));
+                            moves.push(Move::new(from, to, Some(Promotion::Bishop)));
+                            moves.push(Move::new(from, to, Some(Promotion::Knight)));
+                        },
+                        _ => moves.push(Move::new(from, to, None)),
+                    }
                 }
             }
         }
         // Regular pawn pushes.
-        let occupancy = our_pieces.all() | opponent_pieces.all();
         let push_direction = self.us().push_direction();
-        let pawn_pushes = our_pieces.pawns().shift(push_direction) - occupancy;
+        let pawn_pushes = our_pieces.pawns.shift(push_direction) - occupancy;
         let original_squares = pawn_pushes.shift(push_direction.opposite());
         let add_pawn_moves = |moves: &mut Vec<Move>, from, to: Square| {
             // TODO: This is probably better with self.side_to_move.opponent().home_rank()
@@ -188,6 +228,14 @@ impl Position {
             }
         };
         for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
+            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+                continue;
+            }
+            if attack_info.pins.contains(from)
+                && (attacks::ray(from, our_king) & attacks::ray(to, our_king)).is_empty()
+            {
+                continue;
+            }
             add_pawn_moves(&mut moves, from, to);
         }
         // Double pawn pushes.
@@ -199,45 +247,70 @@ impl Position {
             .shift(push_direction.opposite());
         // Double pawn pushes are never promoting.
         for (from, to) in itertools::zip(original_squares.iter(), double_pushes.iter()) {
+            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+                continue;
+            }
+            if attack_info.pins.contains(from)
+                && (attacks::ray(from, our_king) & attacks::ray(to, our_king)).is_empty()
+            {
+                continue;
+            }
             moves.push(Move::new(from, to, None));
         }
-        // TODO: En passant.
-        // Pawn captures.
-        let capture_directions = match self.us() {
-            Player::White => [Direction::UpLeft, Direction::UpRight],
-            Player::Black => [Direction::DownLeft, Direction::DownRight],
-        };
-        // TODO: This actually doesn't require taking the opponent king away
-        // because in valid positions the enemy king is not in check when the
-        // moves are generated.
-        // TODO: Should en_passant_square just be a Bitboard instead?
-        let capturable = match self.en_passant_square {
-            Some(square) => {
-                (opponent_pieces.all() - *opponent_pieces.king()) | Bitboard::from(square)
-            },
-            None => opponent_pieces.all() - *opponent_pieces.king(),
-        };
-        for from in our_pieces.pawns().iter() {
-            for direction in capture_directions {
-                let to = match from.shift(direction) {
-                    Some(to) => to,
-                    None => continue,
-                };
-                if capturable.contains(to) {
-                    add_pawn_moves(&mut moves, from, to);
-                }
+        // TODO: Castling.
+        // TODO: In FCR we should check if the rook is pinned or not.
+        if attack_info.checkers.is_empty() {
+            match self.us() {
+                Player::White => {
+                    if self.castling.contains(CastleRights::WHITE_SHORT)
+                        && (attack_info.attacks & attacks::WHITE_SHORT_CASTLE_KING_WALK).is_empty()
+                        && (occupancy
+                            & attacks::WHITE_SHORT_CASTLE_KING_WALK
+                            & attacks::WHITE_SHORT_CASTLE_KING_WALK)
+                            .is_empty()
+                    {
+                        moves.push(Move::new(Square::E1, Square::G1, None));
+                    }
+                    if self.castling.contains(CastleRights::WHITE_LONG)
+                        && (attack_info.attacks & attacks::WHITE_LONG_CASTLE_KING_WALK).is_empty()
+                        && (occupancy
+                            & attacks::WHITE_LONG_CASTLE_KING_WALK
+                            & attacks::WHITE_LONG_CASTLE_KING_WALK)
+                            .is_empty()
+                    {
+                        moves.push(Move::new(Square::E1, Square::C1, None));
+                    }
+                },
+                Player::Black => {
+                    if self.castling.contains(CastleRights::BLACK_SHORT)
+                        && (attack_info.attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
+                        && (occupancy
+                            & attacks::BLACK_SHORT_CASTLE_KING_WALK
+                            & attacks::BLACK_SHORT_CASTLE_KING_WALK)
+                            .is_empty()
+                    {
+                        moves.push(Move::new(Square::E8, Square::G8, None));
+                    }
+                    if self.castling.contains(CastleRights::BLACK_LONG)
+                        && (attack_info.attacks & attacks::BLACK_LONG_CASTLE_KING_WALK).is_empty()
+                        && (occupancy
+                            & attacks::BLACK_LONG_CASTLE_KING_WALK
+                            & attacks::BLACK_LONG_CASTLE_KING_WALK)
+                            .is_empty()
+                    {
+                        moves.push(Move::new(Square::E8, Square::C8, None));
+                    }
+                },
             }
         }
-        // TODO: Castling.
         moves
     }
 
     /// Applies the move in a position
-    // TODO: Make an unchecked version of it? With the move coming from the move
-    // gen, it's probably much faster to make moves without checking whether
-    // they're OK or not. But that would require some benchmarks.
-    pub fn make_move(&mut self) -> anyhow::Result<()> {
-        todo!();
+    // TODO: Make an checked version of it? With the move coming from the UCI
+    // it's best to check if it's valid or not.
+    pub fn make_move(&mut self, next_move: Move) {
+        let (our_pieces, opponent_pieces) = (self.pieces(self.us()), self.pieces(self.opponent()));
     }
 
     // TODO: Add checks for board validity? Not sure if it'd be useful, but here are
@@ -250,31 +323,31 @@ impl Position {
     pub fn check_validity(&self) -> anyhow::Result<()> {
         // TODO: The following patterns look repetitive; maybe refactor the
         // common structure even though it's quite short?
-        if self.board.white_pieces.king().count_ones() != 1 {
+        if self.board.white_pieces.king.count_ones() != 1 {
             bail!(
                 "incorrect number of white kings: expected 1, got {}",
-                self.board.white_pieces.king().count_ones()
+                self.board.white_pieces.king.count_ones()
             );
         }
-        if self.board.black_pieces.king().count_ones() != 1 {
+        if self.board.black_pieces.king.count_ones() != 1 {
             bail!(
                 "incorrect number of black kings: expected 1, got {}",
-                self.board.black_pieces.king().count_ones()
+                self.board.black_pieces.king.count_ones()
             );
         }
-        if self.board.white_pieces.pawns().count_ones() > 8 {
+        if self.board.white_pieces.pawns.count_ones() > 8 {
             bail!(
                 "incorrect number of white pawns: expected <= 8, got {}",
-                self.board.white_pieces.pawns().count_ones()
+                self.board.white_pieces.pawns.count_ones()
             );
         }
-        if self.board.black_pieces.pawns().count_ones() > 8 {
+        if self.board.black_pieces.pawns.count_ones() > 8 {
             bail!(
                 "incorrect number of black pawns: expected <= 8, got {}",
-                self.board.black_pieces.pawns().count_ones()
+                self.board.black_pieces.pawns.count_ones()
             );
         }
-        if ((*self.board.white_pieces.pawns() & *self.board.black_pieces.pawns())
+        if ((self.board.white_pieces.pawns & self.board.black_pieces.pawns)
             & (Rank::One.mask() | Rank::Eight.mask()))
         .count_ones()
             != 0
@@ -412,6 +485,7 @@ impl TryFrom<&str> for Position {
             },
             None => bail!("incorrect FEN: missing halfmove clock"),
         };
+        debug_assert!(result.check_validity().is_ok());
         Ok(result)
     }
 }
@@ -522,31 +596,129 @@ mod test {
         assert!(Position::try_from("8/8/8/8/8/8/8/8 b 88 🔠 🔠 ").is_err());
     }
 
-    #[test]
-    fn starting_moves() {
-        assert_eq!(
-            Position::starting()
-                .generate_moves()
-                .iter()
-                .map(Move::to_string)
-                .sorted()
-                .collect::<Vec<_>>(),
-            [
-                "a2a3", "a2a4", "b1a3", "b1c3", "b2b3", "b2b4", "c2c3", "c2c4", "d2d3", "d2d4",
-                "e2e3", "e2e4", "f2f3", "f2f4", "g1f3", "g1h3", "g2g3", "g2g4", "h2h3", "h2h4"
-            ]
+    fn get_moves(position: &Position) -> Vec<String> {
+        position
+            .generate_moves()
+            .iter()
+            .map(Move::to_string)
+            .sorted()
+            .collect::<Vec<_>>()
+    }
+
+    fn sorted_moves(moves: &[&str]) -> Vec<String> {
+        moves
             .iter()
             .map(|m| (*m).to_string())
             .sorted()
             .collect::<Vec<_>>()
+    }
+
+    #[test]
+    fn starting_moves() {
+        assert_eq!(
+            get_moves(&Position::starting()),
+            sorted_moves(&[
+                "a2a3", "a2a4", "b1a3", "b1c3", "b2b3", "b2b4", "c2c3", "c2c4", "d2d3", "d2d4",
+                "e2e3", "e2e4", "f2f3", "f2f4", "g1f3", "g1h3", "g2g3", "g2g4", "h2h3", "h2h4"
+            ])
         );
     }
 
     #[test]
     fn basic_moves() {
-        let position = setup("2n4k/1PP5/6K1/6Q1/3N4/3P4/P3R3/8 w - - 0 1");
-        let moves = position.generate_moves();
-        let serialized: Vec<String> = moves.iter().map(Move::to_string).sorted().collect();
-        dbg!(serialized);
+        assert_eq!(
+            get_moves(&setup("2n4k/1PP5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 w - e6 0 1")),
+            sorted_moves(&[
+                "a2a3", "a2a4", "d5d6", "d5e6", "b7b8q", "b7b8r", "b7b8b", "b7b8n", "b7c8q",
+                "b7c8r", "b7c8b", "b7c8n", "e2e1", "e2e3", "e2e4", "e2e5", "e2b2", "e2c2", "e2d2",
+                "e2f2", "e2g2", "e2h2", "d4b3", "d4c2", "d4f3", "d4b5", "d4c6", "d4e6", "d4f5",
+                "g5c1", "g5d2", "g5e3", "g5f4", "g5g4", "g5g3", "g5g2", "g5g1", "g5h4", "g5e5",
+                "g5f5", "g5h5", "g5h6", "g5f6", "g5e7", "g5d8", "g6f5", "g6h5", "g6f6", "g6h6",
+                "g6f7",
+            ])
+        );
+    }
+
+    #[test]
+    fn double_check_evasions() {
+        assert_eq!(
+            get_moves(&setup("3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 1")),
+            sorted_moves(&["d8c8"])
+        );
+        assert_eq!(
+            get_moves(&setup("8/5Nk1/7p/4Bp2/3q4/8/8/5KR1 b - - 0 1")),
+            sorted_moves(&["g7f8", "g7f7", "g7h7"])
+        );
+        assert_eq!(
+            get_moves(&setup("8/5Pk1/7p/4Bp2/3q4/8/8/5KR1 b - - 0 1")),
+            sorted_moves(&["g7f8", "g7f7", "g7h7"])
+        );
+    }
+
+    #[test]
+    fn check_evasions() {
+        assert_eq!(
+            get_moves(&setup("3kn3/R2p4/8/6B1/8/6K1/3R4/8 b - - 0 1")),
+            sorted_moves(&["e8f6", "d8c8"])
+        );
+    }
+
+    #[test]
+    fn chess_programming_wiki_perft_positions() {
+        // Positions from https://www.chessprogramming.org/Perft_Results with depth=1.
+        // Position 1 is the starting position.
+        // Position 2.
+        assert_eq!(
+            get_moves(&setup(
+                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+            ))
+            .len(),
+            48
+        );
+        // Position 3.
+        assert_eq!(
+            get_moves(&setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1")).len(),
+            14,
+        );
+        // Position 4.
+        assert_eq!(
+            get_moves(&setup(
+                "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
+            ))
+            .len(),
+            6
+        );
+        // Mirrored.
+        assert_eq!(
+            get_moves(&setup(
+                "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1"
+            ))
+            .len(),
+            6
+        );
+        // Position 5.
+        assert_eq!(
+            get_moves(&setup(
+                "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+            ))
+            .len(),
+            44
+        );
+        // Position 6
+        assert_eq!(
+            get_moves(&setup(
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10"
+            ))
+            .len(),
+            46
+        );
+        // "kiwipete"
+        assert_eq!(
+            get_moves(&setup(
+                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+            ))
+            .len(),
+            48
+        );
     }
 }

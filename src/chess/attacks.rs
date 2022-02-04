@@ -5,7 +5,8 @@
 // Refactor it and make it nicer.
 
 use crate::chess::bitboard::Bitboard;
-use crate::chess::core::{Player, Square, BOARD_SIZE};
+use crate::chess::core::{PieceKind, Player, Square, BOARD_SIZE};
+use crate::chess::position::Position;
 
 // TODO: Here and elsewhere: get_unchecked instead.
 pub(super) fn king_attacks(from: Square) -> Bitboard {
@@ -41,6 +42,15 @@ pub(super) fn ray(from: Square, to: Square) -> Bitboard {
     RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
+fn bishop_ray(from: Square, to: Square) -> Bitboard {
+    BISHOP_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
+}
+
+fn rook_ray(from: Square, to: Square) -> Bitboard {
+    ROOK_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
+}
+
+// TODO: Document.
 fn pext(a: u64, mask: u64) -> u64 {
     if cfg!(target_feature = "bmi2") {
         unsafe { core::arch::x86_64::_pext_u64(a, mask) }
@@ -58,6 +68,95 @@ fn pext(a: u64, mask: u64) -> u64 {
         }
         result
     }
+}
+
+#[derive(Debug)]
+pub(super) struct AttackInfo {
+    pub(super) attacks: Bitboard,
+    pub(super) checkers: Bitboard,
+    pub(super) pins: Bitboard,
+    pub(super) safe_king_squares: Bitboard,
+}
+
+impl AttackInfo {
+    pub(super) fn new(position: &Position) -> Self {
+        let mut result = Self {
+            attacks: Bitboard::empty(),
+            checkers: Bitboard::empty(),
+            pins: Bitboard::empty(),
+            safe_king_squares: Bitboard::empty(),
+        };
+        let (us, opponent) = (position.us(), position.opponent());
+        let (our, their) = (position.pieces(us), position.pieces(opponent));
+        let (our_occupancy, their_occupancy) = (our.all(), their.all());
+        let occupancy = our_occupancy | their_occupancy;
+        let our_king = position.pieces(us).king;
+        // TODO: Do unchecked.
+        let king_square: Square = our_king.try_into().expect("there should be only one king");
+        result.safe_king_squares = !our_occupancy & king_attacks(king_square);
+        // TODO: Maybe iterating manually would be faster.
+        for (kind, bitboard) in their.iter() {
+            for from in bitboard.iter() {
+                let targets = match kind {
+                    PieceKind::King => king_attacks(from),
+                    PieceKind::Queen => queen_attacks(from, occupancy),
+                    PieceKind::Rook => rook_attacks(from, occupancy),
+                    PieceKind::Bishop => bishop_attacks(from, occupancy),
+                    PieceKind::Knight => knight_attacks(from),
+                    PieceKind::Pawn => pawn_attacks(from, opponent),
+                } - their_occupancy;
+                result.attacks |= targets;
+                if !(targets & our_king).is_empty() {
+                    result.checkers.extend(from);
+                    // TODO: Calculate safe king squares.
+                    for square in result.safe_king_squares.iter() {
+                        if !ray(from, square).is_empty() {
+                            result.safe_king_squares.erase(square);
+                        }
+                    }
+                    // An attack can be either a check or a (potential) pin, not both.
+                    continue;
+                }
+                // Calculate the pin.
+                let attack_ray = match kind {
+                    PieceKind::Queen => ray(from, king_square),
+                    PieceKind::Rook => rook_ray(from, king_square),
+                    PieceKind::Bishop => bishop_ray(from, king_square),
+                    _ => Bitboard::empty(),
+                };
+                let blockers = attack_ray & our_occupancy;
+                if blockers.count_ones() == 1 {
+                    result.pins |= blockers;
+                }
+            }
+        }
+        result.safe_king_squares -= result.attacks;
+        debug_assert!(result.checkers.count_ones() <= 2);
+        result
+    }
+}
+
+pub(super) fn safe_king_squares(position: &Position, attack_info: &AttackInfo) -> Bitboard {
+    let our_king: Square = position
+        .pieces(position.us())
+        .king
+        .try_into()
+        .expect("there should be only one king");
+    let safe_squares =
+        (!attack_info.attacks - position.pieces(position.us()).all()) & king_attacks(our_king);
+    dbg!(safe_squares);
+    let mut result = Bitboard::empty();
+    'outer: for safe_square in safe_squares.iter() {
+        // TODO: Unroll: there are at most two checkers here, iterator may be slowing
+        // the performance down.
+        for checker in attack_info.checkers.iter() {
+            if !(ray(checker, our_king) & ray(checker, safe_square)).is_empty() {
+                continue 'outer;
+            }
+        }
+        result |= Bitboard::from(safe_square);
+    }
+    result
 }
 
 // Generated in build.rs.
@@ -83,6 +182,18 @@ include!("generated/white_pawn_attacks.rs");
 include!("generated/black_pawn_attacks.rs");
 
 include!("generated/rays.rs");
+include!("generated/bishop_rays.rs");
+include!("generated/rook_rays.rs");
+
+// TODO: Abstract it out and support Fischer Random Chess.
+pub(super) const WHITE_SHORT_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_0060);
+pub(super) const WHITE_SHORT_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_0060);
+pub(super) const WHITE_LONG_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_000C);
+pub(super) const WHITE_LONG_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_000E);
+pub(super) const BLACK_SHORT_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x6000_0000_0000_0000);
+pub(super) const BLACK_SHORT_ROOK_WALK: Bitboard = Bitboard::from_bits(0x6000_0000_0000_0000);
+pub(super) const BLACK_LONG_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0C00_0000_0000_0000);
+pub(super) const BLACK_LONG_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0E00_0000_0000_0000);
 
 #[cfg(test)]
 mod test {
@@ -417,6 +528,86 @@ mod test {
             . . . . . . . .\n\
             . . 1 1 1 . . .\n\
             . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+    }
+    #[test]
+    fn basic_attack_info() {
+        let position = Position::try_from("3kn3/3p4/8/6B1/8/6K1/3R4/8 b - - 0 1").unwrap();
+        let attacks = AttackInfo::new(&position);
+        dbg!(attacks.attacks);
+        assert_eq!(
+            format!("{:?}", attacks.attacks),
+            ". . . 1 . . . .\n\
+            . . . 1 1 . . .\n\
+            . . . 1 . 1 . 1\n\
+            . . . 1 . . . .\n\
+            . . . 1 . 1 1 1\n\
+            . . . 1 1 1 . 1\n\
+            1 1 1 . 1 1 1 1\n\
+            . . . 1 . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", attacks.checkers),
+            "\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . 1 .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", attacks.pins),
+            ". . . . . . . .\n\
+            . . . 1 . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+    }
+
+    #[test]
+    fn rich_attack_info() {
+        let position =
+            Position::try_from("1k3q2/8/8/4PP2/q4K2/3nRBR1/3b1Nr1/5r2 w - - 0 1").unwrap();
+        let attacks = AttackInfo::new(&position);
+        assert_eq!(
+            format!("{:?}", attacks.attacks),
+            "1 . 1 1 1 . 1 1\n\
+            1 1 1 1 1 1 1 .\n\
+            1 . 1 1 . 1 . 1\n\
+            1 1 1 . 1 1 . .\n\
+            . 1 1 1 1 1 . .\n\
+            1 1 1 . 1 . 1 .\n\
+            1 1 1 . . 1 . 1\n\
+            1 1 1 1 1 . 1 1"
+        );
+        assert_eq!(
+            format!("{:?}", attacks.checkers),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            1 . . . . . . .\n\
+            . . . 1 . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", attacks.pins),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . 1 . .\n\
+            . . . . . . . .\n\
+            . . . . 1 . . .\n\
             . . . . . . . .\n\
             . . . . . . . ."
         );

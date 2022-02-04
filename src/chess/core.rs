@@ -29,9 +29,9 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 // TODO: Switch this to a compact representation of (from, to, flags)
 #[derive(Debug)]
 pub struct Move {
-    from: Square,
-    to: Square,
-    promotion: Option<Promotion>,
+    pub(super) from: Square,
+    pub(super) to: Square,
+    pub(super) promotion: Option<Promotion>,
 }
 
 impl Move {
@@ -634,8 +634,8 @@ bitflags::bitflags! {
     /// Chess960). An easy mnemonic is that the king and the rook end up on the
     /// same files for both Standard and FRC:
     ///
-    /// - When castling h-side, the king ends up on [`File::G`] and the rook on [`File::F`]
-    /// - When castling a-side, the king ends up on [`File::C`] and the rook on [`File::D`]
+    /// - When castling h-side (short), the king ends up on [`File::G`] and the rook on [`File::F`]
+    /// - When castling a-side (long), the king ends up on [`File::C`] and the rook on [`File::D`]
     ///
     /// The full rules are:
     ///
@@ -652,17 +652,17 @@ bitflags::bitflags! {
         #[allow(missing_docs)]
         const NONE = 0;
         #[allow(missing_docs)]
-        const WHITE_H_SIDE = 0b1000;
+        const WHITE_SHORT = 0b1000;
         #[allow(missing_docs)]
-        const WHITE_A_SIDE = 0b0100;
+        const WHITE_LONG = 0b0100;
         #[allow(missing_docs)]
-        const WHITE_BOTH = Self::WHITE_H_SIDE.bits | Self::WHITE_A_SIDE.bits;
+        const WHITE_BOTH = Self::WHITE_SHORT.bits | Self::WHITE_LONG.bits;
         #[allow(missing_docs)]
-        const BLACK_H_SIDE = 0b0010;
+        const BLACK_SHORT = 0b0010;
         #[allow(missing_docs)]
-        const BLACK_A_SIDE = 0b0001;
+        const BLACK_LONG = 0b0001;
         #[allow(missing_docs)]
-        const BLACK_BOTH = Self::BLACK_H_SIDE.bits | Self::BLACK_A_SIDE.bits;
+        const BLACK_BOTH = Self::BLACK_SHORT.bits | Self::BLACK_LONG.bits;
         #[allow(missing_docs)]
         const ALL = Self::WHITE_BOTH.bits | Self::BLACK_BOTH.bits;
     }
@@ -690,33 +690,33 @@ impl TryFrom<&str> for CastleRights {
             // 0 0 0 0
             b"-" => Ok(Self::NONE),
             // 0 0 0 1
-            b"q" => Ok(Self::BLACK_A_SIDE),
+            b"q" => Ok(Self::BLACK_LONG),
             // 0 0 1 0
-            b"k" => Ok(Self::BLACK_H_SIDE),
+            b"k" => Ok(Self::BLACK_SHORT),
             // 0 0 1 1
             b"kq" => Ok(Self::BLACK_BOTH),
             // 0 1 0 0
-            b"Q" => Ok(Self::WHITE_A_SIDE),
+            b"Q" => Ok(Self::WHITE_LONG),
             // 0 1 0 1
-            b"Qq" => Ok(Self::WHITE_A_SIDE | Self::BLACK_A_SIDE),
+            b"Qq" => Ok(Self::WHITE_LONG | Self::BLACK_LONG),
             // 0 1 1 0
-            b"Qk" => Ok(Self::WHITE_A_SIDE | Self::BLACK_H_SIDE),
+            b"Qk" => Ok(Self::WHITE_LONG | Self::BLACK_SHORT),
             // 0 1 1 1
-            b"Qkq" => Ok(Self::WHITE_A_SIDE | Self::BLACK_BOTH),
+            b"Qkq" => Ok(Self::WHITE_LONG | Self::BLACK_BOTH),
             // 1 0 0 0
-            b"K" => Ok(Self::WHITE_H_SIDE),
+            b"K" => Ok(Self::WHITE_SHORT),
             // 1 0 0 1
-            b"Kq" => Ok(Self::WHITE_H_SIDE | Self::BLACK_A_SIDE),
+            b"Kq" => Ok(Self::WHITE_SHORT | Self::BLACK_LONG),
             // 1 0 1 0
-            b"Kk" => Ok(Self::WHITE_H_SIDE | Self::BLACK_H_SIDE),
+            b"Kk" => Ok(Self::WHITE_SHORT | Self::BLACK_SHORT),
             // 1 0 1 1
-            b"Kkq" => Ok(Self::WHITE_H_SIDE | Self::BLACK_BOTH),
+            b"Kkq" => Ok(Self::WHITE_SHORT | Self::BLACK_BOTH),
             // 1 1 0 0
             b"KQ" => Ok(Self::WHITE_BOTH),
             // 1 1 0 1
-            b"KQq" => Ok(Self::WHITE_BOTH | Self::BLACK_A_SIDE),
+            b"KQq" => Ok(Self::WHITE_BOTH | Self::BLACK_LONG),
             // 1 1 1 0
-            b"KQk" => Ok(Self::WHITE_BOTH | Self::BLACK_H_SIDE),
+            b"KQk" => Ok(Self::WHITE_BOTH | Self::BLACK_SHORT),
             // 1 1 1 1
             b"KQkq" => Ok(Self::ALL),
             _ => bail!("unknown castle rights: {input}"),
@@ -729,16 +729,16 @@ impl fmt::Display for CastleRights {
         if *self == Self::NONE {
             return f.write_char('-');
         }
-        if *self & Self::WHITE_H_SIDE != Self::NONE {
+        if *self & Self::WHITE_SHORT != Self::NONE {
             f.write_char('K')?;
         }
-        if *self & Self::WHITE_A_SIDE != Self::NONE {
+        if *self & Self::WHITE_LONG != Self::NONE {
             f.write_char('Q')?;
         }
-        if *self & Self::BLACK_H_SIDE != Self::NONE {
+        if *self & Self::BLACK_SHORT != Self::NONE {
             f.write_char('k')?;
         }
-        if *self & Self::BLACK_A_SIDE != Self::NONE {
+        if *self & Self::BLACK_LONG != Self::NONE {
             f.write_char('q')?;
         }
         Ok(())
