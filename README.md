@@ -1,7 +1,6 @@
 # Pabi
 
 [![Development](https://img.shields.io/badge/development-work%20in%20progress-red)](https://github.com/github/kirillbobyrev/pabi)
-[![Docs](https://docs.rs/pabi/badge.svg)](https://docs.rs/pabi)
 [![Codecov](https://codecov.io/gh/kirillbobyrev/pabi/branch/main/graph/badge.svg)](https://codecov.io/gh/kirillbobyrev/pabi)
 [![Lines of Code](https://tokei.rs/b1/github/kirillbobyrev/pabi)](https://github.com/kirillbobyrev/pabi/tree/main/src)
 

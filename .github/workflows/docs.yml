@@ -1,4 +1,4 @@
-name: Build docs
+name: Build developer documentation
 on:
   push:
     branches:
@@ -34,11 +34,15 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --all-features --document-private-items --no-deps
+          # This is developer documentation: include crate-local symbols but
+          # don't build documentation for dependencies since it's unlikely to
+          # be useful.
+          args: --document-private-items --no-deps
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ./target/doc
+          publish_dir: ./target/doc/
+          destination_dir: docs
           force_orphan: true
