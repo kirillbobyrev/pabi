@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -20,7 +22,7 @@ jobs:
         run: |
           sudo apt-get install -y valgrind
           cargo install cargo-criterion
-          cargo criterion --output-format=bencher position_parsing_cycles
+          cargo criterion --output-format=bencher position_parsing_cycles | tee output.txt
       - name: Download previous benchmark data
         uses: actions/cache@v2
         with:
