@@ -18,8 +18,9 @@ jobs:
           override: true
       - name: Run benchmarks
         run: |
+          sudo apt-get install -y valgrind
           cargo install cargo-criterion
-          cargo criterion --output-format=bencher '*cycles'
+          cargo criterion --output-format=bencher position_parsing_cycles
       - name: Download previous benchmark data
         uses: actions/cache@v2
         with:

@@ -616,13 +616,22 @@ mod test {
             Position::try_from("rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq - 0 1")
                 .is_ok()
         );
-        // Whitespaces at the start of "fen"/"epd" are not accepted.
-        assert!(Position::try_from(
-            " \n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
-        )
-        .is_err());
         // Don't crash on unicode symbols.
         assert!(Position::try_from("8/8/8/8/8/8/8/8 b 88 🔠 🔠 ").is_err());
+        // Whitespaces at the start/end of the input are not accepted in from_fen but
+        // will be cleaned up by try_from.
+        assert!(Position::try_from(
+            "rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
+        )
+        .is_ok());
+        assert!(Position::try_from(
+            "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -"
+        )
+        .is_ok());
+        assert!(Position::from_fen(
+            "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
+        )
+        .is_err());
     }
 
     fn get_moves(position: &Position) -> Vec<String> {
