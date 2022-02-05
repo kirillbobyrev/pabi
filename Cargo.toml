@@ -51,7 +51,11 @@ clap = {version = "3.0.14", features = ["cargo"]}
 
 [[bench]]
 harness = false
-name = "position_parsing"
+name = "position_parsing_time"
+
+[[bench]]
+harness = false
+name = "position_parsing_cycles"
 
 [profile.release]
 # TODO: Reduce binary size (requires nightly now, should be released in the

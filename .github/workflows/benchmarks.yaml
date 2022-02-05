@@ -17,7 +17,9 @@ jobs:
           toolchain: nightly
           override: true
       - name: Run benchmarks
-        run: cargo bench --profile=fast -- --output-format bencher | tee output.txt
+        run: |
+          cargo install cargo-criterion
+          cargo criterion --output-format=bencher '*cycles'
       - name: Download previous benchmark data
         uses: actions/cache@v2
         with:

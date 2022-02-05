@@ -334,9 +334,10 @@ impl Position {
             Player::Black => (&mut self.board.black_pieces, &mut self.board.white_pieces),
         };
         if our_pieces.king.contains(next_move.to) {
-            // Check castling.
+            // Check if the move is castling.
             let backrank = Rank::backrank(self.us()).mask();
             if backrank.contains(next_move.from) && backrank.contains(next_move.to) {}
+            //
         }
     }
 
