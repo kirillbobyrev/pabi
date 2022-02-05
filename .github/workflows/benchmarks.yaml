@@ -1,0 +1,38 @@
+name: Benchmarks
+on: [push, pull_request]
+permissions:
+  contents: write
+  deployments: write
+jobs:
+  benchmark:
+    name: Performance regression check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      - name: Run benchmarks
+        run: cargo bench -- --profile=fast --output-format bencher | tee output.txt
+      - name: Download previous benchmark data
+        uses: actions/cache@v2
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          # The engine is really performance-sensitive, warn even on the
+          # seemingly slight changes.
+          alert-threshold: '5%'
+          comment-on-alert: true
+          fail-on-alert: true
+          # Push and deploy GitHub pages branch automatically.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true

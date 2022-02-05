@@ -4,8 +4,16 @@
 use std::io::Read;
 use std::{fs, path};
 
-// TODO: Clean FEN
-// TODO: Patch EPD
+// TODO: Docs.
+#[must_use]
+pub fn sanitize_fen(position: &str) -> String {
+    match position.split_ascii_whitespace().count() {
+        6 => position.trim().to_string(),
+        // Patch EPD to validate produced FEN.
+        4 => position.trim().to_string() + " 0 1",
+        _ => unreachable!(),
+    }
+}
 
 // TODO: These functions should be tested, documented and maybe eventually
 // turned into something safer.

@@ -14,7 +14,15 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights, Move, Piece, PieceKind, Player, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    Move,
+    Piece,
+    PieceKind,
+    Player,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -378,11 +386,6 @@ impl Position {
     pub fn has_insufficient_material(&self) -> bool {
         todo!()
     }
-}
-
-// TODO: Take plain bytes through from_ascii: that's more principled and may be faster.
-impl TryFrom<&str> for Position {
-    type Error = anyhow::Error;
 
     /// Parses board from Forsyth-Edwards Notation. It will also accept trimmed
     /// FEN (EPD with 4 parts).
@@ -396,16 +399,17 @@ impl TryFrom<&str> for Position {
     ///   ' ' Fullmove counter
     ///
     /// The last two parts (together) are optional and will default to "0 1".
-    // TODO: Test specific errors.
-    fn try_from(input: &str) -> anyhow::Result<Self> {
-        let mut input = input;
-        for prefix in ["fen ", "epd "] {
-            if let Some(stripped) = input.strip_prefix(prefix) {
-                input = stripped;
-                break;
-            }
-        }
-
+    /// Technically, that is not a full FEN position, but it is supported
+    /// because EPD-style position strings are common in public position books
+    /// and datasets where halfmove clock and fullmove counters do not matter.
+    /// Supporting these datasets is important but distinguishing between full
+    /// and trimmed FEN strings is not.
+    ///
+    /// NOTE: This expects properly-formatted inputs: no extra whitespace or
+    /// extra symbols. Use [`Position::try_from`] for cleaning up the input if
+    /// it is coming from untrusted source and is likely to contain extra
+    /// symbols.
+    pub fn from_fen(input: &str) -> anyhow::Result<Self> {
         let mut parts = input.split(' ');
         // Parse Piece Placement.
         let mut result = Self::empty();
@@ -497,6 +501,23 @@ impl TryFrom<&str> for Position {
     }
 }
 
+// TODO: Take plain bytes through from_ascii: that's more principled and may be
+// faster.
+impl TryFrom<&str> for Position {
+    type Error = anyhow::Error;
+
+    // TODO: Docs.
+    fn try_from(input: &str) -> anyhow::Result<Self> {
+        let input = input.trim();
+        for prefix in ["fen ", "epd "] {
+            if let Some(stripped) = input.strip_prefix(prefix) {
+                return Position::from_fen(stripped);
+            }
+        }
+        Position::from_fen(input)
+    }
+}
+
 impl fmt::Display for Position {
     /// Prints board in Forsyth-Edwards Notation.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -519,7 +540,7 @@ impl fmt::Debug for Position {
         writeln!(f, "Player to move: {:?}", &self.side_to_move)?;
         writeln!(f, "Fullmove counter: {:?}", &self.fullmove_counter)?;
         writeln!(f, "En Passant: {:?}", &self.en_passant_square)?;
-        // bitflags default fmt::Debug implementation is not very convenient:
+        // bitflags' default fmt::Debug implementation is not very convenient:
         // dump FEN instead.
         writeln!(f, "Castling rights: {}", &self.castling)?;
         writeln!(f, "FEN: {}", &self.to_string())?;
@@ -587,14 +608,13 @@ mod test {
         .is_ok());
         // No prefix: infer EPD.
         assert!(
-            Position::try_from("rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -")
-                .is_ok()
+            Position::try_from("rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -").is_ok()
         );
         // No prefix: infer FEN.
-        assert!(Position::try_from(
-            "rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq - 0 1"
-        )
-        .is_ok());
+        assert!(
+            Position::try_from("rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq - 0 1")
+                .is_ok()
+        );
         // Whitespaces at the start of "fen"/"epd" are not accepted.
         assert!(Position::try_from(
             " \n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
