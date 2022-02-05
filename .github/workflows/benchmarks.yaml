@@ -22,7 +22,9 @@ jobs:
         run: |
           sudo apt-get install -y valgrind
           cargo install cargo-criterion
-          cargo criterion --output-format=bencher position_parsing_cycles | tee output.txt
+          cargo criterion --output-format=bencher | tee output.txt
+          pwd
+          cat output.txt
       - name: Download previous benchmark data
         uses: actions/cache@v2
         with:
