@@ -5,7 +5,7 @@ permissions:
   deployments: write
 jobs:
   benchmark:
-    name: Performance regression check
+    name: Performance benchmarks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -17,7 +17,7 @@ jobs:
           toolchain: nightly
           override: true
       - name: Run benchmarks
-        run: cargo bench -- --profile=fast --output-format bencher | tee output.txt
+        run: cargo bench --profile=fast -- --output-format bencher | tee output.txt
       - name: Download previous benchmark data
         uses: actions/cache@v2
         with:
@@ -33,6 +33,6 @@ jobs:
           alert-threshold: '5%'
           comment-on-alert: true
           fail-on-alert: true
-          # Push and deploy GitHub pages branch automatically.
+          # Push and deploy GitHub Pages branch automatically.
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
