@@ -2,7 +2,7 @@ use pabi::chess::position::Position;
 use pabi::util;
 
 fn check(serialized_position: &str) {
-    let position = Position::try_from(serialized_position);
+    let position = Position::try_from(serialized_position.trim());
     assert!(position.is_ok());
     let position = position.unwrap();
     assert_eq!(
@@ -14,7 +14,7 @@ fn check(serialized_position: &str) {
             _ => unreachable!(),
         }
     );
-    assert!(position.check_validity().is_ok());
+    assert!(position.is_legal());
 }
 
 // This test is very expensive in the Debug setting (could take 200+ seconds):

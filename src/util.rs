@@ -4,6 +4,9 @@
 use std::io::Read;
 use std::{fs, path};
 
+// TODO: Clean FEN
+// TODO: Patch EPD
+
 // TODO: These functions should be tested, documented and maybe eventually
 // turned into something safer.
 #[must_use]

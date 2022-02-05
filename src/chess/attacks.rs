@@ -86,7 +86,7 @@ impl AttackInfo {
             pins: Bitboard::empty(),
             safe_king_squares: Bitboard::empty(),
         };
-        let (us, opponent) = (position.us(), position.opponent());
+        let (us, opponent) = (position.us(), position.they());
         let (our, their) = (position.pieces(us), position.pieces(opponent));
         let (our_occupancy, their_occupancy) = (our.all(), their.all());
         let occupancy = our_occupancy | their_occupancy;
@@ -114,7 +114,8 @@ impl AttackInfo {
                             result.safe_king_squares.erase(square);
                         }
                     }
-                    // An attack can be either a check or a (potential) pin, not both.
+                    // An attack can be either a check or a (potential) pin, not
+                    // both.
                     continue;
                 }
                 // Calculate the pin.
@@ -125,38 +126,15 @@ impl AttackInfo {
                     _ => Bitboard::empty(),
                 };
                 let blockers = attack_ray & our_occupancy;
-                if blockers.count_ones() == 1 {
+                if blockers.count() == 1 {
                     result.pins |= blockers;
                 }
             }
         }
         result.safe_king_squares -= result.attacks;
-        debug_assert!(result.checkers.count_ones() <= 2);
+        debug_assert!(result.checkers.count() <= 2);
         result
     }
-}
-
-pub(super) fn safe_king_squares(position: &Position, attack_info: &AttackInfo) -> Bitboard {
-    let our_king: Square = position
-        .pieces(position.us())
-        .king
-        .try_into()
-        .expect("there should be only one king");
-    let safe_squares =
-        (!attack_info.attacks - position.pieces(position.us()).all()) & king_attacks(our_king);
-    dbg!(safe_squares);
-    let mut result = Bitboard::empty();
-    'outer: for safe_square in safe_squares.iter() {
-        // TODO: Unroll: there are at most two checkers here, iterator may be slowing
-        // the performance down.
-        for checker in attack_info.checkers.iter() {
-            if !(ray(checker, our_king) & ray(checker, safe_square)).is_empty() {
-                continue 'outer;
-            }
-        }
-        result |= Bitboard::from(safe_square);
-    }
-    result
 }
 
 // Generated in build.rs.
@@ -186,11 +164,14 @@ include!("generated/bishop_rays.rs");
 include!("generated/rook_rays.rs");
 
 // TODO: Abstract it out and support Fischer Random Chess.
-pub(super) const WHITE_SHORT_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_0060);
-pub(super) const WHITE_SHORT_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_0060);
+pub(super) const WHITE_SHORT_CASTLE_KING_WALK: Bitboard =
+    Bitboard::from_bits(0x0000_0000_0000_0060);
+pub(super) const WHITE_SHORT_CASTLE_ROOK_WALK: Bitboard =
+    Bitboard::from_bits(0x0000_0000_0000_0060);
 pub(super) const WHITE_LONG_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_000C);
 pub(super) const WHITE_LONG_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_000E);
-pub(super) const BLACK_SHORT_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x6000_0000_0000_0000);
+pub(super) const BLACK_SHORT_CASTLE_KING_WALK: Bitboard =
+    Bitboard::from_bits(0x6000_0000_0000_0000);
 pub(super) const BLACK_SHORT_ROOK_WALK: Bitboard = Bitboard::from_bits(0x6000_0000_0000_0000);
 pub(super) const BLACK_LONG_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0C00_0000_0000_0000);
 pub(super) const BLACK_LONG_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0E00_0000_0000_0000);

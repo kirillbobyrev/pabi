@@ -107,7 +107,8 @@ bitflags::bitflags! {
         /// Implementation detail.
         const LSB_SPECIAL = 0b0001;
 
-        /// Pawn advancement by 2 squares from the original rank (second for white and seventh for black).
+        /// Pawn advancement by 2 squares from the original rank (second for
+        /// white and seventh for black).
         const DOUBLE_PAWN_PUSH = Self::LSB_SPECIAL.bits;
         /// Short castle or O-O.
         const KINGSIDE_CASTLE = Self::MSB_SPECIAL.bits;
@@ -209,8 +210,8 @@ impl Square {
     // code right now.
     #[must_use]
     pub fn shift(self, direction: Direction) -> Option<Self> {
-        // TODO: Maybe extend this to all cases and don't check for candidate < 0. Check
-        // if it's faster on the benchmarks.
+        // TODO: Maybe extend this to all cases and don't check for
+        // candidate < 0. Check if it's faster on the benchmarks.
         match direction {
             Direction::UpLeft | Direction::Right | Direction::DownLeft => {
                 if self.file() == File::H {
@@ -255,7 +256,8 @@ impl TryFrom<u8> for Square {
     ///
     /// If given square index is outside 0..[`BOARD_SIZE`] range.
     fn try_from(square_index: u8) -> anyhow::Result<Self> {
-        // Exclusive range patterns are not allowed: https://github.com/rust-lang/rust/issues/37854
+        // Exclusive range patterns are not allowed:
+        // https://github.com/rust-lang/rust/issues/37854
         const MAX_INDEX: u8 = BOARD_SIZE - 1;
         match square_index {
             0..=MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
@@ -403,7 +405,7 @@ impl Rank {
         }
     }
 
-    pub(super) fn home(player: Player) -> Self {
+    pub(super) fn backrank(player: Player) -> Self {
         match player {
             Player::White => Self::One,
             Player::Black => Self::Eight,
@@ -634,20 +636,23 @@ bitflags::bitflags! {
     /// Chess960). An easy mnemonic is that the king and the rook end up on the
     /// same files for both Standard and FRC:
     ///
-    /// - When castling h-side (short), the king ends up on [`File::G`] and the rook on [`File::F`]
-    /// - When castling a-side (long), the king ends up on [`File::C`] and the rook on [`File::D`]
+    /// - When castling h-side (short), the king ends up on [`File::G`] and the
+    ///   rook on [`File::F`]
+    /// - When castling a-side (long), the king ends up on [`File::C`] and the
+    ///   rook on [`File::D`]
     ///
     /// The full rules are:
     ///
     /// - The king and the castling rook must not have previously moved.
     /// - No square from the king's initial square to its final square may be under
     ///   attack by an enemy piece.
-    /// - All the squares between the king's initial and
-    ///   final squares (including the final square), and all the squares between the
-    ///   castling rook's initial and final squares (including the final square), must
-    ///   be vacant except for the king and castling rook.
+    /// - All the squares between the king's initial and final squares
+    ///   (including the final square), and all the squares between the castling
+    ///   rook's initial and final squares (including the final square), must be
+    ///   vacant except for the king and castling rook.
     ///
     /// [castle]: https://www.chessprogramming.org/Castling
+    // TODO: Update docs for FCR.
     pub struct CastleRights : u8 {
         #[allow(missing_docs)]
         const NONE = 0;

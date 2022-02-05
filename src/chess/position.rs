@@ -94,7 +94,7 @@ impl Position {
         self.side_to_move
     }
 
-    pub(super) fn opponent(&self) -> Player {
+    pub(super) fn they(&self) -> Player {
         self.us().opponent()
     }
 
@@ -136,7 +136,7 @@ impl Position {
     // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
     #[must_use]
     pub fn generate_moves(&self) -> Vec<Move> {
-        debug_assert!(self.check_validity().is_ok());
+        debug_assert!(self.is_legal());
         let attack_info = attacks::AttackInfo::new(self);
         // TODO: The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
@@ -146,29 +146,40 @@ impl Position {
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
         let our_pieces = self.pieces(self.us());
-        let opponent_pieces = self.pieces(self.opponent());
+        let opponent_pieces = self.pieces(self.they());
         let non_capture_mask = our_pieces.all();
         let occupancy = our_pieces.all() | opponent_pieces.all();
-        let our_king: Square = our_pieces
-            .king
-            .try_into()
-            .expect("There can only be one king");
+        let our_king: Square = our_pieces.king.as_square();
+        // Moving the king to safety is always correct regardless of the checks.
         for safe_square in attack_info.safe_king_squares.iter() {
             moves.push(Move::new(our_king, safe_square, None));
         }
-        if attack_info.checkers.count_ones() == 2 {
-            return moves;
-        }
-        let blocking_ray = match attack_info.checkers.count_ones() {
+        // If there are checks, the moves are restricted to resolving them.
+        let blocking_ray = match attack_info.checkers.count() {
             0 => Bitboard::empty(),
+            // There are two ways of getting out of check:
+            //
+            // - Moving king to safety (calculated above)
+            // - Blocking the checker or capturing it
+            //
+            // The former is calculated above, the latter is dealt with below.
             1 => {
-                let checker: Square = attack_info
-                    .checkers
-                    .try_into()
-                    .expect("we already checked that there is exactly one checker");
-                attacks::ray(checker, our_king)
+                let checker: Square = attack_info.checkers.as_square();
+                let ray = attacks::ray(checker, our_king);
+                if ray.is_empty() {
+                    // This means the checker is a knight and the only way to
+                    // evade the check is capturing it.
+                    attack_info.checkers
+                } else {
+                    // The checker is a sliding piece: it can be either captured
+                    // or blocked.
+                    ray
+                }
             },
-            _ => unreachable!("there is at most one checker at this point"),
+            // Double checks can only be evaded by the king moves to safety: no
+            // need to consider other moves.
+            2 => return moves,
+            _ => unreachable!("more than two pieces can not check the king"),
         };
         // TODO: Maybe iterating manually would be faster.
         for (kind, bitboard) in self.pieces(self.us()).iter() {
@@ -215,7 +226,7 @@ impl Position {
         let pawn_pushes = our_pieces.pawns.shift(push_direction) - occupancy;
         let original_squares = pawn_pushes.shift(push_direction.opposite());
         let add_pawn_moves = |moves: &mut Vec<Move>, from, to: Square| {
-            // TODO: This is probably better with self.side_to_move.opponent().home_rank()
+            // TODO: This is probably better with self.side_to_move.opponent().backrank()
             // but might be slower.
             match to.rank() {
                 Rank::Eight | Rank::One => {
@@ -310,49 +321,43 @@ impl Position {
     // TODO: Make an checked version of it? With the move coming from the UCI
     // it's best to check if it's valid or not.
     pub fn make_move(&mut self, next_move: Move) {
-        let (our_pieces, opponent_pieces) = (self.pieces(self.us()), self.pieces(self.opponent()));
+        let (our_pieces, opponent_pieces) = match self.us() {
+            Player::White => (&mut self.board.white_pieces, &mut self.board.black_pieces),
+            Player::Black => (&mut self.board.black_pieces, &mut self.board.white_pieces),
+        };
+        if our_pieces.king.contains(next_move.to) {
+            // Check castling.
+            let backrank = Rank::backrank(self.us()).mask();
+            if backrank.contains(next_move.from) && backrank.contains(next_move.to) {}
+        }
     }
 
-    // TODO: Add checks for board validity? Not sure if it'd be useful, but here are
-    // the heuristics:
-    // - If there is a check, there should only be one.
-    // Theoretically, this can still not be "correct" position of the classical
-    // chess. However, this is probably sufficient for Pabi's needs. This should
-    // probably be a debug assertion.
+    // TODO: If there is a check, there should only be one delivered by the
+    // non-moving side. Theoretically, this can still not be "correct" position
+    // of the classical chess. However, this is probably sufficient for Pabi's
+    // needs. This should probably be a debug assertion.
     // Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
-    pub fn check_validity(&self) -> anyhow::Result<()> {
+    pub fn is_legal(&self) -> bool {
         // TODO: The following patterns look repetitive; maybe refactor the
         // common structure even though it's quite short?
-        if self.board.white_pieces.king.count_ones() != 1 {
-            bail!(
-                "incorrect number of white kings: expected 1, got {}",
-                self.board.white_pieces.king.count_ones()
-            );
+        if self.board.white_pieces.king.count() != 1 {
+            return false;
         }
-        if self.board.black_pieces.king.count_ones() != 1 {
-            bail!(
-                "incorrect number of black kings: expected 1, got {}",
-                self.board.black_pieces.king.count_ones()
-            );
+        if self.board.black_pieces.king.count() != 1 {
+            return false;
         }
-        if self.board.white_pieces.pawns.count_ones() > 8 {
-            bail!(
-                "incorrect number of white pawns: expected <= 8, got {}",
-                self.board.white_pieces.pawns.count_ones()
-            );
+        if self.board.white_pieces.pawns.count() > 8 {
+            return false;
         }
-        if self.board.black_pieces.pawns.count_ones() > 8 {
-            bail!(
-                "incorrect number of black pawns: expected <= 8, got {}",
-                self.board.black_pieces.pawns.count_ones()
-            );
+        if self.board.black_pieces.pawns.count() > 8 {
+            return false;
         }
         if ((self.board.white_pieces.pawns & self.board.black_pieces.pawns)
             & (Rank::One.mask() | Rank::Eight.mask()))
-        .count_ones()
+        .count()
             != 0
         {
-            bail!("pawns can not be on the first and last rank");
+            return false;
         }
         if let Some(en_passant_square) = self.en_passant_square {
             let expected_rank = match self.side_to_move {
@@ -360,16 +365,13 @@ impl Position {
                 Player::Black => Rank::Three,
             };
             if en_passant_square.rank() != expected_rank {
-                bail!(
-                    "incorrect en passant rank: expected {expected_rank}, got {}",
-                    en_passant_square.rank()
-                );
+                return false;
             }
             // TODO: Moreover, en passant square should be behind a doubly
             // pushed pawn.
         }
         // TODO: The rest of the checks.
-        Ok(())
+        true
     }
 
     #[must_use]
@@ -378,6 +380,7 @@ impl Position {
     }
 }
 
+// TODO: Take plain bytes through from_ascii: that's more principled and may be faster.
 impl TryFrom<&str> for Position {
     type Error = anyhow::Error;
 
@@ -396,14 +399,14 @@ impl TryFrom<&str> for Position {
     // TODO: Test specific errors.
     fn try_from(input: &str) -> anyhow::Result<Self> {
         let mut input = input;
-        for prefix in ["fen", "epd"] {
+        for prefix in ["fen ", "epd "] {
             if let Some(stripped) = input.strip_prefix(prefix) {
                 input = stripped;
                 break;
             }
         }
 
-        let mut parts = input.trim().split_ascii_whitespace();
+        let mut parts = input.split(' ');
         // Parse Piece Placement.
         let mut result = Self::empty();
         let pieces_placement = match parts.next() {
@@ -420,14 +423,16 @@ impl TryFrom<&str> for Position {
             let rank = Rank::try_from(rank_id)?;
             let mut file: u8 = 0;
             for symbol in rank_fen.chars() {
-                // The increment is a small number: casting to u8 will not truncate.
-                #[allow(clippy::cast_possible_truncation)]
-                if let Some(increment) = symbol.to_digit(10) {
-                    file += increment as u8;
-                    if file >= BOARD_WIDTH {
-                        break;
-                    }
-                    continue;
+                if file > BOARD_WIDTH {
+                    bail!("file exceeded {BOARD_WIDTH}");
+                }
+                match symbol {
+                    '0' => bail!("increment can not be 0"),
+                    '1'..='9' => {
+                        file += symbol as u8 - '0' as u8;
+                        continue;
+                    },
+                    _ => (),
                 }
                 match Piece::try_from(symbol) {
                     Ok(piece) => {
@@ -485,8 +490,10 @@ impl TryFrom<&str> for Position {
             },
             None => bail!("incorrect FEN: missing halfmove clock"),
         };
-        debug_assert!(result.check_validity().is_ok());
-        Ok(result)
+        match parts.next() {
+            None => Ok(result),
+            Some(_) => bail!("trailing symbols are not allowed in FEN"),
+        }
     }
 }
 
@@ -533,7 +540,7 @@ mod test {
         assert!(position.is_ok(), "input: {fen}");
         let position = position.unwrap();
         assert_eq!(position.to_string(), fen, "input: {fen}");
-        assert!(position.check_validity().is_ok());
+        assert!(position.is_legal());
         position
     }
 
@@ -556,40 +563,41 @@ mod test {
     }
 
     #[test]
+    fn no_crash() {
+        assert!(Position::try_from("3k2p1N/82/8/8/7B/6K1/3R4/8 b - - 0 1").is_err());
+        assert!(
+            Position::try_from("3kn3/R2p1N2/8/8/70000000000000000B/6K1/3R4/8 b - - 0 1").is_err()
+        );
+        assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3R4/8 b - - 0 48 b - - 0 4/8 b").is_err());
+        assert!(Position::try_from("\tfen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
+        assert!(Position::try_from("fen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
+    }
+
+    #[test]
     fn clean_board_str() {
         // Prefix with "fen".
         assert!(Position::try_from(
             "fen rn1qkb1r/pp3ppp/2p1pn2/3p1b2/2PP4/5NP1/PP2PPBP/RNBQK2R w KQkq - 0 1"
         )
         .is_ok());
-        // Prefix with "epd" and add more spaces.
+        // Prefix with "epd".
         assert!(Position::try_from(
-            "epd  rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R  w  KQkq   -  \n"
-        )
-        .is_ok());
-        // Prefix with "fen" and add spaces.
-        assert!(Position::try_from(
-            "fen   rn1qkb1r/pp3ppp/2p1pn2/3p1b2/2PP4/5NP1/PP2PPBP/RNBQK2R   w   KQkq -  0 1  "
+            "epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -"
         )
         .is_ok());
         // No prefix: infer EPD.
-        assert!(Position::try_from(
-            " rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -   \n"
-        )
-        .is_ok());
+        assert!(
+            Position::try_from("rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -")
+                .is_ok()
+        );
         // No prefix: infer FEN.
         assert!(Position::try_from(
-            " rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -   0 1"
-        )
-        .is_ok());
-        // No prefix: infer FEN.
-        assert!(Position::try_from(
-            " rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -   0 1"
+            "rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq - 0 1"
         )
         .is_ok());
         // Whitespaces at the start of "fen"/"epd" are not accepted.
         assert!(Position::try_from(
-            " \n epd  rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R  w  KQkq   -  \n"
+            " \n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
         )
         .is_err());
         // Don't crash on unicode symbols.
@@ -661,12 +669,31 @@ mod test {
             get_moves(&setup("3kn3/R2p4/8/6B1/8/6K1/3R4/8 b - - 0 1")),
             sorted_moves(&["e8f6", "d8c8"])
         );
+        assert_eq!(
+            get_moves(&setup("2R5/8/6k1/8/8/8/PPn5/KR6 w - - 0 1")),
+            sorted_moves(&["c8c2"])
+        );
+    }
+
+    #[test]
+    fn pins() {
+        // The pawn is pinned but can capture en passant.
+        assert_eq!(
+            get_moves(&setup("6qk/8/8/3Pp3/8/8/K7/8 w - e6 0 1")),
+            sorted_moves(&["a2a1", "a2a3", "a2b1", "a2b2", "a2b3", "d5e6"])
+        );
+        // The pawn is pinned but there is no en passant: it can't move.
+        assert_eq!(
+            get_moves(&setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 0 1")),
+            sorted_moves(&["a2a1", "a2a3", "a2b1", "a2b2", "a2b3"])
+        );
     }
 
     #[test]
     fn chess_programming_wiki_perft_positions() {
-        // Positions from https://www.chessprogramming.org/Perft_Results with depth=1.
-        // Position 1 is the starting position.
+        // Positions from https://www.chessprogramming.org/Perft_Results with
+        // depth=1.
+        // Position 1 is the starting position: handled in detail before.
         // Position 2.
         assert_eq!(
             get_moves(&setup(

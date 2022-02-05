@@ -16,8 +16,10 @@ fn main() {
         match readline {
             Ok(line) => {
                 if let Some(pos) = line.strip_prefix("position ") {
+                    // TODO: Check position for validity and bail out if it's
+                    // not legal.
                     position = Position::try_from(pos).unwrap();
-                    position.check_validity().unwrap();
+                    position.is_legal();
                 } else if line == "moves" {
                     println!("{:?}", position.generate_moves());
                 } else if line == "d" {

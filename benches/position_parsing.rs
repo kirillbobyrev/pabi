@@ -8,7 +8,7 @@ use pabi::util;
 
 fn parse_positions(positions: &[String]) {
     for position in positions {
-        let pos = Position::try_from(position.as_str());
+        let pos = Position::try_from(position.as_str().trim());
         assert!(pos.is_ok());
     }
 }

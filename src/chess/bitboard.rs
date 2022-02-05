@@ -96,19 +96,19 @@ impl Bitboard {
     }
 
     #[must_use]
-    pub(super) fn count_ones(self) -> u32 {
+    pub(super) fn as_square(self) -> Square {
+        debug_assert!(self.bits.count_ones() == 1);
+        unsafe { std::mem::transmute(self.bits.trailing_zeros() as u8) }
+    }
+
+    #[must_use]
+    pub(super) fn count(self) -> u32 {
         self.bits.count_ones()
     }
 
     #[must_use]
     pub(super) fn is_empty(self) -> bool {
-        self.count_ones() == 0
-    }
-
-    /// An efficient way to iterate over the set squares.
-    #[must_use]
-    pub(super) fn iter(self) -> BitboardIterator {
-        BitboardIterator { bits: self.bits }
+        self.count() == 0
     }
 
     #[must_use]
@@ -120,6 +120,12 @@ impl Bitboard {
             Direction::Right => self >> 1,
             _ => unreachable!(),
         }
+    }
+
+    /// An efficient way to iterate over the set squares.
+    #[must_use]
+    pub(super) fn iter(self) -> BitboardIterator {
+        BitboardIterator { bits: self.bits }
     }
 }
 
@@ -248,7 +254,8 @@ impl From<Square> for Bitboard {
 // TODO: Try De Brujin Multiplication and see if it's faster (via benchmarks)
 // than trailing zeros as reported by some developers (even though intuitively
 // trailing zeros should be much faster because it would compile to a processor
-// instruction). https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication
+// instruction):
+// https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication
 pub(super) struct BitboardIterator {
     // TODO: Check if operating on the actual Bitboard will not hurt the
     // performance. This iterator is likely to be on the hot path, so changing
@@ -314,17 +321,6 @@ pub(super) struct Pieces {
 }
 
 impl Pieces {
-    pub(super) fn occupancy(&self, piece_kind: PieceKind) -> Bitboard {
-        match piece_kind {
-            PieceKind::King => self.king,
-            PieceKind::Queen => self.queens,
-            PieceKind::Rook => self.rooks,
-            PieceKind::Bishop => self.bishops,
-            PieceKind::Knight => self.knights,
-            PieceKind::Pawn => self.pawns,
-        }
-    }
-
     pub(super) fn empty() -> Self {
         Self {
             king: Bitboard::empty(),
@@ -357,7 +353,8 @@ impl Pieces {
     }
 
     pub(super) fn new_black() -> Self {
-        // TODO: Implement flip and return new_white().flip() to prevent copying code.
+        // TODO: Implement flip and return new_white().flip() to prevent copying
+        // code.
         Self {
             king: Square::E8.into(),
             queens: Square::D8.into(),
