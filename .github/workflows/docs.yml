@@ -1,9 +1,15 @@
 name: Build docs
-on: [push, pull_request]
+on:
+  push:
+    branches:
+    - main
 jobs:
   docs:
     name: Build docs
     runs-on: ubuntu-latest
+    # Ensure there are no conflicting pushes to GitHub Pages.
+    concurrency:
+      group: docs
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -28,4 +34,11 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --all-features
+          args: --all-features --document-private-items --no-deps
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./target/doc
+          force_orphan: true
