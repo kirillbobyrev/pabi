@@ -193,7 +193,8 @@ pub(super) const WHITE_LONG_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0
 pub(super) const WHITE_LONG_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0000_0000_0000_000E);
 pub(super) const BLACK_SHORT_CASTLE_KING_WALK: Bitboard =
     Bitboard::from_bits(0x6000_0000_0000_0000);
-pub(super) const BLACK_SHORT_ROOK_WALK: Bitboard = Bitboard::from_bits(0x6000_0000_0000_0000);
+pub(super) const BLACK_SHORT_CASTLE_ROOK_WALK: Bitboard =
+    Bitboard::from_bits(0x6000_0000_0000_0000);
 pub(super) const BLACK_LONG_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0C00_0000_0000_0000);
 pub(super) const BLACK_LONG_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0E00_0000_0000_0000);
 

@@ -276,8 +276,8 @@ impl Position {
                     if self.castling.contains(CastleRights::WHITE_SHORT)
                         && (attack_info.attacks & attacks::WHITE_SHORT_CASTLE_KING_WALK).is_empty()
                         && (occupancy
-                            & attacks::WHITE_SHORT_CASTLE_KING_WALK
-                            & attacks::WHITE_SHORT_CASTLE_KING_WALK)
+                            & (attacks::WHITE_SHORT_CASTLE_KING_WALK
+                                | attacks::WHITE_SHORT_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
                         moves.push(Move::new(Square::E1, Square::G1, None));
@@ -285,8 +285,8 @@ impl Position {
                     if self.castling.contains(CastleRights::WHITE_LONG)
                         && (attack_info.attacks & attacks::WHITE_LONG_CASTLE_KING_WALK).is_empty()
                         && (occupancy
-                            & attacks::WHITE_LONG_CASTLE_KING_WALK
-                            & attacks::WHITE_LONG_CASTLE_KING_WALK)
+                            & (attacks::WHITE_LONG_CASTLE_KING_WALK
+                                | attacks::WHITE_LONG_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
                         moves.push(Move::new(Square::E1, Square::C1, None));
@@ -296,8 +296,8 @@ impl Position {
                     if self.castling.contains(CastleRights::BLACK_SHORT)
                         && (attack_info.attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
                         && (occupancy
-                            & attacks::BLACK_SHORT_CASTLE_KING_WALK
-                            & attacks::BLACK_SHORT_CASTLE_KING_WALK)
+                            & (attacks::BLACK_SHORT_CASTLE_KING_WALK
+                                | attacks::BLACK_SHORT_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
                         moves.push(Move::new(Square::E8, Square::G8, None));
@@ -305,8 +305,8 @@ impl Position {
                     if self.castling.contains(CastleRights::BLACK_LONG)
                         && (attack_info.attacks & attacks::BLACK_LONG_CASTLE_KING_WALK).is_empty()
                         && (occupancy
-                            & attacks::BLACK_LONG_CASTLE_KING_WALK
-                            & attacks::BLACK_LONG_CASTLE_KING_WALK)
+                            & (attacks::BLACK_LONG_CASTLE_KING_WALK
+                                | attacks::BLACK_LONG_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
                         moves.push(Move::new(Square::E8, Square::C8, None));
@@ -802,6 +802,14 @@ mod test {
                 "2r3r1/p3k3/pp3p2/1B5p/5P2/2P1p1P1/PP4Kr/3R4 w - - 0 1"
             )),
             sorted_moves(&["g2f1", "g2f3", "g2g1", "g2h2"])
+        );
+        assert_eq!(
+            get_moves(&setup("4k3/8/8/8/8/8/8/RR2K3 w Q - 0 1")),
+            sorted_moves(&[
+                "e1d1", "e1d2", "e1e2", "e1f1", "e1f2", "b1c1", "b1d1", "a1a2", "a1a3", "a1a4",
+                "a1a5", "a1a6", "a1a7", "a1a8", "b1b2", "b1b3", "b1b4", "b1b5", "b1b6", "b1b7",
+                "b1b8"
+            ])
         );
     }
 
