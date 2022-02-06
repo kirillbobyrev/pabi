@@ -14,7 +14,15 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights, Move, Piece, PieceKind, Player, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    Move,
+    Piece,
+    PieceKind,
+    Player,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,

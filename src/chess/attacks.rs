@@ -18,12 +18,12 @@ pub(super) fn queen_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
 }
 
 pub(super) fn rook_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
-    ROOK_ATTACKS[ROOK_OFFSETS[from as usize]
+    ROOK_ATTACKS[ROOK_ATTACK_OFFSETS[from as usize]
         + pext(occupancy.bits(), ROOK_RELEVANT_OCCUPANCIES[from as usize]) as usize]
 }
 
 pub(super) fn bishop_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
-    BISHOP_ATTACKS[BISHOP_OFFSETS[from as usize]
+    BISHOP_ATTACKS[BISHOP_ATTACK_OFFSETS[from as usize]
         + pext(occupancy.bits(), BISHOP_RELEVANT_OCCUPANCIES[from as usize]) as usize]
 }
 
@@ -161,28 +161,60 @@ impl AttackInfo {
 // Generated in build.rs.
 // TODO: Document PEXT bitboards.
 const BISHOP_ATTACKS_COUNT: usize = 5248;
-const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] =
-    include!(concat!(env!("OUT_DIR"), "/bishop_attacks"));
+const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/bishop_attacks.rs"
+));
+const BISHOP_ATTACK_OFFSETS: [usize; BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/bishop_attack_offsets.rs"
+));
+const BISHOP_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/bishop_relevant_occupancies.rs"
+));
+
 const ROOK_ATTACKS_COUNT: usize = 102_400;
-const ROOK_ATTACKS: [Bitboard; ROOK_ATTACKS_COUNT] =
-    include!(concat!(env!("OUT_DIR"), "/rook_attacks"));
-const BISHOP_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] =
-    include!(concat!(env!("OUT_DIR"), "/bishop_occupancies"));
-const ROOK_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] =
-    include!(concat!(env!("OUT_DIR"), "/rook_occupancies"));
-const BISHOP_OFFSETS: [usize; BOARD_SIZE as usize] =
-    include!(concat!(env!("OUT_DIR"), "/bishop_offsets"));
-const ROOK_OFFSETS: [usize; BOARD_SIZE as usize] =
-    include!(concat!(env!("OUT_DIR"), "/rook_offsets"));
+const ROOK_ATTACKS: [Bitboard; ROOK_ATTACKS_COUNT] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/rook_attacks.rs"
+));
+const ROOK_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/rook_relevant_occupancies.rs"
+));
+const ROOK_ATTACK_OFFSETS: [usize; BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/rook_attack_offsets.rs"
+));
 
-include!("generated/knight_attacks.rs");
-include!("generated/king_attacks.rs");
-include!("generated/white_pawn_attacks.rs");
-include!("generated/black_pawn_attacks.rs");
+const RAYS: [Bitboard; BOARD_SIZE as usize * BOARD_SIZE as usize] =
+    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/generated/rays.rs"));
+const BISHOP_RAYS: [Bitboard; BOARD_SIZE as usize * BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/bishop_rays.rs"
+));
+const ROOK_RAYS: [Bitboard; BOARD_SIZE as usize * BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/rook_rays.rs"
+));
 
-include!("generated/rays.rs");
-include!("generated/bishop_rays.rs");
-include!("generated/rook_rays.rs");
+const KNIGHT_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/knight_attacks.rs"
+));
+const KING_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/king_attacks.rs"
+));
+const WHITE_PAWN_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/white_pawn_attacks.rs"
+));
+const BLACK_PAWN_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/generated/black_pawn_attacks.rs"
+));
 
 // TODO: Abstract it out and support Fischer Random Chess.
 pub(super) const WHITE_SHORT_CASTLE_KING_WALK: Bitboard =
