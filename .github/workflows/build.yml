@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        toolchain: [stable]
+        toolchain: [stable, "1.58.1"]
         experimental: [false]
         include:
           - os: ubuntu-latest

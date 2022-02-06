@@ -8,7 +8,7 @@ fn check(serialized_position: &str) {
         position.to_string(),
         util::sanitize_fen(serialized_position)
     );
-    assert!(position.is_legal());
+    assert!(position.is_legal(), "{serialized_position}");
 }
 
 // This test is very expensive in the Debug setting (could take 200+ seconds):

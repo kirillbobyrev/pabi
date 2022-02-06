@@ -42,7 +42,7 @@ pub(super) fn ray(from: Square, to: Square) -> Bitboard {
     RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
-fn bishop_ray(from: Square, to: Square) -> Bitboard {
+pub(super) fn bishop_ray(from: Square, to: Square) -> Bitboard {
     BISHOP_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 

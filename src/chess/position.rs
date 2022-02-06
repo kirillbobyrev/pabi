@@ -102,6 +102,14 @@ impl Position {
         self.board.player_pieces(player)
     }
 
+    fn occupancy(&self, player: Player) -> Bitboard {
+        self.board.player_pieces(player).all()
+    }
+
+    fn occupied_squares(&self) -> Bitboard {
+        self.board.player_pieces(self.us()).all() | self.board.player_pieces(self.they()).all()
+    }
+
     /// Calculates a list of legal moves (i.e. the moves that do not leave our
     /// king in check).
     ///
@@ -383,17 +391,29 @@ impl Position {
                 return false;
             }
             // If en-passant was played and there's a check, doubly pushed pawn
-            // should be the only checker.
-            if attacks.checkers.has_any() && attacks.checkers != Bitboard::from(pushed_pawn) {
-                return false;
+            // should be the only checker or it should be a discovery.
+            let king = self.pieces(self.us()).king.as_square();
+            if attacks.checkers.has_any() {
+                if attacks.checkers.count() > 1 {
+                    return false;
+                }
+                // The check wasn't delivered by pushed pawn.
+                if attacks.checkers != Bitboard::from(pushed_pawn) {
+                    let checker = attacks.checkers.as_square();
+                    let original_square =
+                        en_passant_square.shift(self.us().push_direction()).unwrap();
+                    if !(attacks::ray(checker, king).contains(original_square)) {
+                        return false;
+                    }
+                }
             }
             // Doubly pushed pawn can not block a diagonal check.
-            let king = self.pieces(self.us()).king.as_square();
             for attacker in
                 (self.pieces(self.they()).queens | self.pieces(self.they()).bishops).iter()
             {
-                let xray = attacks::ray(attacker, king);
-                if (xray & self.pieces(self.they()).all()).count() == 2
+                let xray = attacks::bishop_ray(attacker, king);
+                if (xray & (self.pieces(self.they()).all() | self.pieces(self.us()).all())).count()
+                    == 2
                     && xray.contains(attacker)
                     && xray.contains(pushed_pawn)
                 {
@@ -595,8 +615,8 @@ mod test {
         let position = Position::try_from(fen);
         assert!(position.is_ok(), "input: {fen}");
         let position = position.unwrap();
-        assert_eq!(position.to_string(), fen, "input: {fen}");
-        assert!(position.is_legal());
+        assert_eq!(position.to_string(), fen);
+        assert!(position.is_legal(), "{}", position.to_string());
         position
     }
 
@@ -610,6 +630,9 @@ mod test {
         setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq c6 0 7");
         setup("r2qkb1r/1pp1pp1p/p1np1np1/1B6/3PP1b1/2N1BN2/PPP2PPP/R2QK2R w KQkq - 0 7");
         setup("r3k3/5p2/2p5/p7/P3r3/2N2n2/1PP2P2/2K2B2 w q - 0 24");
+        setup("r1b1qrk1/ppp2pbp/n2p1np1/4p1B1/2PPP3/2NB1N1P/PP3PP1/R2QK2R w KQ e6 0 9");
+        setup("8/8/8/8/2P5/3k4/8/KB6 b - c3 0 1");
+        setup("rnbq1rk1/pp4pp/1b1ppn2/2p2p2/2PP4/1P2PN2/PB2BPPP/RN1Q1RK1 w - c6 0 9");
     }
 
     #[test]
