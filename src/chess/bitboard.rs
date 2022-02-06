@@ -111,6 +111,11 @@ impl Bitboard {
     }
 
     #[must_use]
+    pub(super) fn has_any(self) -> bool {
+        self.count() != 0
+    }
+
+    #[must_use]
     pub(super) fn shift(self, direction: Direction) -> Self {
         match direction {
             Direction::Up => self << u32::from(BOARD_WIDTH),

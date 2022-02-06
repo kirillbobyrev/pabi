@@ -75,6 +75,7 @@ pub(super) struct AttackInfo {
     pub(super) attacks: Bitboard,
     pub(super) checkers: Bitboard,
     pub(super) pins: Bitboard,
+    pub(super) xrays: Bitboard,
     pub(super) safe_king_squares: Bitboard,
 }
 
@@ -84,6 +85,7 @@ impl AttackInfo {
             attacks: Bitboard::empty(),
             checkers: Bitboard::empty(),
             pins: Bitboard::empty(),
+            xrays: Bitboard::empty(),
             safe_king_squares: Bitboard::empty(),
         };
         let (us, opponent) = (position.us(), position.they());
@@ -96,27 +98,36 @@ impl AttackInfo {
         result.safe_king_squares = !our_occupancy_without_king & king_attacks(king_square);
         // TODO: Maybe iterating manually would be faster.
         for (kind, bitboard) in their.iter() {
-            for from in bitboard.iter() {
+            for attacker_square in bitboard.iter() {
                 let targets = match kind {
-                    PieceKind::King => king_attacks(from),
-                    PieceKind::Queen => queen_attacks(from, occupancy),
-                    PieceKind::Rook => rook_attacks(from, occupancy),
-                    PieceKind::Bishop => bishop_attacks(from, occupancy),
-                    PieceKind::Knight => knight_attacks(from),
-                    PieceKind::Pawn => pawn_attacks(from, opponent),
-                } - their_occupancy;
+                    PieceKind::King => king_attacks(attacker_square),
+                    PieceKind::Queen => queen_attacks(attacker_square, occupancy),
+                    PieceKind::Rook => rook_attacks(attacker_square, occupancy),
+                    PieceKind::Bishop => bishop_attacks(attacker_square, occupancy),
+                    PieceKind::Knight => knight_attacks(attacker_square),
+                    PieceKind::Pawn => pawn_attacks(attacker_square, opponent),
+                };
                 result.attacks |= targets;
-                if !(targets & our_king).is_empty() {
-                    result.checkers.extend(from);
-                    // Only the sliders can take away more safe squares than attacked directly.
-                    if kind == PieceKind::King || kind == PieceKind::Pawn || kind == PieceKind::Knight {
-                        continue;
-                    }
-                    // TODO: Document this.
+                if targets.contains(king_square) {
+                    result.checkers.extend(attacker_square);
+                }
+                // Only the sliders can take away more safe squares than attacked directly.
+                if kind == PieceKind::King || kind == PieceKind::Pawn || kind == PieceKind::Knight {
+                    continue;
+                }
+                // TODO: Document this.
+                if targets.contains(king_square) {
                     for square in result.safe_king_squares.iter() {
-                        let new_attack_ray = ray(from, square);
+                        let new_attack_ray = match kind {
+                            PieceKind::Queen => ray(attacker_square, square),
+                            PieceKind::Rook => rook_ray(attacker_square, square),
+                            PieceKind::Bishop => bishop_ray(attacker_square, square),
+                            _ => unreachable!(),
+                        };
                         if !new_attack_ray.is_empty()
-                            && (new_attack_ray & (our_occupancy_without_king - our_king)).is_empty()
+                            && (new_attack_ray & (our_occupancy_without_king | their_occupancy))
+                                .count()
+                                == 1
                         {
                             result.safe_king_squares.erase(square);
                         }
@@ -125,26 +136,24 @@ impl AttackInfo {
                     // both.
                     continue;
                 }
-                // TODO: This is repeating; abstract it out.
-                if kind == PieceKind::King || kind == PieceKind::Pawn || kind == PieceKind::Knight {
-                    continue;
-                }
                 // Calculate the pin.
                 let attack_ray = match kind {
-                    PieceKind::Queen => ray(from, king_square),
-                    PieceKind::Rook => rook_ray(from, king_square),
-                    PieceKind::Bishop => bishop_ray(from, king_square),
+                    PieceKind::Queen => ray(attacker_square, king_square),
+                    PieceKind::Rook => rook_ray(attacker_square, king_square),
+                    PieceKind::Bishop => bishop_ray(attacker_square, king_square),
                     _ => Bitboard::empty(),
                 };
-                // If the ray only contains the attacker and a blocker, it's a pin.
-                let blockers = attack_ray & our_occupancy_without_king;
-                if (attack_ray & (our_occupancy_without_king | their_occupancy)).count() == 2 {
-                    result.pins |= blockers;
+                let blocker = (attack_ray & occupancy) - Bitboard::from(attacker_square);
+                if blocker.count() == 1 {
+                    if (blocker & our_occupancy_without_king).has_any() {
+                        result.pins |= blocker;
+                    } else {
+                        result.xrays |= blocker;
+                    }
                 }
             }
         }
         result.safe_king_squares -= result.attacks;
-        debug_assert!(result.checkers.count() <= 2);
         result
     }
 }
@@ -525,6 +534,7 @@ mod test {
             . . . . . . . ."
         );
     }
+
     #[test]
     fn basic_attack_info() {
         let position = Position::try_from("3kn3/3p4/8/6B1/8/6K1/3R4/8 b - - 0 1").unwrap();
@@ -537,7 +547,7 @@ mod test {
             . . . 1 . . . .\n\
             . . . 1 . 1 1 1\n\
             . . . 1 1 1 . 1\n\
-            1 1 1 . 1 1 1 1\n\
+            1 1 1 1 1 1 1 1\n\
             . . . 1 . . . ."
         );
         assert_eq!(
@@ -563,6 +573,37 @@ mod test {
             . . . . . . . .\n\
             . . . . . . . ."
         );
+        assert!(attacks.xrays.is_empty());
+    }
+
+    #[test]
+    fn xrays() {
+        let position = Position::try_from("b6k/8/8/3p4/8/8/8/7K w - d6 0 1").unwrap();
+        let attacks = AttackInfo::new(&position);
+        assert_eq!(
+            format!("{:?}", attacks.attacks),
+            ". . . . . . 1 .\n\
+            . 1 . . . . 1 1\n\
+            . . 1 . . . . .\n\
+            . . . 1 . . . .\n\
+            . . 1 . 1 . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert!(attacks.checkers.is_empty());
+        assert!(attacks.pins.is_empty());
+        assert_eq!(
+            format!("{:?}", attacks.xrays),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . 1 . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
     }
 
     #[test]
@@ -572,7 +613,7 @@ mod test {
         let attacks = AttackInfo::new(&position);
         assert_eq!(
             format!("{:?}", attacks.attacks),
-            "1 . 1 1 1 . 1 1\n\
+            "1 1 1 1 1 . 1 1\n\
             1 1 1 1 1 1 1 .\n\
             1 . 1 1 . 1 . 1\n\
             1 1 1 . 1 1 . .\n\
@@ -603,5 +644,6 @@ mod test {
             . . . . . . . .\n\
             . . . . . . . ."
         );
+        assert!(attacks.xrays.is_empty());
     }
 }

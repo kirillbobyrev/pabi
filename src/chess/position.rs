@@ -167,12 +167,12 @@ impl Position {
                 let checker: Square = attack_info.checkers.as_square();
                 let ray = attacks::ray(checker, our_king);
                 if ray.is_empty() {
-                    // This means the checker is a knight and the only way to
-                    // evade the check is capturing it.
+                    // This means the checker is a knight: capture is the only
+                    // way left to resolve this check.
                     attack_info.checkers
                 } else {
-                    // The checker is a sliding piece: it can be either captured
-                    // or blocked.
+                    // Checker is a sliding piece: both capturing and blocking
+                    // resolves the check.
                     ray
                 }
             },
@@ -361,6 +361,11 @@ impl Position {
         {
             return false;
         }
+        let attacks = attacks::AttackInfo::new(self);
+        // Can't have more than two checks.
+        if attacks.checkers.count() > 2 {
+            return false;
+        }
         if let Some(en_passant_square) = self.en_passant_square {
             let expected_rank = match self.side_to_move {
                 Player::White => Rank::Six,
@@ -369,8 +374,32 @@ impl Position {
             if en_passant_square.rank() != expected_rank {
                 return false;
             }
-            // TODO: Moreover, en passant square should be behind a doubly
-            // pushed pawn.
+            // A pawn that was just pushed by our opponent should be in front of
+            // en_passant_square.
+            let pushed_pawn = en_passant_square
+                .shift(self.they().push_direction())
+                .expect("we already checked for correct rank");
+            if !self.pieces(self.they()).pawns.contains(pushed_pawn) {
+                return false;
+            }
+            // If en-passant was played and there's a check, doubly pushed pawn
+            // should be the only checker.
+            if attacks.checkers.has_any() && attacks.checkers != Bitboard::from(pushed_pawn) {
+                return false;
+            }
+            // Doubly pushed pawn can not block a diagonal check.
+            let king = self.pieces(self.us()).king.as_square();
+            for attacker in
+                (self.pieces(self.they()).queens | self.pieces(self.they()).bishops).iter()
+            {
+                let xray = attacks::ray(attacker, king);
+                if (xray & self.pieces(self.they()).all()).count() == 2
+                    && xray.contains(attacker)
+                    && xray.contains(pushed_pawn)
+                {
+                    return false;
+                }
+            }
         }
         // TODO: The rest of the checks.
         true
@@ -751,6 +780,29 @@ mod test {
             )),
             sorted_moves(&["g2f1", "g2f2", "g2f3", "g2g1", "g2h1", "g2h3"])
         );
+        assert_eq!(
+            get_moves(&setup(
+                "2r3r1/P3k3/pp3p2/1B5p/5P2/2P3pP/PP4KP/3R4 w - - 0 1"
+            )),
+            sorted_moves(&[
+                "a2a3", "a2a4", "a7a8b", "a7a8n", "a7a8q", "a7a8r", "b2b3", "b2b4", "b5a4", "b5a6",
+                "b5c4", "b5c6", "b5d3", "b5d7", "b5e2", "b5e8", "b5f1", "c3c4", "d1a1", "d1b1",
+                "d1c1", "d1d2", "d1d3", "d1d4", "d1d5", "d1d6", "d1d7", "d1d8", "d1e1", "d1f1",
+                "d1g1", "d1h1", "f4f5", "g2f1", "g2f3", "g2g1", "g2h1", "h2g3", "h3h4",
+            ])
+        );
+        assert_eq!(
+            get_moves(&setup(
+                "2r3r1/p3k3/pp3p2/1B5p/5P2/2pqp1P1/PPK4P/3R4 w - - 0 34"
+            )),
+            sorted_moves(&["b5d3", "c2b3", "c2c1", "c2d3", "d1d3"])
+        );
+        assert_eq!(
+            get_moves(&setup(
+                "2r3r1/p3k3/pp3p2/1B5p/5P2/2P1p1P1/PP4Kr/3R4 w - - 0 1"
+            )),
+            sorted_moves(&["g2f1", "g2f3", "g2g1", "g2h2"])
+        );
     }
 
     #[test]
@@ -811,5 +863,27 @@ mod test {
             .len(),
             48
         );
+    }
+
+    #[test]
+    fn illegal_positions() {
+        // TODO: Should we check for legality in the parser and reject incorrect
+        // positions?
+        // The check was not delivered by the doubly pushed pawn.
+        assert!(!Position::try_from(
+            "rnbqk1nr/bb3p1p/1q2r3/2pPp3/3P4/7P/1PP1NpPP/R1BQKBNR w KQkq c6 0 1"
+        )
+        .unwrap()
+        .is_legal());
+        // Three checks.
+        assert!(
+            !Position::try_from("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34")
+                .unwrap()
+                .is_legal()
+        );
+        // Doubly pushed pawn can not block a diagonal check.
+        assert!(!Position::try_from("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1")
+            .unwrap()
+            .is_legal());
     }
 }

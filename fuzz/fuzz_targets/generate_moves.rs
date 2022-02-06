@@ -11,7 +11,7 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     let s = s.unwrap().trim();
-    let position = position::Position::try_from(s);
+    let position = position::Position::from_fen(s);
     if position.is_err() {
         return;
     }
@@ -27,7 +27,6 @@ fuzz_target!(|data: &[u8]| {
     if shakmaty_position.is_err() {
         return;
     }
-    dbg!();
     assert_eq!(
         position
             .generate_moves()
