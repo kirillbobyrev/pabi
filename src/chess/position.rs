@@ -107,7 +107,7 @@ impl Position {
     }
 
     fn occupied_squares(&self) -> Bitboard {
-        self.board.player_pieces(self.us()).all() | self.board.player_pieces(self.they()).all()
+        self.occupancy(self.us()) | self.occupancy(self.they())
     }
 
     /// Calculates a list of legal moves (i.e. the moves that do not leave our
@@ -307,6 +307,7 @@ impl Position {
                                 | attacks::BLACK_SHORT_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
+                        dbg!("gen shorg");
                         moves.push(Move::new(Square::E8, Square::G8, None));
                     }
                     if self.castling.contains(CastleRights::BLACK_LONG)
@@ -316,11 +317,13 @@ impl Position {
                                 | attacks::BLACK_LONG_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
+                        dbg!("gen long");
                         moves.push(Move::new(Square::E8, Square::C8, None));
                     }
                 },
             }
         }
+        dbg!(attacks::BLACK_LONG_CASTLE_KING_WALK);
         moves
     }
 
@@ -411,8 +414,7 @@ impl Position {
                 (self.pieces(self.they()).queens | self.pieces(self.they()).bishops).iter()
             {
                 let xray = attacks::bishop_ray(attacker, king);
-                if (xray & (self.pieces(self.they()).all() | self.pieces(self.us()).all())).count()
-                    == 2
+                if (xray & (self.occupied_squares())).count() == 2
                     && xray.contains(attacker)
                     && xray.contains(pushed_pawn)
                 {
@@ -836,6 +838,55 @@ mod test {
                 "e1d1", "e1d2", "e1e2", "e1f1", "e1f2", "b1c1", "b1d1", "a1a2", "a1a3", "a1a4",
                 "a1a5", "a1a6", "a1a7", "a1a8", "b1b2", "b1b3", "b1b4", "b1b5", "b1b6", "b1b7",
                 "b1b8"
+            ])
+        );
+    }
+
+    #[test]
+    fn castle() {
+        // Can castle both sides.
+        assert_eq!(
+            get_moves(&setup("r3k2r/8/8/8/8/8/6N1/4K3 b kq - 0 1")),
+            sorted_moves(&[
+                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
+                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
+                "e8d8", "e8d7", "e8f8", "e8f7", "e8c8", "e8g8"
+            ])
+        );
+        // Castling short blocked by a check.
+        assert_eq!(
+            get_moves(&setup("r3k2r/8/8/8/8/8/6R1/4K3 b kq - 0 1")),
+            sorted_moves(&[
+                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
+                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
+                "e8d8", "e8d7", "e8f8", "e8f7", "e8c8"
+            ])
+        );
+        // Castling short blocked by our piece, castling long is not available.
+        assert_eq!(
+            get_moves(&setup("r3k2r/8/8/8/8/8/6R1/4K3 b k - 0 1")),
+            sorted_moves(&[
+                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
+                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
+                "e8d8", "e8d7", "e8f8", "e8f7"
+            ])
+        );
+        // Castling long is not blocked: the attacked square is not the one king will walk through.
+        assert_eq!(
+            get_moves(&setup("r3k2r/8/8/8/8/8/1R6/4K3 b q - 0 1")),
+            sorted_moves(&[
+                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
+                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
+                "e8d8", "e8d7", "e8f8", "e8f7", "e8c8"
+            ])
+        );
+        // Castling long is blocked by an attack and the king is cut off.
+        assert_eq!(
+            get_moves(&setup("r3k2r/8/8/8/8/8/3R4/4K3 b kq - 0 1")),
+            sorted_moves(&[
+                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
+                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
+                "e8f8", "e8f7", "e8g8"
             ])
         );
     }
