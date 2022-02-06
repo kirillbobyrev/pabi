@@ -161,11 +161,10 @@ impl Position {
         // Cache squares occupied by each player.
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
-        let our_pieces = self.pieces(self.us());
-        let opponent_pieces = self.pieces(self.they());
-        let non_capture_mask = our_pieces.all();
-        let occupancy = our_pieces.all() | opponent_pieces.all();
+        let (our_pieces, opponent_pieces) = (self.pieces(self.us()), self.pieces(self.they()));
         let our_king: Square = our_pieces.king.as_square();
+        let non_capture_mask = our_pieces.all();
+        let occupied_squares = self.occupied_squares();
         // Moving the king to safety is always correct regardless of the checks.
         for safe_square in attack_info.safe_king_squares.iter() {
             moves.push(Move::new(our_king, safe_square, None));
@@ -202,9 +201,9 @@ impl Position {
             for from in bitboard.iter() {
                 let targets = match kind {
                     PieceKind::King => Bitboard::empty(),
-                    PieceKind::Queen => attacks::queen_attacks(from, occupancy),
-                    PieceKind::Rook => attacks::rook_attacks(from, occupancy),
-                    PieceKind::Bishop => attacks::bishop_attacks(from, occupancy),
+                    PieceKind::Queen => attacks::queen_attacks(from, occupied_squares),
+                    PieceKind::Rook => attacks::rook_attacks(from, occupied_squares),
+                    PieceKind::Bishop => attacks::bishop_attacks(from, occupied_squares),
                     PieceKind::Knight => attacks::knight_attacks(from),
                     PieceKind::Pawn => {
                         attacks::pawn_attacks(from, self.us())
@@ -239,7 +238,7 @@ impl Position {
         }
         // Regular pawn pushes.
         let push_direction = self.us().push_direction();
-        let pawn_pushes = our_pieces.pawns.shift(push_direction) - occupancy;
+        let pawn_pushes = our_pieces.pawns.shift(push_direction) - occupied_squares;
         let original_squares = pawn_pushes.shift(push_direction.opposite());
         let add_pawn_moves = |moves: &mut Vec<Move>, from, to: Square| {
             // TODO: This is probably better with self.side_to_move.opponent().backrank()
@@ -268,7 +267,7 @@ impl Position {
         // Double pawn pushes.
         // TODO: Come up with a better name for it.
         let third_rank = Rank::pawns_starting(self.us()).mask().shift(push_direction);
-        let double_pushes = (pawn_pushes & third_rank).shift(push_direction) - occupancy;
+        let double_pushes = (pawn_pushes & third_rank).shift(push_direction) - occupied_squares;
         let original_squares = double_pushes
             .shift(push_direction.opposite())
             .shift(push_direction.opposite());
@@ -291,7 +290,7 @@ impl Position {
                 Player::White => {
                     if self.castling.contains(CastleRights::WHITE_SHORT)
                         && (attack_info.attacks & attacks::WHITE_SHORT_CASTLE_KING_WALK).is_empty()
-                        && (occupancy
+                        && (occupied_squares
                             & (attacks::WHITE_SHORT_CASTLE_KING_WALK
                                 | attacks::WHITE_SHORT_CASTLE_ROOK_WALK))
                             .is_empty()
@@ -300,7 +299,7 @@ impl Position {
                     }
                     if self.castling.contains(CastleRights::WHITE_LONG)
                         && (attack_info.attacks & attacks::WHITE_LONG_CASTLE_KING_WALK).is_empty()
-                        && (occupancy
+                        && (occupied_squares
                             & (attacks::WHITE_LONG_CASTLE_KING_WALK
                                 | attacks::WHITE_LONG_CASTLE_ROOK_WALK))
                             .is_empty()
@@ -311,7 +310,7 @@ impl Position {
                 Player::Black => {
                     if self.castling.contains(CastleRights::BLACK_SHORT)
                         && (attack_info.attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
-                        && (occupancy
+                        && (occupied_squares
                             & (attacks::BLACK_SHORT_CASTLE_KING_WALK
                                 | attacks::BLACK_SHORT_CASTLE_ROOK_WALK))
                             .is_empty()
@@ -320,7 +319,7 @@ impl Position {
                     }
                     if self.castling.contains(CastleRights::BLACK_LONG)
                         && (attack_info.attacks & attacks::BLACK_LONG_CASTLE_KING_WALK).is_empty()
-                        && (occupancy
+                        && (occupied_squares
                             & (attacks::BLACK_LONG_CASTLE_KING_WALK
                                 | attacks::BLACK_LONG_CASTLE_ROOK_WALK))
                             .is_empty()
@@ -783,6 +782,11 @@ mod test {
             get_moves(&setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 0 1")),
             sorted_moves(&["a2a1", "a2a3", "a2b1", "a2b2", "a2b3"])
         );
+        // The pawn is pinned and can't move.
+        assert_eq!(
+            get_moves(&setup("k7/1p6/8/8/8/8/8/4K2B b - - 0 1")),
+            sorted_moves(&["a8a7", "a8b8"])
+        );
     }
 
     // Artifacts from the fuzzer.
@@ -904,25 +908,41 @@ mod test {
         );
     }
 
+    fn illegal_position(input: &str) {
+        let mut position = Position::try_from(input).unwrap();
+        assert!(!position.is_legal());
+    }
+
+    // TODO: Check precise error messages.
     #[test]
     fn illegal_positions() {
         // TODO: Should we check for legality in the parser and reject incorrect
         // positions?
         // The check was not delivered by the doubly pushed pawn.
-        assert!(!Position::try_from(
-            "rnbqk1nr/bb3p1p/1q2r3/2pPp3/3P4/7P/1PP1NpPP/R1BQKBNR w KQkq c6 0 1"
-        )
-        .unwrap()
-        .is_legal());
+        illegal_position("rnbqk1nr/bb3p1p/1q2r3/2pPp3/3P4/7P/1PP1NpPP/R1BQKBNR w KQkq c6 0 1");
         // Three checks.
-        assert!(
-            !Position::try_from("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34")
-                .unwrap()
-                .is_legal()
-        );
+        illegal_position("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34");
         // Doubly pushed pawn can not block a diagonal check.
-        assert!(!Position::try_from("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1")
-            .unwrap()
-            .is_legal());
+        illegal_position("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1");
+        // No white kings.
+        illegal_position("3k4/8/8/8/8/8/8/8 w - - 0 1");
+        // No white kings.
+        illegal_position("3k4/8/8/8/8/8/8/8 w - - 0 1");
+        // No black kings.
+        illegal_position("8/8/8/8/8/8/8/3K4 w - - 0 1");
+        // Too many kings.
+        illegal_position("1kkk4/8/8/8/8/8/8/1KKK4 w - - 0 1");
+        // Too many white pawns.
+        illegal_position("rnbqkbnr/pppppppp/8/8/8/P7/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        // Too many black pawns.
+        illegal_position("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        // Too many black pawns.
+        illegal_position("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        // En passant square not behind a pushed pawn.
+        illegal_position("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq d3 0 1");
+        // Wrong en passant rank.
+        illegal_position("rnbqkbnr/pppppppp/8/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq e4 0 1");
+        // En passant can't result in double check.
+        illegal_position("r2qkbnr/ppp3Np/8/4Q3/4P3/8/PP4PP/RNB1KB1R w KQkq e3 0 1");
     }
 }
