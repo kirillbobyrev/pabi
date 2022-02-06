@@ -1,14 +1,15 @@
 //! [`Bitboard`]-based representation for [`crate::chess::position::Position`].
-//! Bitboard utilizes the fact that modern processors operate on 64 bit
+//! [Bitboards] utilize the fact that modern processors operate on 64 bit
 //! integers, and the bit operations can be performed simultaneously. This
 //! results in very efficient calculation of possible attack vectors and other
-//! meaningful features that are calculated to evaluate a position on the board.
-//! The disadvantage is complexity that comes with bitboard implementation and
-//! inefficiency of some operations like "get piece type on given square"
-//! (efficiently handled by Square-centric board implementations).
+//! meaningful features that are required to calculate possible moves and
+//! evaluate position. The disadvantage is complexity that comes with bitboard
+//! implementation and inefficiency of some operations like "get piece type on
+//! given square" (efficiently handled by Square-centric board implementations
+//! that can be used together bitboard-based approach to compensate its
+//! shortcomings).
 //!
-//! [Bitboard]: https://www.chessprogramming.org/Bitboards
-// TODO: This comment needs revamp.
+//! [Bitboards]: https://www.chessprogramming.org/Bitboards
 
 use std::fmt::Write;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, Not, Shl, Shr, Sub, SubAssign};
@@ -44,8 +45,6 @@ pub struct Bitboard {
 
 impl Bitboard {
     /// Constructs Bitboard from pre-calculated bits.
-    // TODO: Maybe just use From<u64> if I don't end up using it in compile-time
-    // computations?
     #[must_use]
     pub(super) const fn from_bits(bits: u64) -> Self {
         Self { bits }
@@ -248,20 +247,15 @@ impl From<Square> for Bitboard {
 
 /// Iterates over set squares in a given [Bitboard] from least significant 1
 /// bits (LS1B) to most significant 1 bits (MS1B) through implementing
-/// [`BitScan`] forward operation.
+/// [bitscan] forward operation.
 ///
-/// [BitScan]: https://www.chessprogramming.org/BitScan
+/// [bitscan]: https://www.chessprogramming.org/BitScan
 // TODO: Try De Brujin Multiplication and see if it's faster (via benchmarks)
 // than trailing zeros as reported by some developers (even though intuitively
 // trailing zeros should be much faster because it would compile to a processor
 // instruction):
 // https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication
 pub(super) struct BitboardIterator {
-    // TODO: Check if operating on the actual Bitboard will not hurt the
-    // performance. This iterator is likely to be on the hot path, so changing
-    // this code is sensitive. The optimizer might be smart enough do deal with
-    // back-and-forth redundant integer conversions but that has to be
-    // benchmarked.
     bits: u64,
 }
 
@@ -298,8 +292,7 @@ impl TryInto<Square> for Bitboard {
                 self.bits.count_ones()
             );
         }
-        // TODO: This unwrap should actually be safe, do unchecked.
-        Square::try_from(self.bits.trailing_zeros() as u8)
+        Ok(unsafe { std::mem::transmute(self.bits.trailing_zeros() as u8) })
     }
 }
 

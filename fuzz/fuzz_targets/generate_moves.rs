@@ -1,6 +1,8 @@
 #![no_main]
+use itertools::Itertools;
 use libfuzzer_sys::fuzz_target;
 use pabi::chess::position;
+use pretty_assertions::assert_eq;
 use shakmaty::{CastlingMode, Chess, Position};
 
 fuzz_target!(|data: &[u8]| {
@@ -17,15 +19,29 @@ fuzz_target!(|data: &[u8]| {
     if !position.is_legal() {
         return;
     }
+    let s = pabi::util::sanitize_fen(s);
     let shakmaty_setup: shakmaty::fen::Fen = s
-        .trim()
         .parse()
         .expect("If we parsed a position, it should be parsed by shakmaty, too.");
-    // let shakmaty_position: Chess = shakmaty_setup
-    //     .position(CastlingMode::Standard)
-    //     .expect("should be able to construct the position we could setup");
-    // assert_eq!(
-    //     position.generate_moves().len() + 1,
-    //     shakmaty_position.legal_moves().len()
-    // );
+    let shakmaty_position: Result<Chess, _> = shakmaty_setup.position(CastlingMode::Standard);
+    if shakmaty_position.is_err() {
+        return;
+    }
+    dbg!();
+    assert_eq!(
+        position
+            .generate_moves()
+            .iter()
+            .map(|m| m.to_string())
+            .sorted()
+            .collect::<Vec<_>>(),
+        shakmaty_position
+            .as_ref()
+            .unwrap()
+            .legal_moves()
+            .iter()
+            .map(|m| m.to_uci(CastlingMode::Standard).to_string())
+            .sorted()
+            .collect::<Vec<_>>()
+    );
 });

@@ -28,7 +28,6 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
           key: ${{ runner.os }}-stable-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build the docs
         uses: actions-rs/cargo@v1

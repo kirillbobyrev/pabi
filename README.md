@@ -64,6 +64,11 @@ Blitz and Rapid) that are popular in these rating lists and designed to perform
 well against other engines. Performance and good time-management are crucial
 for doing well under time pressure.
 
+## [Developer Documentation](https://kirillbobyrev.github.io/pabi/docs/pabi/index.html)
+
+For easier code navigation, read the developer documentation that is updated
+after each commit.
+
 ## [Milestones]
 
 The project is in pre-0.1.0 stage and the plan can be changed.

@@ -87,13 +87,13 @@ impl AttackInfo {
             safe_king_squares: Bitboard::empty(),
         };
         let (us, opponent) = (position.us(), position.they());
-        let (our, their) = (position.pieces(us), position.pieces(opponent));
-        let (our_occupancy, their_occupancy) = (our.all(), their.all());
-        let occupancy = our_occupancy | their_occupancy;
         let our_king = position.pieces(us).king;
+        let (our, their) = (position.pieces(us), position.pieces(opponent));
+        let (our_occupancy_without_king, their_occupancy) = (our.all() - our_king, their.all());
+        let occupancy = our_occupancy_without_king | our_king | their_occupancy;
         // TODO: Do unchecked.
         let king_square: Square = our_king.try_into().expect("there should be only one king");
-        result.safe_king_squares = !our_occupancy & king_attacks(king_square);
+        result.safe_king_squares = !our_occupancy_without_king & king_attacks(king_square);
         // TODO: Maybe iterating manually would be faster.
         for (kind, bitboard) in their.iter() {
             for from in bitboard.iter() {
@@ -108,14 +108,25 @@ impl AttackInfo {
                 result.attacks |= targets;
                 if !(targets & our_king).is_empty() {
                     result.checkers.extend(from);
-                    // TODO: Calculate safe king squares.
+                    // Only the sliders can take away more safe squares than attacked directly.
+                    if kind == PieceKind::King || kind == PieceKind::Pawn || kind == PieceKind::Knight {
+                        continue;
+                    }
+                    // TODO: Document this.
                     for square in result.safe_king_squares.iter() {
-                        if !ray(from, square).is_empty() {
+                        let new_attack_ray = ray(from, square);
+                        if !new_attack_ray.is_empty()
+                            && (new_attack_ray & (our_occupancy_without_king - our_king)).is_empty()
+                        {
                             result.safe_king_squares.erase(square);
                         }
                     }
                     // An attack can be either a check or a (potential) pin, not
                     // both.
+                    continue;
+                }
+                // TODO: This is repeating; abstract it out.
+                if kind == PieceKind::King || kind == PieceKind::Pawn || kind == PieceKind::Knight {
                     continue;
                 }
                 // Calculate the pin.
@@ -125,8 +136,9 @@ impl AttackInfo {
                     PieceKind::Bishop => bishop_ray(from, king_square),
                     _ => Bitboard::empty(),
                 };
-                let blockers = attack_ray & our_occupancy;
-                if blockers.count() == 1 {
+                // If the ray only contains the attacker and a blocker, it's a pin.
+                let blockers = attack_ray & our_occupancy_without_king;
+                if (attack_ray & (our_occupancy_without_king | their_occupancy)).count() == 2 {
                     result.pins |= blockers;
                 }
             }
@@ -517,7 +529,6 @@ mod test {
     fn basic_attack_info() {
         let position = Position::try_from("3kn3/3p4/8/6B1/8/6K1/3R4/8 b - - 0 1").unwrap();
         let attacks = AttackInfo::new(&position);
-        dbg!(attacks.attacks);
         assert_eq!(
             format!("{:?}", attacks.attacks),
             ". . . 1 . . . .\n\

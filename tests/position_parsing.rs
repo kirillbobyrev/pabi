@@ -3,7 +3,7 @@ use pabi::util;
 
 fn check(serialized_position: &str) {
     let position = Position::try_from(serialized_position)
-        .expect(format!("we are checking valid positions: {serialized_position}").as_str());
+        .unwrap_or_else(|_| panic!("we are checking valid positions: {serialized_position}"));
     assert_eq!(
         position.to_string(),
         util::sanitize_fen(serialized_position)

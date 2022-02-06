@@ -14,15 +14,7 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    Move,
-    Piece,
-    PieceKind,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, Move, Piece, PieceKind, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -329,7 +321,7 @@ impl Position {
     // TODO: Make an checked version of it? With the move coming from the UCI
     // it's best to check if it's valid or not.
     pub fn make_move(&mut self, next_move: Move) {
-        let (our_pieces, opponent_pieces) = match self.us() {
+        let (our_pieces, _opponent_pieces) = match self.us() {
             Player::White => (&mut self.board.white_pieces, &mut self.board.black_pieces),
             Player::Black => (&mut self.board.black_pieces, &mut self.board.white_pieces),
         };
@@ -346,6 +338,7 @@ impl Position {
     // of the classical chess. However, this is probably sufficient for Pabi's
     // needs. This should probably be a debug assertion.
     // Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
+    #[must_use]
     pub fn is_legal(&self) -> bool {
         // TODO: The following patterns look repetitive; maybe refactor the
         // common structure even though it's quite short?
@@ -434,7 +427,7 @@ impl Position {
                 match symbol {
                     '0' => bail!("increment can not be 0"),
                     '1'..='9' => {
-                        file += symbol as u8 - '0' as u8;
+                        file += symbol as u8 - b'0';
                         continue;
                     },
                     _ => (),
@@ -473,25 +466,37 @@ impl Position {
             None => bail!("incorrect FEN: missing en passant square"),
         };
         result.halfmove_clock = match parts.next() {
-            Some(value) => match value.parse::<u8>() {
-                Ok(num) => num,
-                Err(e) => {
-                    return Err(e).with_context(|| {
-                        format!("incorrect FEN: halfmove clock can not be parsed {value}")
-                    });
-                },
+            Some(value) => {
+                // TODO: Here and below: parse manually just by getting through
+                // ASCII digits since we're already checking them.
+                if !value.bytes().all(|c| c.is_ascii_digit()) {
+                    bail!("halfmove clock can not contain anything other than digits");
+                }
+                match value.parse::<u8>() {
+                    Ok(num) => num,
+                    Err(e) => {
+                        return Err(e).with_context(|| {
+                            format!("incorrect FEN: halfmove clock can not be parsed {value}")
+                        });
+                    },
+                }
             },
             // This is a correct EPD: exit early.
             None => return Ok(result),
         };
         result.fullmove_counter = match parts.next() {
-            Some(value) => match value.parse::<NonZeroU16>() {
-                Ok(num) => num,
-                Err(e) => {
-                    return Err(e).with_context(|| {
-                        format!("incorrect FEN: fullmove counter can not be parsed {value}")
-                    });
-                },
+            Some(value) => {
+                if !value.bytes().all(|c| c.is_ascii_digit()) {
+                    bail!("fullmove counter clock can not contain anything other than digits");
+                }
+                match value.parse::<NonZeroU16>() {
+                    Ok(num) => num,
+                    Err(e) => {
+                        return Err(e).with_context(|| {
+                            format!("incorrect FEN: fullmove counter can not be parsed {value}")
+                        });
+                    },
+                }
             },
             None => bail!("incorrect FEN: missing halfmove clock"),
         };
@@ -512,10 +517,10 @@ impl TryFrom<&str> for Position {
         let input = input.trim();
         for prefix in ["fen ", "epd "] {
             if let Some(stripped) = input.strip_prefix(prefix) {
-                return Position::from_fen(stripped);
+                return Self::from_fen(stripped);
             }
         }
-        Position::from_fen(input)
+        Self::from_fen(input)
     }
 }
 
@@ -593,6 +598,7 @@ mod test {
         assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3R4/8 b - - 0 48 b - - 0 4/8 b").is_err());
         assert!(Position::try_from("\tfen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
         assert!(Position::try_from("fen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
+        assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3r4/8 b - - +8 1").is_err());
     }
 
     #[test]
@@ -716,6 +722,34 @@ mod test {
         assert_eq!(
             get_moves(&setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 0 1")),
             sorted_moves(&["a2a1", "a2a3", "a2b1", "a2b2", "a2b3"])
+        );
+    }
+
+    // Artifacts from the fuzzer.
+    #[test]
+    fn other_positions() {
+        assert_eq!(
+            get_moves(&setup(
+                "2r3r1/3p3k/1p3pp1/1B5P/5P2/2P1pqP1/PP4KP/3R4 w - - 0 34"
+            )),
+            sorted_moves(&["g2g1", "g2f3", "g2h3"])
+        );
+        assert_eq!(
+            get_moves(&setup(
+                "2r3r1/3p3k/1p3pp1/1B5P/5p2/2P1p1P1/PP4KP/3R4 w - - 0 34"
+            )),
+            sorted_moves(&[
+                "a2a3", "a2a4", "b2b3", "b2b4", "c3c4", "b5a4", "b5a6", "b5c6", "b5d7", "b5c4",
+                "b5d3", "b5e2", "b5f1", "g3g4", "h2h3", "h2h4", "h5h6", "h5g6", "g2f3", "g2f1",
+                "g2g1", "g2h3", "g2h1", "d1a1", "d1b1", "d1c1", "d1e1", "d1f1", "d1g1", "d1h1",
+                "d1d2", "d1d3", "d1d4", "d1d5", "d1d6", "d1d7", "g3f4",
+            ])
+        );
+        assert_eq!(
+            get_moves(&setup(
+                "2r3r1/3p3k/1p3pp1/1B5p/5P2/2P2pP1/PP4KP/3R4 w - - 0 34"
+            )),
+            sorted_moves(&["g2f1", "g2f2", "g2f3", "g2g1", "g2h1", "g2h3"])
         );
     }
 

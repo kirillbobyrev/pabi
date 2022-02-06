@@ -154,7 +154,7 @@ fn generate_table(identifier: &str, directions: &[(i32, i32); 4]) -> Result<usiz
 
 fn generate_attack_tables() -> Result<(), Box<dyn Error>> {
     assert_eq!(generate_table("bishop", &BISHOP_ATTACK_DIRECTIONS)?, 5248);
-    assert_eq!(generate_table("rook", &ROOK_ATTACK_DIRECTIONS)?, 102400);
+    assert_eq!(generate_table("rook", &ROOK_ATTACK_DIRECTIONS)?, 102_400);
     Ok(())
 }
 

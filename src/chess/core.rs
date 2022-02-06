@@ -4,7 +4,7 @@ use std::fmt::{self, Write};
 use std::mem;
 
 use anyhow::bail;
-use strum::{self};
+use itertools::Itertools;
 
 use crate::chess::bitboard::Bitboard;
 
@@ -270,16 +270,13 @@ impl TryFrom<&str> for Square {
     type Error = anyhow::Error;
 
     fn try_from(square: &str) -> anyhow::Result<Self> {
-        if square.bytes().len() != 2 {
-            bail!(
+        let (file, rank) = match square.chars().collect_tuple() {
+            Some((file, rank)) => (file, rank),
+            None => bail!(
                 "unknown square: should be two-char, got {square} with {} chars",
                 square.bytes().len()
-            );
-        }
-        let (file, rank) = (
-            *square.as_bytes().get(0).unwrap() as char,
-            *square.as_bytes().get(1).unwrap() as char,
-        );
+            ),
+        };
         Ok(Self::new(file.try_into()?, rank.try_into()?))
     }
 }
