@@ -14,15 +14,7 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    Move,
-    Piece,
-    PieceKind,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, Move, Piece, PieceKind, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -369,7 +361,7 @@ impl Position {
         if self.board.black_pieces.pawns.count() > 8 {
             return false;
         }
-        if ((self.board.white_pieces.pawns & self.board.black_pieces.pawns)
+        if ((self.board.white_pieces.pawns | self.board.black_pieces.pawns)
             & (Rank::One.mask() | Rank::Eight.mask()))
         .count()
             != 0
@@ -455,10 +447,10 @@ impl Position {
     /// Supporting these datasets is important but distinguishing between full
     /// and trimmed FEN strings is not.
     ///
-    /// NOTE: This expects properly-formatted inputs: no extra whitespace or
-    /// extra symbols. Use [`Position::try_from`] for cleaning up the input if
-    /// it is coming from untrusted source and is likely to contain extra
-    /// symbols.
+    /// NOTE: This expects properly-formatted inputs: no extra symbols or
+    /// additional whitespace. Use [`Position::try_from`] for cleaning up the
+    /// input if it is coming from untrusted source and is likely to contain
+    /// extra symbols.
     pub fn from_fen(input: &str) -> anyhow::Result<Self> {
         let mut parts = input.split(' ');
         // Parse Piece Placement.
@@ -791,7 +783,7 @@ mod test {
 
     // Artifacts from the fuzzer.
     #[test]
-    fn other_positions() {
+    fn moves_in_other_positions() {
         assert_eq!(
             get_moves(&setup(
                 "2r3r1/3p3k/1p3pp1/1B5P/5P2/2P1pqP1/PP4KP/3R4 w - - 0 34"
@@ -909,7 +901,7 @@ mod test {
     }
 
     fn illegal_position(input: &str) {
-        let mut position = Position::try_from(input).unwrap();
+        let position = Position::try_from(input).unwrap();
         assert!(!position.is_legal());
     }
 
@@ -936,8 +928,8 @@ mod test {
         illegal_position("rnbqkbnr/pppppppp/8/8/8/P7/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         // Too many black pawns.
         illegal_position("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        // Too many black pawns.
-        illegal_position("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        // Pawns on backranks.
+        illegal_position("3kr3/8/8/8/8/5Q2/8/1KP5 w - - 0 1");
         // En passant square not behind a pushed pawn.
         illegal_position("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq d3 0 1");
         // Wrong en passant rank.

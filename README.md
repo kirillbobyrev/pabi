@@ -58,11 +58,11 @@ distillation/quantization as means of compression). See [Resources] for a list
 of candidates.
 
 Pabi strives to be **strong**. Ultimately, when it is strong enough it should
-participate in Chess.com [Computer Chess Championship] (CCCC)[^cccc] and similar
-tournaments. As such, it should be tested in appropriate time formats (mainly
-Blitz and Rapid) that are popular in these rating lists and designed to perform
-well against other engines. Performance and good time-management are crucial
-for doing well under time pressure.
+participate in Chess.com [Computer Chess Championship] (CCCC)[^cccc] and
+[TCEC]. As such, it should be tested in appropriate time formats (mainly Blitz
+and Rapid) that are popular in these rating lists and designed to perform well
+against other engines. Performance and good time-management are crucial for
+doing well under time pressure.
 
 ## [Developer Documentation](https://kirillbobyrev.github.io/pabi/docs/pabi/index.html)
 
@@ -100,6 +100,7 @@ The project is in pre-0.1.0 stage and the plan can be changed.
 [architecture overview]: https://github.com/kirillbobyrev/pabi/issues/4
 [Resources]: https://github.com/kirillbobyrev/pabi/wiki/Resources
 [Computer Chess Championship]: https://www.chess.com/computer-chess-championship
+[TCEC]: https://tcec-chess.com/
 [Milestones]: https://github.com/kirillbobyrev/pabi/milestones
 [0.1.0]: https://github.com/kirillbobyrev/pabi/milestone/1
 [1.0.0]: https://github.com/kirillbobyrev/pabi/milestone/2
