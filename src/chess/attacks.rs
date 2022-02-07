@@ -611,7 +611,7 @@ mod test {
 
     #[test]
     fn xrays() {
-        let position = Position::try_from("b6k/8/8/3p4/8/8/8/7K w - d6 0 1").unwrap();
+        let position = Position::try_from("b6k/8/8/3p4/8/8/8/7K w - - 0 1").unwrap();
         let attacks = AttackInfo::new(&position);
         assert_eq!(
             format!("{:?}", attacks.attacks),

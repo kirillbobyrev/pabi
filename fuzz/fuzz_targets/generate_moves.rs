@@ -6,23 +6,17 @@ use pretty_assertions::assert_eq;
 use shakmaty::{CastlingMode, Chess, Position};
 
 fuzz_target!(|data: &[u8]| {
-    let s = std::str::from_utf8(data);
-    if s.is_err() {
-        return;
-    }
-    let s = s.unwrap().trim();
-    let position = position::Position::from_fen(s);
-    if position.is_err() {
-        return;
-    }
-    let position = position.unwrap();
-    if !position.is_legal() {
-        return;
-    }
-    let s = pabi::util::sanitize_fen(s);
-    let shakmaty_setup: shakmaty::fen::Fen = s
+    let input = match std::str::from_utf8(data) {
+        Ok(input) => input,
+        Err(_) => return,
+    };
+    let position = match position::Position::from_fen(input) {
+        Ok(position) => position,
+        Err(_) => return,
+    };
+    let shakmaty_setup: shakmaty::fen::Fen = input
         .parse()
-        .expect("If we parsed a position, it should be parsed by shakmaty, too.");
+        .expect("when we parsed a valid position it should be accepted by shakmaty");
     let shakmaty_position: Result<Chess, _> = shakmaty_setup.position(CastlingMode::Standard);
     if shakmaty_position.is_err() {
         return;

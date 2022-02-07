@@ -65,7 +65,7 @@ pub struct Position {
 }
 
 impl Position {
-    /// Creates the starting position of the standard chess variant.
+    /// Creates the starting position of the standard chess.
     ///
     /// ```
     /// use pabi::chess::position::Position;
@@ -85,9 +85,7 @@ impl Position {
         }
     }
 
-    // Creates an empty board to be filled by parser.
-    #[must_use]
-    pub fn empty() -> Self {
+    fn empty() -> Self {
         Self {
             board: Board::empty(),
             castling: CastleRights::NONE,
@@ -116,6 +114,150 @@ impl Position {
 
     fn occupied_squares(&self) -> Bitboard {
         self.occupancy(self.us()) | self.occupancy(self.they())
+    }
+
+    /// Parses board from Forsyth-Edwards Notation and checks its correctness.
+    /// The parser will accept trimmed full FEN and trimmed FEN (4 first parts).
+    ///
+    /// FEN ::=
+    ///       Piece Placement
+    ///   ' ' Side to move
+    ///   ' ' Castling ability
+    ///   ' ' En passant target square
+    ///   ' ' Halfmove clock
+    ///   ' ' Fullmove counter
+    ///
+    /// The last two parts (together) are optional and will default to "0 1".
+    /// Technically, that is not a full FEN position, but it is supported
+    /// because EPD-style position strings are common in public position books
+    /// and datasets where halfmove clock and fullmove counters do not matter.
+    /// Supporting these datasets is important but distinguishing between full
+    /// and trimmed FEN strings is not.
+    ///
+    /// Correctness check employs a small set of simple heuristics to check if
+    /// the position can be analyzed by the engine and will reject the most
+    /// obvious incorrect positions (e.g. missing kings, pawns on the wrong
+    /// ranks, problems with en passant square). The only public way of creating
+    /// a [`Position`] is by parsing it from string, so this acts as a filter
+    /// for positions that won't cause undefined behavior or crashes. It's
+    /// important that positions that are known to be dubious are filtered out.
+    ///
+    /// NOTE: This expects properly-formatted inputs: no extra symbols or
+    /// additional whitespace. Use [`Position::try_from`] for cleaning up the
+    /// input if it is coming from untrusted source and is likely to contain
+    /// extra symbols.
+    // was not legal.
+    pub fn from_fen(input: &str) -> anyhow::Result<Self> {
+        let mut parts = input.split(' ');
+        // Parse Piece Placement.
+        let mut result = Self::empty();
+        let pieces_placement = match parts.next() {
+            Some(placement) => placement,
+            None => bail!("incorrect FEN: missing pieces placement"),
+        };
+        let ranks = pieces_placement.split('/');
+        let mut rank_id = 8;
+        for rank_fen in ranks {
+            if rank_id == 0 {
+                bail!("incorrect FEN: expected 8 ranks, got {pieces_placement}");
+            }
+            rank_id -= 1;
+            let rank = Rank::try_from(rank_id)?;
+            let mut file: u8 = 0;
+            for symbol in rank_fen.chars() {
+                if file > BOARD_WIDTH {
+                    bail!("file exceeded {BOARD_WIDTH}");
+                }
+                match symbol {
+                    '0' => bail!("increment can not be 0"),
+                    '1'..='9' => {
+                        file += symbol as u8 - b'0';
+                        continue;
+                    },
+                    _ => (),
+                }
+                match Piece::try_from(symbol) {
+                    Ok(piece) => {
+                        let owner = match piece.owner {
+                            Player::White => &mut result.board.white_pieces,
+                            Player::Black => &mut result.board.black_pieces,
+                        };
+                        let square = Square::new(file.try_into()?, rank);
+                        *owner.bitboard_for(piece.kind) |= Bitboard::from(square);
+                    },
+                    Err(e) => return Err(e),
+                }
+                file += 1;
+            }
+            if file != BOARD_WIDTH {
+                bail!("incorrect FEN: rank size should be exactly {BOARD_WIDTH}, got {rank_fen} of length {file}");
+            }
+        }
+        if rank_id != 0 {
+            bail!("incorrect FEN: there should be 8 ranks, got {pieces_placement}");
+        }
+        result.side_to_move = match parts.next() {
+            Some(value) => value.try_into()?,
+            None => bail!("incorrect FEN: missing side to move"),
+        };
+        result.castling = match parts.next() {
+            Some(value) => value.try_into()?,
+            None => bail!("incorrect FEN: missing castling rights"),
+        };
+        result.en_passant_square = match parts.next() {
+            Some("-") => None,
+            Some(value) => Some(value.try_into()?),
+            None => bail!("incorrect FEN: missing en passant square"),
+        };
+        result.halfmove_clock = match parts.next() {
+            Some(value) => {
+                // TODO: Here and below: parse manually just by getting through
+                // ASCII digits since we're already checking them.
+                if !value.bytes().all(|c| c.is_ascii_digit()) {
+                    bail!("halfmove clock can not contain anything other than digits");
+                }
+                match value.parse::<u8>() {
+                    Ok(num) => num,
+                    Err(e) => {
+                        return Err(e).with_context(|| {
+                            format!("incorrect FEN: halfmove clock can not be parsed {value}")
+                        });
+                    },
+                }
+            },
+            // This is a correct EPD: exit early.
+            None => {
+                return match validate(&result) {
+                    Ok(_) => Ok(result),
+                    Err(e) => Err(e.context("illegal position")),
+                }
+            },
+        };
+        result.fullmove_counter = match parts.next() {
+            Some(value) => {
+                if !value.bytes().all(|c| c.is_ascii_digit()) {
+                    bail!("fullmove counter clock can not contain anything other than digits");
+                }
+                match value.parse::<NonZeroU16>() {
+                    Ok(num) => num,
+                    Err(e) => {
+                        return Err(e).with_context(|| {
+                            format!("incorrect FEN: fullmove counter can not be parsed {value}")
+                        });
+                    },
+                }
+            },
+            None => bail!("incorrect FEN: missing halfmove clock"),
+        };
+        match parts.next() {
+            None => {
+                return match validate(&result) {
+                    Ok(_) => Ok(result),
+                    Err(e) => Err(e.context("illegal position")),
+                }
+            },
+            Some(_) => bail!("trailing symbols are not allowed in FEN"),
+        }
     }
 
     /// Calculates a list of legal moves (i.e. the moves that do not leave our
@@ -152,7 +294,7 @@ impl Position {
     // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
     #[must_use]
     pub fn generate_moves(&self) -> Vec<Move> {
-        debug_assert!(self.is_legal());
+        debug_assert!(validate(&self).is_ok());
         let attack_info = attacks::AttackInfo::new(self);
         // TODO: The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
@@ -224,7 +366,6 @@ impl Position {
                     {
                         continue;
                     }
-                    dbg!(from, to);
                     match (kind, to.rank()) {
                         (PieceKind::Pawn, Rank::Eight | Rank::One) => {
                             moves.push(Move::new(from, to, Some(Promotion::Queen)));
@@ -349,7 +490,7 @@ impl Position {
         moves
     }
 
-    /// Applies the move in a position
+    // TODO: Docs: this is the only way to mutate a position....
     // TODO: Make an checked version of it? With the move coming from the UCI
     // it's best to check if it's valid or not.
     pub fn make_move(&mut self, next_move: Move) {
@@ -365,217 +506,9 @@ impl Position {
         }
     }
 
-    // TODO: If there is a check, there should only be one delivered by the
-    // non-moving side. Theoretically, this can still not be "correct" position
-    // of the classical chess. However, this is probably sufficient for Pabi's
-    // needs. This should probably be a debug assertion.
-    // Idea for inspiration: https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/fen.rs#L105-L189
-    #[must_use]
-    pub fn is_legal(&self) -> bool {
-        // TODO: The following patterns look repetitive; maybe refactor the
-        // common structure even though it's quite short?
-        if self.board.white_pieces.king.count() != 1 {
-            return false;
-        }
-        if self.board.black_pieces.king.count() != 1 {
-            return false;
-        }
-        if self.board.white_pieces.pawns.count() > 8 {
-            return false;
-        }
-        if self.board.black_pieces.pawns.count() > 8 {
-            return false;
-        }
-        if ((self.board.white_pieces.pawns | self.board.black_pieces.pawns)
-            & (Rank::One.mask() | Rank::Eight.mask()))
-        .count()
-            != 0
-        {
-            return false;
-        }
-        let attacks = attacks::AttackInfo::new(self);
-        // Can't have more than two checks.
-        if attacks.checkers.count() > 2 {
-            return false;
-        }
-        if let Some(en_passant_square) = self.en_passant_square {
-            let expected_rank = match self.side_to_move {
-                Player::White => Rank::Six,
-                Player::Black => Rank::Three,
-            };
-            if en_passant_square.rank() != expected_rank {
-                return false;
-            }
-            // A pawn that was just pushed by our opponent should be in front of
-            // en_passant_square.
-            let pushed_pawn = en_passant_square
-                .shift(self.they().push_direction())
-                .expect("we already checked for correct rank");
-            if !self.pieces(self.they()).pawns.contains(pushed_pawn) {
-                return false;
-            }
-            // If en-passant was played and there's a check, doubly pushed pawn
-            // should be the only checker or it should be a discovery.
-            let king = self.pieces(self.us()).king.as_square();
-            if attacks.checkers.has_any() {
-                if attacks.checkers.count() > 1 {
-                    return false;
-                }
-                // The check wasn't delivered by pushed pawn.
-                if attacks.checkers != Bitboard::from(pushed_pawn) {
-                    let checker = attacks.checkers.as_square();
-                    let original_square =
-                        en_passant_square.shift(self.us().push_direction()).unwrap();
-                    if !(attacks::ray(checker, king).contains(original_square)) {
-                        return false;
-                    }
-                }
-            }
-            // Doubly pushed pawn can not block a diagonal check.
-            for attacker in
-                (self.pieces(self.they()).queens | self.pieces(self.they()).bishops).iter()
-            {
-                let xray = attacks::bishop_ray(attacker, king);
-                if (xray & (self.occupied_squares())).count() == 2
-                    && xray.contains(attacker)
-                    && xray.contains(pushed_pawn)
-                {
-                    return false;
-                }
-            }
-        }
-        // TODO: The rest of the checks.
-        true
-    }
-
     #[must_use]
     pub fn has_insufficient_material(&self) -> bool {
         todo!()
-    }
-
-    /// Parses board from Forsyth-Edwards Notation. It will also accept trimmed
-    /// FEN (EPD with 4 parts).
-    ///
-    /// FEN ::=
-    ///       Piece Placement
-    ///   ' ' Side to move
-    ///   ' ' Castling ability
-    ///   ' ' En passant target square
-    ///   ' ' Halfmove clock
-    ///   ' ' Fullmove counter
-    ///
-    /// The last two parts (together) are optional and will default to "0 1".
-    /// Technically, that is not a full FEN position, but it is supported
-    /// because EPD-style position strings are common in public position books
-    /// and datasets where halfmove clock and fullmove counters do not matter.
-    /// Supporting these datasets is important but distinguishing between full
-    /// and trimmed FEN strings is not.
-    ///
-    /// NOTE: This expects properly-formatted inputs: no extra symbols or
-    /// additional whitespace. Use [`Position::try_from`] for cleaning up the
-    /// input if it is coming from untrusted source and is likely to contain
-    /// extra symbols.
-    pub fn from_fen(input: &str) -> anyhow::Result<Self> {
-        let mut parts = input.split(' ');
-        // Parse Piece Placement.
-        let mut result = Self::empty();
-        let pieces_placement = match parts.next() {
-            Some(placement) => placement,
-            None => bail!("incorrect FEN: missing pieces placement"),
-        };
-        let ranks = pieces_placement.split('/');
-        let mut rank_id = 8;
-        for rank_fen in ranks {
-            if rank_id == 0 {
-                bail!("incorrect FEN: expected 8 ranks, got {pieces_placement}");
-            }
-            rank_id -= 1;
-            let rank = Rank::try_from(rank_id)?;
-            let mut file: u8 = 0;
-            for symbol in rank_fen.chars() {
-                if file > BOARD_WIDTH {
-                    bail!("file exceeded {BOARD_WIDTH}");
-                }
-                match symbol {
-                    '0' => bail!("increment can not be 0"),
-                    '1'..='9' => {
-                        file += symbol as u8 - b'0';
-                        continue;
-                    },
-                    _ => (),
-                }
-                match Piece::try_from(symbol) {
-                    Ok(piece) => {
-                        let owner = match piece.owner {
-                            Player::White => &mut result.board.white_pieces,
-                            Player::Black => &mut result.board.black_pieces,
-                        };
-                        let square = Square::new(file.try_into()?, rank);
-                        *owner.bitboard_for(piece.kind) |= Bitboard::from(square);
-                    },
-                    Err(e) => return Err(e),
-                }
-                file += 1;
-            }
-            if file != BOARD_WIDTH {
-                bail!("incorrect FEN: rank size should be exactly {BOARD_WIDTH}, got {rank_fen} of length {file}");
-            }
-        }
-        if rank_id != 0 {
-            bail!("incorrect FEN: there should be 8 ranks, got {pieces_placement}");
-        }
-        result.side_to_move = match parts.next() {
-            Some(value) => value.try_into()?,
-            None => bail!("incorrect FEN: missing side to move"),
-        };
-        result.castling = match parts.next() {
-            Some(value) => value.try_into()?,
-            None => bail!("incorrect FEN: missing castling rights"),
-        };
-        result.en_passant_square = match parts.next() {
-            Some("-") => None,
-            Some(value) => Some(value.try_into()?),
-            None => bail!("incorrect FEN: missing en passant square"),
-        };
-        result.halfmove_clock = match parts.next() {
-            Some(value) => {
-                // TODO: Here and below: parse manually just by getting through
-                // ASCII digits since we're already checking them.
-                if !value.bytes().all(|c| c.is_ascii_digit()) {
-                    bail!("halfmove clock can not contain anything other than digits");
-                }
-                match value.parse::<u8>() {
-                    Ok(num) => num,
-                    Err(e) => {
-                        return Err(e).with_context(|| {
-                            format!("incorrect FEN: halfmove clock can not be parsed {value}")
-                        });
-                    },
-                }
-            },
-            // This is a correct EPD: exit early.
-            None => return Ok(result),
-        };
-        result.fullmove_counter = match parts.next() {
-            Some(value) => {
-                if !value.bytes().all(|c| c.is_ascii_digit()) {
-                    bail!("fullmove counter clock can not contain anything other than digits");
-                }
-                match value.parse::<NonZeroU16>() {
-                    Ok(num) => num,
-                    Err(e) => {
-                        return Err(e).with_context(|| {
-                            format!("incorrect FEN: fullmove counter can not be parsed {value}")
-                        });
-                    },
-                }
-            },
-            None => bail!("incorrect FEN: missing halfmove clock"),
-        };
-        match parts.next() {
-            None => Ok(result),
-            Some(_) => bail!("trailing symbols are not allowed in FEN"),
-        }
     }
 }
 
@@ -626,389 +559,108 @@ impl fmt::Debug for Position {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use itertools::Itertools;
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-    use crate::chess::core::Move;
-
-    fn setup(fen: &str) -> Position {
-        let position = Position::try_from(fen);
-        assert!(position.is_ok(), "input: {fen}");
-        let position = position.unwrap();
-        assert_eq!(position.to_string(), fen);
-        assert!(position.is_legal(), "{}", position.to_string());
-        position
-    }
-
-    // TODO: Validate the precise contents of the bitboard directly.
-    // TODO: Add incorrect ones and validate parsing errors.
-    #[test]
-    #[allow(unused_results)]
-    fn correct_fen() {
-        setup("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        setup("2r3r1/p3k3/1p3pp1/1B5p/5P2/2P1p1P1/PP4KP/3R4 w - - 0 34");
-        setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq c6 0 7");
-        setup("r2qkb1r/1pp1pp1p/p1np1np1/1B6/3PP1b1/2N1BN2/PPP2PPP/R2QK2R w KQkq - 0 7");
-        setup("r3k3/5p2/2p5/p7/P3r3/2N2n2/1PP2P2/2K2B2 w q - 0 24");
-        setup("r1b1qrk1/ppp2pbp/n2p1np1/4p1B1/2PPP3/2NB1N1P/PP3PP1/R2QK2R w KQ e6 0 9");
-        setup("8/8/8/8/2P5/3k4/8/KB6 b - c3 0 1");
-        setup("rnbq1rk1/pp4pp/1b1ppn2/2p2p2/2PP4/1P2PN2/PB2BPPP/RN1Q1RK1 w - c6 0 9");
-    }
-
-    #[test]
-    fn correct_epd() {
-        let epd = "rnbqkb1r/pp2pppp/3p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R b KQkq -";
-        assert!(Position::try_from(epd).is_ok());
-    }
-
-    #[test]
-    fn no_crash() {
-        assert!(Position::try_from("3k2p1N/82/8/8/7B/6K1/3R4/8 b - - 0 1").is_err());
-        assert!(
-            Position::try_from("3kn3/R2p1N2/8/8/70000000000000000B/6K1/3R4/8 b - - 0 1").is_err()
-        );
-        assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3R4/8 b - - 0 48 b - - 0 4/8 b").is_err());
-        assert!(Position::try_from("\tfen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
-        assert!(Position::try_from("fen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
-        assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3r4/8 b - - +8 1").is_err());
-    }
-
-    #[test]
-    fn clean_board_str() {
-        // Prefix with "fen".
-        assert!(Position::try_from(
-            "fen rn1qkb1r/pp3ppp/2p1pn2/3p1b2/2PP4/5NP1/PP2PPBP/RNBQK2R w KQkq - 0 1"
+// Checks if the position is "legal", i.e. if it can be reasoned about by
+// the engine. Checking whether the position is truly reachable from the
+// starting position (either in standard chess or Fischer Random Chess)
+// requires retrograde analysis and potentially unreasonable amount of time.
+// This check employs a limited number of heuristics that filter out the
+// most obvious incorrect positions and prevents them from being analyzed.
+// This helps set up barrier (constructing positions from FEN) between the
+// untrusted environment (UCI front-end, user input) and the engine.
+#[must_use]
+fn validate(position: &Position) -> anyhow::Result<()> {
+    // TODO: Probe opposite checks.
+    // TODO: The following patterns look repetitive; maybe refactor the
+    // common structure even though it's quite short?
+    if position.board.white_pieces.king.count() != 1 {
+        bail!(
+            "expected 1 white king, got {}",
+            position.board.white_pieces.king.count()
         )
-        .is_ok());
-        // Prefix with "epd".
-        assert!(Position::try_from(
-            "epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -"
+    }
+    if position.board.black_pieces.king.count() != 1 {
+        bail!(
+            "expected 1 black king, got {}",
+            position.board.black_pieces.king.count()
         )
-        .is_ok());
-        // No prefix: infer EPD.
-        assert!(
-            Position::try_from("rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -").is_ok()
-        );
-        // No prefix: infer FEN.
-        assert!(
-            Position::try_from("rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq - 0 1")
-                .is_ok()
-        );
-        // Don't crash on unicode symbols.
-        assert!(Position::try_from("8/8/8/8/8/8/8/8 b 88 🔠 🔠 ").is_err());
-        // Whitespaces at the start/end of the input are not accepted in from_fen but
-        // will be cleaned up by try_from.
-        assert!(Position::try_from(
-            "rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
+    }
+    if position.board.white_pieces.pawns.count() > 8 {
+        bail!(
+            "expected <= 8 white pawns, got {}",
+            position.board.white_pieces.pawns.count()
         )
-        .is_ok());
-        assert!(Position::try_from(
-            "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -"
+    }
+    if position.board.black_pieces.pawns.count() > 8 {
+        bail!(
+            "expected <= 8 black pawns, got {}",
+            position.board.black_pieces.pawns.count()
         )
-        .is_ok());
-        assert!(Position::from_fen(
-            "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
-        )
-        .is_err());
     }
-
-    fn get_moves(position: &Position) -> Vec<String> {
-        position
-            .generate_moves()
-            .iter()
-            .map(Move::to_string)
-            .sorted()
-            .collect::<Vec<_>>()
+    if ((position.board.white_pieces.pawns | position.board.black_pieces.pawns)
+        & (Rank::One.mask() | Rank::Eight.mask()))
+    .has_any()
+    {
+        bail!("pawns on the backrank")
     }
-
-    fn sorted_moves(moves: &[&str]) -> Vec<String> {
-        moves
-            .iter()
-            .map(|m| (*m).to_string())
-            .sorted()
-            .collect::<Vec<_>>()
+    let attacks = attacks::AttackInfo::new(position);
+    // Can't have more than two checks.
+    if attacks.checkers.count() > 2 {
+        bail!("expected <= 2 checks, got {}", attacks.checkers.count())
     }
-
-    #[test]
-    fn starting_moves() {
-        assert_eq!(
-            get_moves(&Position::starting()),
-            sorted_moves(&[
-                "a2a3", "a2a4", "b1a3", "b1c3", "b2b3", "b2b4", "c2c3", "c2c4", "d2d3", "d2d4",
-                "e2e3", "e2e4", "f2f3", "f2f4", "g1f3", "g1h3", "g2g3", "g2g4", "h2h3", "h2h4"
-            ])
-        );
-    }
-
-    #[test]
-    fn basic_moves() {
-        assert_eq!(
-            get_moves(&setup("2n4k/1PP5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 w - e6 0 1")),
-            sorted_moves(&[
-                "a2a3", "a2a4", "d5d6", "d5e6", "b7b8q", "b7b8r", "b7b8b", "b7b8n", "b7c8q",
-                "b7c8r", "b7c8b", "b7c8n", "e2e1", "e2e3", "e2e4", "e2e5", "e2b2", "e2c2", "e2d2",
-                "e2f2", "e2g2", "e2h2", "d4b3", "d4c2", "d4f3", "d4b5", "d4c6", "d4e6", "d4f5",
-                "g5c1", "g5d2", "g5e3", "g5f4", "g5g4", "g5g3", "g5g2", "g5g1", "g5h4", "g5e5",
-                "g5f5", "g5h5", "g5h6", "g5f6", "g5e7", "g5d8", "g6f5", "g6h5", "g6f6", "g6h6",
-                "g6f7",
-            ])
-        );
-    }
-
-    #[test]
-    fn double_check_evasions() {
-        assert_eq!(
-            get_moves(&setup("3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 1")),
-            sorted_moves(&["d8c8"])
-        );
-        assert_eq!(
-            get_moves(&setup("8/5Nk1/7p/4Bp2/3q4/8/8/5KR1 b - - 0 1")),
-            sorted_moves(&["g7f8", "g7f7", "g7h7"])
-        );
-        assert_eq!(
-            get_moves(&setup("8/5Pk1/7p/4Bp2/3q4/8/8/5KR1 b - - 0 1")),
-            sorted_moves(&["g7f8", "g7f7", "g7h7"])
-        );
-    }
-
-    #[test]
-    fn check_evasions() {
-        assert_eq!(
-            get_moves(&setup("3kn3/R2p4/8/6B1/8/6K1/3R4/8 b - - 0 1")),
-            sorted_moves(&["e8f6", "d8c8"])
-        );
-        assert_eq!(
-            get_moves(&setup("2R5/8/6k1/8/8/8/PPn5/KR6 w - - 0 1")),
-            sorted_moves(&["c8c2"])
-        );
-    }
-
-    #[test]
-    fn pins() {
-        // The pawn is pinned but can capture en passant.
-        assert_eq!(
-            get_moves(&setup("6qk/8/8/3Pp3/8/8/K7/8 w - e6 0 1")),
-            sorted_moves(&["a2a1", "a2a3", "a2b1", "a2b2", "a2b3", "d5e6"])
-        );
-        // The pawn is pinned but there is no en passant: it can't move.
-        assert_eq!(
-            get_moves(&setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 0 1")),
-            sorted_moves(&["a2a1", "a2a3", "a2b1", "a2b2", "a2b3"])
-        );
-        // The pawn is pinned and can't move.
-        assert_eq!(
-            get_moves(&setup("k7/1p6/8/8/8/8/8/4K2B b - - 0 1")),
-            sorted_moves(&["a8a7", "a8b8"])
-        );
-    }
-
-    // Artifacts from the fuzzer.
-    #[test]
-    fn moves_in_other_positions() {
-        assert_eq!(
-            get_moves(&setup(
-                "2r3r1/3p3k/1p3pp1/1B5P/5P2/2P1pqP1/PP4KP/3R4 w - - 0 34"
-            )),
-            sorted_moves(&["g2g1", "g2f3", "g2h3"])
-        );
-        assert_eq!(
-            get_moves(&setup(
-                "2r3r1/3p3k/1p3pp1/1B5P/5p2/2P1p1P1/PP4KP/3R4 w - - 0 34"
-            )),
-            sorted_moves(&[
-                "a2a3", "a2a4", "b2b3", "b2b4", "c3c4", "b5a4", "b5a6", "b5c6", "b5d7", "b5c4",
-                "b5d3", "b5e2", "b5f1", "g3g4", "h2h3", "h2h4", "h5h6", "h5g6", "g2f3", "g2f1",
-                "g2g1", "g2h3", "g2h1", "d1a1", "d1b1", "d1c1", "d1e1", "d1f1", "d1g1", "d1h1",
-                "d1d2", "d1d3", "d1d4", "d1d5", "d1d6", "d1d7", "g3f4",
-            ])
-        );
-        assert_eq!(
-            get_moves(&setup(
-                "2r3r1/3p3k/1p3pp1/1B5p/5P2/2P2pP1/PP4KP/3R4 w - - 0 34"
-            )),
-            sorted_moves(&["g2f1", "g2f2", "g2f3", "g2g1", "g2h1", "g2h3"])
-        );
-        assert_eq!(
-            get_moves(&setup(
-                "2r3r1/P3k3/pp3p2/1B5p/5P2/2P3pP/PP4KP/3R4 w - - 0 1"
-            )),
-            sorted_moves(&[
-                "a2a3", "a2a4", "a7a8b", "a7a8n", "a7a8q", "a7a8r", "b2b3", "b2b4", "b5a4", "b5a6",
-                "b5c4", "b5c6", "b5d3", "b5d7", "b5e2", "b5e8", "b5f1", "c3c4", "d1a1", "d1b1",
-                "d1c1", "d1d2", "d1d3", "d1d4", "d1d5", "d1d6", "d1d7", "d1d8", "d1e1", "d1f1",
-                "d1g1", "d1h1", "f4f5", "g2f1", "g2f3", "g2g1", "g2h1", "h2g3", "h3h4",
-            ])
-        );
-        assert_eq!(
-            get_moves(&setup(
-                "2r3r1/p3k3/pp3p2/1B5p/5P2/2pqp1P1/PPK4P/3R4 w - - 0 34"
-            )),
-            sorted_moves(&["b5d3", "c2b3", "c2c1", "c2d3", "d1d3"])
-        );
-        assert_eq!(
-            get_moves(&setup(
-                "2r3r1/p3k3/pp3p2/1B5p/5P2/2P1p1P1/PP4Kr/3R4 w - - 0 1"
-            )),
-            sorted_moves(&["g2f1", "g2f3", "g2g1", "g2h2"])
-        );
-        assert_eq!(
-            get_moves(&setup("r3k3/r7/8/5pP1/5QKN/8/8/6RR w - f6 0 1")),
-            sorted_moves(&["f4f5", "h4f5", "g4f5", "g4f3", "g4g3", "g4h3", "g5f6", "g4h5"])
-        );
-        assert_eq!(
-            get_moves(&setup("4k1r1/8/8/4PpP1/6K1/8/8/8 w - f6 0 1")),
-            sorted_moves(&["g4f4", "g4f3", "g4f5", "g4g3", "g4h3", "g4h4", "g4h5", "e5f6"])
-        );
-    }
-
-    #[test]
-    fn castle() {
-        // Can castle both sides.
-        assert_eq!(
-            get_moves(&setup("r3k2r/8/8/8/8/8/6N1/4K3 b kq - 0 1")),
-            sorted_moves(&[
-                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
-                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
-                "e8d8", "e8d7", "e8f8", "e8f7", "e8c8", "e8g8"
-            ])
-        );
-        // Castling short blocked by a check.
-        assert_eq!(
-            get_moves(&setup("r3k2r/8/8/8/8/8/6R1/4K3 b kq - 0 1")),
-            sorted_moves(&[
-                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
-                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
-                "e8d8", "e8d7", "e8f8", "e8f7", "e8c8"
-            ])
-        );
-        // Castling short blocked by our piece, castling long is not available.
-        assert_eq!(
-            get_moves(&setup("r3k2r/8/8/8/8/8/6R1/4K3 b k - 0 1")),
-            sorted_moves(&[
-                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
-                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
-                "e8d8", "e8d7", "e8f8", "e8f7"
-            ])
-        );
-        // Castling long is not blocked: the attacked square is not the one king will
-        // walk through.
-        assert_eq!(
-            get_moves(&setup("r3k2r/8/8/8/8/8/1R6/4K3 b q - 0 1")),
-            sorted_moves(&[
-                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
-                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
-                "e8d8", "e8d7", "e8f8", "e8f7", "e8c8"
-            ])
-        );
-        // Castling long is blocked by an attack and the king is cut off.
-        assert_eq!(
-            get_moves(&setup("r3k2r/8/8/8/8/8/3R4/4K3 b kq - 0 1")),
-            sorted_moves(&[
-                "a8a7", "a8a6", "a8a5", "a8a4", "a8a3", "a8a2", "a8a1", "a8b8", "a8c8", "a8d8",
-                "h8f8", "h8g8", "h8h7", "h8h6", "h8h5", "h8h4", "h8h3", "h8h2", "h8h1", "e8e7",
-                "e8f8", "e8f7", "e8g8"
-            ])
-        );
-    }
-
-    #[test]
-    fn chess_programming_wiki_perft_positions() {
-        // Positions from https://www.chessprogramming.org/Perft_Results with
-        // depth=1.
-        // Position 1 is the starting position: handled in detail before.
-        // Position 2.
-        assert_eq!(
-            get_moves(&setup(
-                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-            ))
-            .len(),
-            48
-        );
-        // Position 3.
-        assert_eq!(
-            get_moves(&setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1")).len(),
-            14,
-        );
-        // Position 4.
-        assert_eq!(
-            get_moves(&setup(
-                "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
-            ))
-            .len(),
-            6
-        );
-        // Mirrored.
-        assert_eq!(
-            get_moves(&setup(
-                "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1"
-            ))
-            .len(),
-            6
-        );
-        // Position 5.
-        assert_eq!(
-            get_moves(&setup(
-                "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
-            ))
-            .len(),
-            44
-        );
-        // Position 6
-        assert_eq!(
-            get_moves(&setup(
-                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10"
-            ))
-            .len(),
-            46
-        );
-        // "kiwipete"
-        assert_eq!(
-            get_moves(&setup(
-                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-            ))
-            .len(),
-            48
-        );
-    }
-
-    fn illegal_position(input: &str) {
-        let position = Position::try_from(input).unwrap();
-        assert!(!position.is_legal());
-    }
-
-    // TODO: Check precise error messages.
-    #[test]
-    fn illegal_positions() {
-        // TODO: Should we check for legality in the parser and reject incorrect
-        // positions?
-        // The check was not delivered by the doubly pushed pawn.
-        illegal_position("rnbqk1nr/bb3p1p/1q2r3/2pPp3/3P4/7P/1PP1NpPP/R1BQKBNR w KQkq c6 0 1");
-        // Three checks.
-        illegal_position("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34");
+    if let Some(en_passant_square) = position.en_passant_square {
+        let expected_rank = match position.side_to_move {
+            Player::White => Rank::Six,
+            Player::Black => Rank::Three,
+        };
+        if en_passant_square.rank() != expected_rank {
+            bail!(
+                "expected en passant square to be on rank {}, got {}",
+                expected_rank,
+                en_passant_square.rank()
+            )
+        }
+        // A pawn that was just pushed by our opponent should be in front of
+        // en_passant_square.
+        let pushed_pawn = en_passant_square
+            .shift(position.they().push_direction())
+            .expect("we already checked for correct rank");
+        if !position.pieces(position.they()).pawns.contains(pushed_pawn) {
+            bail!("en passant square is not beyond a pawn that was just pushed")
+        }
+        // If en-passant was played and there's a check, doubly pushed pawn
+        // should be the only checker or it should be a discovery.
+        let king = position.pieces(position.us()).king.as_square();
+        if attacks.checkers.has_any() {
+            if attacks.checkers.count() > 1 {
+                bail!("more than 1 check after double pawn push is impossible")
+            }
+            // The check wasn't delivered by pushed pawn.
+            if attacks.checkers != Bitboard::from(pushed_pawn) {
+                let checker = attacks.checkers.as_square();
+                let original_square = en_passant_square
+                    .shift(position.us().push_direction())
+                    .unwrap();
+                if !(attacks::ray(checker, king).contains(original_square)) {
+                    bail!(
+                        "the only possible checks after double pawn push are either discovery \
+                            targeting the original pawn square or the pushed pawn itself"
+                    )
+                }
+            }
+        }
         // Doubly pushed pawn can not block a diagonal check.
-        illegal_position("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1");
-        // No white kings.
-        illegal_position("3k4/8/8/8/8/8/8/8 w - - 0 1");
-        // No white kings.
-        illegal_position("3k4/8/8/8/8/8/8/8 w - - 0 1");
-        // No black kings.
-        illegal_position("8/8/8/8/8/8/8/3K4 w - - 0 1");
-        // Too many kings.
-        illegal_position("1kkk4/8/8/8/8/8/8/1KKK4 w - - 0 1");
-        // Too many white pawns.
-        illegal_position("rnbqkbnr/pppppppp/8/8/8/P7/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        // Too many black pawns.
-        illegal_position("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        // Pawns on backranks.
-        illegal_position("3kr3/8/8/8/8/5Q2/8/1KP5 w - - 0 1");
-        // En passant square not behind a pushed pawn.
-        illegal_position("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq d3 0 1");
-        // Wrong en passant rank.
-        illegal_position("rnbqkbnr/pppppppp/8/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq e4 0 1");
-        // En passant can't result in double check.
-        illegal_position("r2qkbnr/ppp3Np/8/4Q3/4P3/8/PP4PP/RNB1KB1R w KQkq e3 0 1");
+        for attacker in (position.pieces(position.they()).queens
+            | position.pieces(position.they()).bishops)
+            .iter()
+        {
+            let xray = attacks::bishop_ray(attacker, king);
+            if (xray & (position.occupied_squares())).count() == 2
+                && xray.contains(attacker)
+                && xray.contains(pushed_pawn)
+            {
+                bail!("doubly pushed pawn can not be the only blocker on a diagonal")
+            }
+        }
     }
+    Ok(())
 }

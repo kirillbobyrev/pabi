@@ -15,11 +15,14 @@ fn main() {
         let readline = rl.readline("pabi> ");
         match readline {
             Ok(line) => {
-                if let Some(pos) = line.strip_prefix("position ") {
-                    // TODO: Check position for validity and bail out if it's
-                    // not legal.
-                    position = Position::try_from(pos).unwrap();
-                    position.is_legal();
+                if let Some(fen) = line.strip_prefix("position ") {
+                    position = match Position::try_from(fen) {
+                        Ok(pos) => pos,
+                        Err(e) => {
+                            println!("Error reading the position: {e}");
+                            continue;
+                        },
+                    };
                 } else if line == "moves" {
                     println!("{:?}", position.generate_moves());
                 } else if line == "d" {

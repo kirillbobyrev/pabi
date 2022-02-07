@@ -261,7 +261,7 @@ impl TryFrom<u8> for Square {
         const MAX_INDEX: u8 = BOARD_SIZE - 1;
         match square_index {
             0..=MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
-            _ => bail!("unknown square index: needs to be in 0..BOARD_SIZE, got {square_index}"),
+            _ => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
         }
     }
 }
@@ -273,7 +273,7 @@ impl TryFrom<&str> for Square {
         let (file, rank) = match square.chars().collect_tuple() {
             Some((file, rank)) => (file, rank),
             None => bail!(
-                "unknown square: should be two-char, got {square} with {} chars",
+                "square should be two-char, got {square} with {} chars",
                 square.bytes().len()
             ),
         };
@@ -351,7 +351,7 @@ impl TryFrom<char> for File {
     fn try_from(file: char) -> anyhow::Result<Self> {
         match file {
             'a'..='h' => Ok(unsafe { mem::transmute(file as u8 - b'a') }),
-            _ => bail!("unknown file: expected within 'a'..='h', got '{file}'"),
+            _ => bail!("file should be within 'a'..='h', got '{file}'"),
         }
     }
 }
@@ -362,7 +362,7 @@ impl TryFrom<u8> for File {
     fn try_from(column: u8) -> anyhow::Result<Self> {
         match column {
             0..=7 => Ok(unsafe { mem::transmute(column) }),
-            _ => bail!("unknown file: expected within 0..BOARD_WIDTH, got {column}"),
+            _ => bail!("file should be within 0..BOARD_WIDTH, got {column}"),
         }
     }
 }
@@ -423,7 +423,7 @@ impl TryFrom<char> for Rank {
     fn try_from(rank: char) -> anyhow::Result<Self> {
         match rank {
             '1'..='8' => Ok(unsafe { mem::transmute(rank as u8 - b'1') }),
-            _ => bail!("unknown rank: expected within '1'..='8', got '{rank}'"),
+            _ => bail!("rank should be within '1'..='8', got '{rank}'"),
         }
     }
 }
@@ -434,7 +434,7 @@ impl TryFrom<u8> for Rank {
     fn try_from(row: u8) -> anyhow::Result<Self> {
         match row {
             0..=7 => Ok(unsafe { mem::transmute(row) }),
-            _ => bail!("unknown rank: expected within 0..BOARD_WIDTH, got {row}"),
+            _ => bail!("rank should be within 0..BOARD_WIDTH, got {row}"),
         }
     }
 }
@@ -479,7 +479,7 @@ impl TryFrom<&str> for Player {
         match player {
             "w" => Ok(Self::White),
             "b" => Ok(Self::Black),
-            _ => bail!("unknown player: expected 'w' or 'b', got '{player}'"),
+            _ => bail!("player should be 'w' or 'b', got '{player}'"),
         }
     }
 }
@@ -596,7 +596,7 @@ impl TryFrom<char> for Piece {
                 owner: Player::Black,
                 kind: PieceKind::Pawn,
             }),
-            _ => bail!("unknown piece symbol: expected within \"KQRBNPkqrbnp\", got '{symbol}'"),
+            _ => bail!("piece symbol should be within \"KQRBNPkqrbnp\", got '{symbol}'"),
         }
     }
 }
@@ -840,19 +840,19 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "unknown rank: expected within '1'..='8', got '9'")]
+    #[should_panic(expected = "rank should be within '1'..='8', got '9'")]
     fn rank_from_incorrect_char() {
         let _ = Rank::try_from('9').unwrap();
     }
 
     #[test]
-    #[should_panic(expected = "unknown rank: expected within '1'..='8', got '0'")]
+    #[should_panic(expected = "rank should be within '1'..='8', got '0'")]
     fn rank_from_incorrect_char_zero() {
         let _ = Rank::try_from('0').unwrap();
     }
 
     #[test]
-    #[should_panic(expected = "unknown rank: expected within 0..BOARD_WIDTH, got 8")]
+    #[should_panic(expected = "rank should be within 0..BOARD_WIDTH, got 8")]
     fn rank_from_incorrect_index() {
         let _ = Rank::try_from(BOARD_WIDTH).unwrap();
     }
@@ -892,13 +892,13 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "unknown file: expected within 'a'..='h', got 'i'")]
+    #[should_panic(expected = "file should be within 'a'..='h', got 'i'")]
     fn file_from_incorrect_char() {
         let _ = File::try_from('i').unwrap();
     }
 
     #[test]
-    #[should_panic(expected = "unknown file: expected within 0..BOARD_WIDTH, got 8")]
+    #[should_panic(expected = "file should be within 0..BOARD_WIDTH, got 8")]
     fn file_from_incorrect_index() {
         let _ = File::try_from(BOARD_WIDTH).unwrap();
     }
@@ -936,7 +936,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "unknown square index: needs to be in 0..BOARD_SIZE, got 64")]
+    #[should_panic(expected = "square index should be in 0..BOARD_SIZE, got 64")]
     fn square_from_incorrect_index() {
         let _ = Square::try_from(BOARD_SIZE).unwrap();
     }
