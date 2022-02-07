@@ -14,7 +14,15 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights, Move, Piece, PieceKind, Player, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    Move,
+    Piece,
+    PieceKind,
+    Player,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -216,6 +224,7 @@ impl Position {
                     {
                         continue;
                     }
+                    dbg!(from, to);
                     match (kind, to.rank()) {
                         (PieceKind::Pawn, Rank::Eight | Rank::One) => {
                             moves.push(Move::new(from, to, Some(Promotion::Queen)));
@@ -225,6 +234,22 @@ impl Position {
                         },
                         _ => moves.push(Move::new(from, to, None)),
                     }
+                }
+            }
+        }
+        // Check if capturing en passant resolves the check.
+        if let Some(en_passant_square) = self.en_passant_square {
+            let en_passant_pawn = en_passant_square
+                .shift(self.they().push_direction())
+                .unwrap();
+            if attack_info.checkers.contains(en_passant_pawn) {
+                let candidate_pawns =
+                    attacks::pawn_attacks(en_passant_square, self.they()) & our_pieces.pawns;
+                for our_pawn in candidate_pawns.iter() {
+                    if attack_info.pins.contains(our_pawn) {
+                        continue;
+                    }
+                    moves.push(Move::new(our_pawn, en_passant_square, None));
                 }
             }
         }
@@ -307,7 +332,6 @@ impl Position {
                                 | attacks::BLACK_SHORT_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
-                        dbg!("gen shorg");
                         moves.push(Move::new(Square::E8, Square::G8, None));
                     }
                     if self.castling.contains(CastleRights::BLACK_LONG)
@@ -317,13 +341,11 @@ impl Position {
                                 | attacks::BLACK_LONG_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
-                        dbg!("gen long");
                         moves.push(Move::new(Square::E8, Square::C8, None));
                     }
                 },
             }
         }
-        dbg!(attacks::BLACK_LONG_CASTLE_KING_WALK);
         moves
     }
 
@@ -833,12 +855,12 @@ mod test {
             sorted_moves(&["g2f1", "g2f3", "g2g1", "g2h2"])
         );
         assert_eq!(
-            get_moves(&setup("4k3/8/8/8/8/8/8/RR2K3 w Q - 0 1")),
-            sorted_moves(&[
-                "e1d1", "e1d2", "e1e2", "e1f1", "e1f2", "b1c1", "b1d1", "a1a2", "a1a3", "a1a4",
-                "a1a5", "a1a6", "a1a7", "a1a8", "b1b2", "b1b3", "b1b4", "b1b5", "b1b6", "b1b7",
-                "b1b8"
-            ])
+            get_moves(&setup("r3k3/r7/8/5pP1/5QKN/8/8/6RR w - f6 0 1")),
+            sorted_moves(&["f4f5", "h4f5", "g4f5", "g4f3", "g4g3", "g4h3", "g5f6", "g4h5"])
+        );
+        assert_eq!(
+            get_moves(&setup("4k1r1/8/8/4PpP1/6K1/8/8/8 w - f6 0 1")),
+            sorted_moves(&["g4f4", "g4f3", "g4f5", "g4g3", "g4h3", "g4h4", "g4h5", "e5f6"])
         );
     }
 
@@ -871,7 +893,8 @@ mod test {
                 "e8d8", "e8d7", "e8f8", "e8f7"
             ])
         );
-        // Castling long is not blocked: the attacked square is not the one king will walk through.
+        // Castling long is not blocked: the attacked square is not the one king will
+        // walk through.
         assert_eq!(
             get_moves(&setup("r3k2r/8/8/8/8/8/1R6/4K3 b q - 0 1")),
             sorted_moves(&[
