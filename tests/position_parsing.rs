@@ -30,35 +30,86 @@ fn basic_positions() {
     legal_position("rnbqkb1r/pp2pppp/3p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R b KQkq -");
 }
 
-// TODO: Check precise error messages.
 #[test]
-fn illegal_positions() {
-    // No white kings.
-    illegal_position("3k4/8/8/8/8/8/8/8 w - - 0 1");
-    // No white kings.
-    illegal_position("3k4/8/8/8/8/8/8/8 w - - 0 1");
-    // No black kings.
-    illegal_position("8/8/8/8/8/8/8/3K4 w - - 0 1");
-    // Too many kings.
-    illegal_position("1kkk4/8/8/8/8/8/8/1KKK4 w - - 0 1");
-    // Too many white pawns.
-    illegal_position("rnbqkbnr/pppppppp/8/8/8/P7/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    // Too many black pawns.
-    illegal_position("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    // Pawns on backranks.
-    illegal_position("3kr3/8/8/8/8/5Q2/8/1KP5 w - - 0 1");
-    // En passant square not behind a pushed pawn.
-    illegal_position("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq d3 0 1");
-    // Wrong en passant rank.
-    illegal_position("rnbqkbnr/pppppppp/8/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq e4 0 1");
-    // En passant can't result in double check.
-    illegal_position("r2qkbnr/ppp3Np/8/4Q3/4P3/8/PP4PP/RNB1KB1R w KQkq e3 0 1");
-    // The check was not delivered by the doubly pushed pawn.
-    illegal_position("rnbqk1nr/bb3p1p/1q2r3/2pPp3/3P4/7P/1PP1NpPP/R1BQKBNR w KQkq c6 0 1");
-    // Three checks.
-    illegal_position("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34");
-    // Doubly pushed pawn can not block a diagonal check.
-    illegal_position("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1");
+#[should_panic(expected = "expected 1 white king, got 0")]
+fn no_white_king() {
+    Position::try_from("3k4/8/8/8/8/8/8/8 w - - 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "expected 1 black king, got 0")]
+fn no_black_king() {
+    Position::try_from("8/8/8/8/8/8/8/3K4 w - - 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "expected 1 white king, got 3")]
+fn too_many_kings() {
+    Position::try_from("1kkk4/8/8/8/8/8/8/1KKK4 w - - 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "expected <= 8 white pawns, got 9")]
+fn too_many_white_pawns() {
+    Position::try_from("rnbqkbnr/pppppppp/8/8/8/P7/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "expected <= 8 black pawns, got 9")]
+fn too_many_black_pawns() {
+    Position::try_from("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "pawns can not be placed on backranks")]
+fn pawns_on_backranks() {
+    Position::try_from("3kr3/8/8/8/8/5Q2/8/1KP5 w - - 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "expected en passant square to be on rank 6, got 3")]
+fn wrong_en_passant_player() {
+    Position::try_from("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e3 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "expected en passant square to be on rank 3, got 4")]
+fn wrong_en_passant_rank() {
+    Position::try_from("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq e4 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "en passant square is not beyond pushed pawn")]
+fn en_passant_not_beyond_pawn() {
+    Position::try_from("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq d3 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "more than 1 check after double pawn push is impossible")]
+fn en_passant_double_check() {
+    Position::try_from("r2qkbnr/ppp3Np/8/4Q3/4P3/8/PP4PP/RNB1KB1R b KQkq e3 0 1").unwrap();
+}
+
+#[test]
+#[should_panic(expected = "expected <= 2 checks, got 3")]
+fn tripple_check() {
+    Position::try_from("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34").unwrap();
+}
+
+#[test]
+#[should_panic(
+    expected = "the only possible checks after double pawn push are either discovery targeting the \
+    original pawn square or the pushed pawn itself"
+)]
+fn check_with_unrelated_en_passant() {
+    Position::try_from("rnbqk1nr/bb3p1p/1q2r3/2pPp3/3P4/7P/1PP1NpPP/R1BQKBNR w KQkq c6 0 1")
+        .unwrap();
+}
+
+#[test]
+#[should_panic(expected = "doubly pushed pawn can not be the only blocker on a diagonal")]
+fn double_push_blocks_existing_check() {
+    Position::try_from("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1").unwrap();
 }
 
 #[test]
@@ -91,12 +142,9 @@ fn clean_board_str() {
         "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -"
     )
     .is_ok());
-    assert!(Position::from_fen(
-        "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
-    )
-    .is_err());
 }
 
+// TODO: Test precise error messages.
 #[test]
 fn no_crash() {
     assert!(Position::try_from("3k2p1N/82/8/8/7B/6K1/3R4/8 b - - 0 1").is_err());
@@ -105,6 +153,10 @@ fn no_crash() {
     assert!(Position::try_from("\tfen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
     assert!(Position::try_from("fen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
     assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3r4/8 b - - +8 1").is_err());
+    assert!(Position::from_fen(
+        "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
+    )
+    .is_err());
 }
 
 // This test is very expensive in the Debug setting (could take 200+ seconds):

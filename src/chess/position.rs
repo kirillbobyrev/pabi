@@ -600,7 +600,7 @@ fn validate(position: &Position) -> anyhow::Result<()> {
         & (Rank::One.mask() | Rank::Eight.mask()))
     .has_any()
     {
-        bail!("pawns on the backrank")
+        bail!("pawns can not be placed on backranks")
     }
     let attacks = attacks::AttackInfo::new(position);
     // Can't have more than two checks.
@@ -625,7 +625,7 @@ fn validate(position: &Position) -> anyhow::Result<()> {
             .shift(position.they().push_direction())
             .expect("we already checked for correct rank");
         if !position.pieces(position.they()).pawns.contains(pushed_pawn) {
-            bail!("en passant square is not beyond a pawn that was just pushed")
+            bail!("en passant square is not beyond pushed pawn")
         }
         // If en-passant was played and there's a check, doubly pushed pawn
         // should be the only checker or it should be a discovery.

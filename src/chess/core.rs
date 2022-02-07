@@ -7,6 +7,7 @@ use anyhow::bail;
 use itertools::Itertools;
 
 use crate::chess::bitboard::Bitboard;
+use crate::chess::position::Position;
 
 #[allow(missing_docs)]
 pub const BOARD_WIDTH: u8 = 8;
@@ -42,6 +43,11 @@ impl Move {
             to,
             promotion,
         }
+    }
+
+    #[must_use]
+    pub fn from_san(position: &Position) -> Self {
+        todo!()
     }
 }
 
