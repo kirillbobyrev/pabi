@@ -53,7 +53,6 @@ pub mod util;
 
 use clap::Parser;
 use sysinfo::{System, SystemExt};
-use tracing::info;
 
 const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
 
@@ -69,25 +68,25 @@ const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
 pub struct Opts {}
 
 /// Prints information about the host system.
-pub fn log_system_info() {
+pub fn print_system_info() {
     let sys = System::new_all();
-    info!(
+    println!(
         "System: {}",
         sys.long_os_version()
             .unwrap_or_else(|| "UNKNOWN".to_string())
     );
-    info!(
+    println!(
         "System kernel version: {}",
         sys.kernel_version()
             .unwrap_or_else(|| "UNKNOWN".to_string())
     );
-    info!(
+    println!(
         "Host name: {}",
         sys.host_name().unwrap_or_else(|| "UNKNOWN".to_string())
     );
     // Convert returned KB to GB.
-    info!("RAM: {} GB", sys.total_memory() / 1_000_000);
-    info!(
+    println!("RAM: {} GB", sys.total_memory() / 1_000_000);
+    println!(
         "Processors: {}, Physical cores: {}",
         sys.processors().len(),
         sys.physical_core_count().unwrap_or_default()

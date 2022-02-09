@@ -1,1 +1,0 @@
-//! Perft benchmarks runner.

@@ -6,9 +6,7 @@ use rustyline::Editor;
 
 fn main() {
     let _opts = Opts::parse();
-    // TODO: Allow configuring tracer.
-    tracing_subscriber::fmt::init();
-    pabi::log_system_info();
+    pabi::print_system_info();
     let mut rl = Editor::<()>::new();
     let mut position = Position::starting();
     loop {

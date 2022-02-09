@@ -1,7 +1,12 @@
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::path::Path;
+
 use itertools::Itertools;
 use pabi::chess::core::Move;
 use pabi::chess::position::Position;
 use pretty_assertions::assert_eq;
+use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
 
 fn setup(input: &str) -> Position {
     Position::try_from(input).expect("parsing legal position: {input}")
@@ -263,4 +268,47 @@ fn chess_programming_wiki_perft_positions() {
         .len(),
         48
     );
+}
+
+// The output is wrapped in a Result to allow matching on errors
+// Returns an Iterator to the Reader of the lines of the file.
+fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
+where
+    P: AsRef<Path>,
+{
+    let file = File::open(filename)?;
+    Ok(io::BufReader::new(file).lines())
+}
+
+// This test is very expensive in the Debug setting (could take 200+ seconds):
+// disable it by default.
+#[ignore]
+#[test]
+fn random_positions() {
+    for line in read_lines(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/data/random_positions.fen"
+    ))
+    .unwrap()
+    {
+        if let Ok(input) = line {
+            let position = Position::from_fen(&input).unwrap();
+            let shakmaty_setup: shakmaty::fen::Fen = input.parse().unwrap();
+            let shakmaty_position: Chess = shakmaty_setup.position(CastlingMode::Standard).unwrap();
+            assert_eq!(
+                position
+                    .generate_moves()
+                    .iter()
+                    .map(|m| m.to_string())
+                    .sorted()
+                    .collect::<Vec<_>>(),
+                shakmaty_position
+                    .legal_moves()
+                    .iter()
+                    .map(|m| m.to_uci(CastlingMode::Standard).to_string())
+                    .sorted()
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
 }

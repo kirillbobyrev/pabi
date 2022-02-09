@@ -1,4 +1,4 @@
-//! Provides fully-specified [Chess Position] implementation: stores information
+// //! Provides fully-specified [Chess Position] implementation: stores information
 //! about the board and tracks the state of castling, 50-move rule draw, etc.
 //!
 //! The core of Move Generator and move making is also implemented here as a way
@@ -14,15 +14,7 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    Move,
-    Piece,
-    PieceKind,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, File, Move, Piece, PieceKind, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -290,6 +282,7 @@ impl Position {
     // TODO: Check movegen comparison (https://github.com/Gigantua/Chess_Movegen).
     // TODO:: Store the moves on the stack instead? It might be faster, see
     // https://github.com/niklasf/shakmaty/blob/e0020c0ab4b5f8601486c17c87b3313476a3cf12/src/movelist.rs
+    // Likely the best crate for this is https://github.com/servo/rust-smallvec
     // TODO: Use monomorphization to generate code for calculating attacks for both sides to reduce
     // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
     #[must_use]
@@ -500,8 +493,12 @@ impl Position {
         };
         if our_pieces.king.contains(next_move.to) {
             // Check if the move is castling.
-            let backrank = Rank::backrank(self.us()).mask();
-            if backrank.contains(next_move.from) && backrank.contains(next_move.to) {}
+            let backrank = Rank::backrank(self.us());
+            if next_move.from.rank() == backrank
+                && next_move.to.rank() == backrank
+                && next_move.from.file() == File::E
+                && (next_move.to.file() == File::G || next_move.to.file() == File::C)
+            {}
             //
         }
     }
