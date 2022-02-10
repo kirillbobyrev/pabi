@@ -1,10 +1,7 @@
 use std::fs;
-use std::fs::File;
-use std::io::{self, BufRead};
-use std::path::Path;
 
 use itertools::Itertools;
-use pabi::chess::core::Move;
+use pabi::chess::core::{Move, Promotion, Square};
 use pabi::chess::position::Position;
 use pabi::util;
 use pretty_assertions::assert_eq;
@@ -12,7 +9,7 @@ use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
 
 fn legal_position(input: &str) {
     let position = Position::from_fen(input).expect("we are parsing valid position: {input}");
-    assert_eq!(position.to_string(), util::sanitize_fen(input));
+    assert_eq!(position.fen(), util::sanitize_fen(input));
 }
 
 // TODO: Validate the precise contents of the bitboard directly.
@@ -173,10 +170,7 @@ fn arbitrary_positions() {
             .lines()
     {
         let position = Position::try_from(serialized_position).unwrap();
-        assert_eq!(
-            position.to_string(),
-            util::sanitize_fen(serialized_position)
-        );
+        assert_eq!(position.fen(), util::sanitize_fen(serialized_position));
     }
 }
 
@@ -202,7 +196,7 @@ fn sorted_moves(moves: &[&str]) -> Vec<String> {
 }
 
 #[test]
-fn starting_moves() {
+fn starting_moves_generation() {
     assert_eq!(
         get_moves(&Position::starting()),
         sorted_moves(&[
@@ -213,7 +207,7 @@ fn starting_moves() {
 }
 
 #[test]
-fn basic_moves() {
+fn basic_moves_generation() {
     assert_eq!(
         get_moves(&setup("2n4k/1PP5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 w - e6 0 1")),
         sorted_moves(&[
@@ -470,4 +464,46 @@ fn random_positions() {
                 .collect::<Vec<_>>()
         );
     }
+}
+
+#[test]
+fn basic_moves() {
+    let mut position = setup("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    position.make_move(Move::new(Square::E2, Square::E4, None));
+    assert_eq!(
+        position.fen(),
+        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+    );
+    position.make_move(Move::new(Square::E7, Square::E5, None));
+    assert_eq!(
+        position.fen(),
+        "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
+    );
+    position.make_move(Move::new(Square::G1, Square::F3, None));
+    assert_eq!(
+        position.fen(),
+        "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"
+    );
+    position.make_move(Move::new(Square::E8, Square::E7, None));
+    assert_eq!(
+        position.fen(),
+        "rnbq1bnr/ppppkppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQ - 2 3"
+    );
+}
+
+#[test]
+fn promotion_moves() {
+    let mut position = setup("2n4k/1PP5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 w - - 0 1");
+    position.make_move(Move::new(Square::B7, Square::C8, Some(Promotion::Queen)));
+    assert_eq!(
+        position.fen(),
+        "2Q4k/2P5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 b - - 0 1"
+    );
+}
+
+#[test]
+fn castling_reset() {
+    let mut position = setup("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
+    position.make_move(Move::new(Square::A1, Square::A8, None));
+    assert_eq!(position.fen(), "R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1");
 }

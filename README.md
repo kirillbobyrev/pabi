@@ -58,14 +58,26 @@ distillation/quantization as means of compression). See [Resources] for a list
 of candidates.
 
 Pabi strives to be **strong**. Ultimately, when it is strong enough it should
-participate in Chess.com [Computer Chess Championship] (CCCC)[^cccc] and
+participate in Chess.com [Computer Chess Championship][^cccc] and
 [TCEC]. As such, it should be tested in appropriate time formats (mainly Blitz
 and Rapid) that are popular in these rating lists and designed to perform well
 against other engines. Performance and good time-management are crucial for
 doing well under time pressure.
 
-## [Developer Documentation](https://kirillbobyrev.github.io/pabi/docs/pabi/index.html)
+## Getting involved
 
+If you want to start contributing to the project, here are the resources that
+will help you get started:
+
+- [Building guide](/BUILDING.md)
+- [Contribution guide](/CONTRIBUTING.md)
+- [Architecture overview](/ARCHITECTURE.md)
+- [GitHub Issues](https://github.com/kirillbobyrev/pabi/issues) have some tasks
+  you can pick up. Issues with ["good first issue"
+  label](https://github.com/kirillbobyrev/pabi/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+  are the best if you are new to the project.
+
+[Developer Documentation](https://kirillbobyrev.github.io/pabi/docs/pabi/index.html)
 For easier code navigation, read the developer documentation that is updated
 after each commit.
 

@@ -1,5 +1,4 @@
 # Data
 
-This directory contains a small set of chess positions (chosen mostly at random
-rather than handcrafted), perft results and other data that is mosty used for
-correctness testing and benchmarks.
+- [positions.fen](./positions.fen) contains 100_000 arbitrary positions that can
+  be used for the purposes of testing.

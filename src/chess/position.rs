@@ -8,7 +8,6 @@
 //! [Chess Position]: https://www.chessprogramming.org/Chess_Position
 
 use std::fmt;
-use std::num::NonZeroU16;
 
 use anyhow::{bail, Context};
 
@@ -62,7 +61,7 @@ pub struct Position {
     ///     one side.
     /// [^fifty]: 50 __full__ moves
     halfmove_clock: u8,
-    fullmove_counter: NonZeroU16,
+    fullmove_counter: u16,
     en_passant_square: Option<Square>,
 }
 
@@ -93,7 +92,7 @@ impl Position {
             castling: CastleRights::NONE,
             side_to_move: Player::White,
             halfmove_clock: 0,
-            fullmove_counter: NonZeroU16::new(1).unwrap(),
+            fullmove_counter: 1,
             en_passant_square: None,
         }
     }
@@ -240,7 +239,10 @@ impl Position {
                 if !value.bytes().all(|c| c.is_ascii_digit()) {
                     bail!("fullmove counter clock can not contain anything other than digits");
                 }
-                match value.parse::<NonZeroU16>() {
+                match value.parse::<u16>() {
+                    Ok(0) => {
+                        bail!("fullmove counter can not be 0")
+                    },
                     Ok(num) => num,
                     Err(e) => {
                         return Err(e).with_context(|| {
@@ -262,6 +264,12 @@ impl Position {
         }
     }
 
+    /// Returns a string representation of the position in FEN format.
+    #[must_use]
+    pub fn fen(&self) -> String {
+        self.to_string()
+    }
+
     /// Calculates a list of legal moves (i.e. the moves that do not leave our
     /// king in check).
     ///
@@ -281,8 +289,6 @@ impl Position {
     // TODO: Fall back to Fancy Magic Bitboards if BMI2 is not available for
     // portability?
     // TODO: Look at and compare speed with https://github.com/jordanbray/chess
-    // TODO: Also implement divide and use <https://github.com/jniemann66/juddperft> to validate the
-    // results.
     // TODO: Another source for comparison:
     // https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/movegen.rs#L68-L85
     // TODO: Maybe use python-chess testset of perft moves:
@@ -306,7 +312,7 @@ impl Position {
         // Cache squares occupied by each player.
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
-        let (our_pieces, opponent_pieces) = (self.pieces(self.us()), self.pieces(self.they()));
+        let (our_pieces, their_pieces) = (self.pieces(self.us()), self.pieces(self.they()));
         let our_king: Square = our_pieces.king.as_square();
         let non_capture_mask = our_pieces.all();
         let occupied_squares = self.occupied_squares();
@@ -352,7 +358,7 @@ impl Position {
                     PieceKind::Knight => attacks::knight_attacks(from),
                     PieceKind::Pawn => {
                         attacks::pawn_attacks(from, self.us())
-                            & (opponent_pieces.all()
+                            & (their_pieces.all()
                                 | match self.en_passant_square {
                                     Some(square) => Bitboard::from(square),
                                     None => Bitboard::empty(),
@@ -444,7 +450,7 @@ impl Position {
             }
             moves.push(Move::new(from, to, None));
         }
-        // TODO: Castling.
+        // TODO: Generalize castling to FCR.
         // TODO: In FCR we should check if the rook is pinned or not.
         if attack_info.checkers.is_empty() {
             match self.us() {
@@ -500,37 +506,41 @@ impl Position {
     // most usecases (e.g. for search) would clone the position and then mutate
     // it anyway. This would prevent (im)mutability reference problems.
     pub fn make_move(&mut self, next_move: Move) {
-        let us = self.us();
+        debug_assert!(self.is_legal());
+        let (us, they) = (self.us(), self.they());
         let our_backrank = Rank::backrank(us);
         let (our_pieces, their_pieces) = match self.us() {
             Player::White => (&mut self.board.white_pieces, &mut self.board.black_pieces),
             Player::Black => (&mut self.board.black_pieces, &mut self.board.white_pieces),
         };
-        self.side_to_move = us.opponent();
-        if our_pieces.king.contains(next_move.to) {
-            // Check if the move is castling.
-            if next_move.from.rank() == our_backrank
-                && next_move.to.rank() == our_backrank
-                && next_move.from.file() == File::E
-            {
-                if next_move.to.file() == File::G {
-                    our_pieces.rooks.clear(Square::new(File::H, our_backrank));
-                    our_pieces.rooks.extend(Square::new(File::E, our_backrank));
-                } else if next_move.to.file() == File::C {
-                    our_pieces.rooks.clear(Square::new(File::A, our_backrank));
-                    our_pieces.rooks.extend(Square::new(File::D, our_backrank));
-                }
-            }
-            our_pieces.king.clear(next_move.from);
-            our_pieces.king.extend(next_move.to);
-            // TODO: Reset castling rights.
-            return;
+        if us == Player::Black {
+            self.fullmove_counter += 1;
         }
+        self.halfmove_clock += 1;
+        // NOTE: We reset side_to_move early! To access the moving side, use cached
+        // `us`.
+        self.side_to_move = us.opponent();
         // Handle captures.
+        if our_pieces.rooks.contains(next_move.from) {
+            match (us, next_move.from) {
+                (Player::White, Square::A1) => self.castling.remove(CastleRights::WHITE_LONG),
+                (Player::White, Square::H1) => self.castling.remove(CastleRights::WHITE_SHORT),
+                (Player::Black, Square::A8) => self.castling.remove(CastleRights::BLACK_LONG),
+                (Player::Black, Square::H8) => self.castling.remove(CastleRights::BLACK_SHORT),
+                _ => (),
+            }
+        }
         if their_pieces.all().contains(next_move.to) {
             // Capturing a piece resets the clock.
             self.halfmove_clock = 0;
             // TODO: Clear castling rights if we're capturing opponent's rook.
+            match (they, next_move.to) {
+                (Player::White, Square::H1) => self.castling.remove(CastleRights::WHITE_SHORT),
+                (Player::White, Square::A1) => self.castling.remove(CastleRights::WHITE_LONG),
+                (Player::Black, Square::H8) => self.castling.remove(CastleRights::BLACK_SHORT),
+                (Player::Black, Square::A8) => self.castling.remove(CastleRights::BLACK_LONG),
+                _ => (),
+            };
             their_pieces.clear(next_move.to);
         }
         if our_pieces.pawns.contains(next_move.from) {
@@ -545,17 +555,54 @@ impl Position {
             }
             our_pieces.pawns.clear(next_move.from);
             // Check promotions.
-            match next_move.promotion {
-                Some(Promotion::Queen) => our_pieces.queens.extend(next_move.to),
-                Some(Promotion::Rook) => our_pieces.rooks.extend(next_move.to),
-                Some(Promotion::Bishop) => our_pieces.bishops.extend(next_move.to),
-                Some(Promotion::Knight) => our_pieces.knights.extend(next_move.to),
-                None => our_pieces.pawns.extend(next_move.to),
+            // TODO: Debug assertions to make sure the promotion is valid.
+            if let Some(promotion) = next_move.promotion {
+                match promotion {
+                    Promotion::Queen => our_pieces.queens.extend(next_move.to),
+                    Promotion::Rook => our_pieces.rooks.extend(next_move.to),
+                    Promotion::Bishop => our_pieces.bishops.extend(next_move.to),
+                    Promotion::Knight => our_pieces.knights.extend(next_move.to),
+                };
+                return;
             }
-            // Check if the move is a double push and set en passant square.
+            our_pieces.pawns.extend(next_move.to);
+            let single_push_square = next_move.from.shift(us.push_direction()).unwrap();
+            if single_push_square != next_move.to {
+                self.en_passant_square = Some(single_push_square);
+            } else {
+                self.en_passant_square = None;
+            }
             return;
         }
-        // Regular moves.
+        // Non-pawn move resets the en passant square.
+        self.en_passant_square = None;
+        if our_pieces.king.contains(next_move.from) {
+            // Check if the move is castling.
+            if next_move.from.rank() == our_backrank
+                && next_move.to.rank() == our_backrank
+                && next_move.from.file() == File::E
+            {
+                if next_move.to.file() == File::G {
+                    // TODO: debug_assert!(self.can_castle_short())
+                    our_pieces.rooks.clear(Square::new(File::H, our_backrank));
+                    our_pieces.rooks.extend(Square::new(File::E, our_backrank));
+                } else if next_move.to.file() == File::C {
+                    // TODO: debug_assert!(self.can_castle_long())
+                    our_pieces.rooks.clear(Square::new(File::A, our_backrank));
+                    our_pieces.rooks.extend(Square::new(File::D, our_backrank));
+                }
+            }
+            our_pieces.king.clear(next_move.from);
+            our_pieces.king.extend(next_move.to);
+            // The king has moved: reset castling.
+            match us {
+                Player::White => self.castling.remove(CastleRights::WHITE_BOTH),
+                Player::Black => self.castling.remove(CastleRights::BLACK_BOTH),
+            };
+            return;
+        }
+        // Regular moves: put the piece from the source to destination. We
+        // already cleared the opponent piece if there was a capture.
         for piece in [
             &mut our_pieces.queens,
             &mut our_pieces.rooks,
@@ -573,6 +620,11 @@ impl Position {
     #[must_use]
     pub fn has_insufficient_material(&self) -> bool {
         todo!()
+    }
+
+    #[must_use]
+    pub fn is_legal(&self) -> bool {
+        validate(self).is_ok()
     }
 }
 
@@ -633,6 +685,9 @@ impl fmt::Debug for Position {
 // untrusted environment (UCI front-end, user input) and the engine.
 #[must_use]
 fn validate(position: &Position) -> anyhow::Result<()> {
+    if position.fullmove_counter == 0 {
+        bail!("fullmove counter cannot be zero")
+    }
     // TODO: Probe opposite checks.
     // TODO: The following patterns look repetitive; maybe refactor the
     // common structure even though it's quite short?

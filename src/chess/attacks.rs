@@ -8,7 +8,6 @@ use crate::chess::bitboard::Bitboard;
 use crate::chess::core::{PieceKind, Player, Square, BOARD_SIZE};
 use crate::chess::position::Position;
 
-// TODO: Here and elsewhere: get_unchecked instead.
 pub(super) fn king_attacks(from: Square) -> Bitboard {
     KING_ATTACKS[from as usize]
 }

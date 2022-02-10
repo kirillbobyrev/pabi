@@ -27,7 +27,7 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 /// in, because SAN requires additional flags (e.g. indicating
 /// "check"/"checkmate" or moving piece disambiguation).
 // TODO: Implement bijection for a move and a numeric index.
-// TODO: Switch this to a compact representation of (from, to, flags)
+// TODO: Switch this to an enum representation (regular, en passant, castling).
 #[derive(Debug)]
 pub struct Move {
     pub(super) from: Square,
@@ -64,100 +64,7 @@ impl fmt::Display for Move {
     }
 }
 
-bitflags::bitflags! {
-    /// More information about [`Move`] that makes it possible to make that move
-    /// and dump it in human-readable format (e.g. Standard Algebraic Notation).
-    ///
-    /// Apart from the "regular" or "quiet" moves (simply moving a piece from
-    /// one square to the other), there are few important rules:
-    ///
-    /// - [En passant] is a capture of opponent's pawn "in passing" (when it
-    /// advances two squares from its original position).
-    /// - The [Castle] move that will involve a king and a rook "jumping" over
-    /// each other. Technically, castling is a king move, so `from` and `to`
-    /// move squares will correspond to the king.
-    ///
-    /// The values resemble a common [Move Encoding] technique:
-    ///
-    /// | Index | Promotion | Capture | MSB Special | LSB Special | Move Kind |
-    /// | ----- | --------- | ------- | ----------- | ----------- | --------- |
-    /// | 0  | 0 | 0 | 0 | 0 | Quiet move |
-    /// | 1  | 0 | 0 | 0 | 1 | Double pawn push |
-    /// | 2  | 0 | 0 | 1 | 0 | Kingside castle (short castle or O-O) |
-    /// | 3  | 0 | 0 | 1 | 1 | Queenside castle (long castle or O-O-O) |
-    /// | 4  | 0 | 1 | 0 | 0 | Capture |
-    /// | 5  | 0 | 1 | 0 | 1 | En Passant capture |
-    /// | 8  | 1 | 0 | 0 | 0 | Knight promotion |
-    /// | 9  | 1 | 0 | 0 | 1 | Bishop promotion |
-    /// | 10 | 1 | 0 | 1 | 0 | Rook promotion |
-    /// | 11 | 1 | 0 | 1 | 1 | Queen promotion |
-    /// | 12 | 1 | 1 | 0 | 0 | Capture and knight promotion |
-    /// | 13 | 1 | 1 | 0 | 1 | Capture and bishop promotion |
-    /// | 14 | 1 | 1 | 1 | 0 | Capture and rook promotion |
-    /// | 15 | 1 | 1 | 1 | 1 | Capture and queen promotion |
-    ///
-    /// This representation is compact and allows to conveniently query
-    /// attributes for a specific kind of move.
-    ///
-    /// [Castle]: https://en.wikipedia.org/wiki/Castling
-    /// [En passant]: https://en.wikipedia.org/wiki/En_passant
-    /// [Move Encoding]: https://www.chessprogramming.org/Encoding_Moves
-    // TODO: For now, this is the dead code. Maybe it will be used as an input
-    // for the evaluators.
-    pub struct MoveAttributes: u8 {
-        /// Moves that do not change the material balance.
-        const QUIET = 0;
-
-        /// Implementation detail.
-        const MSB_SPECIAL = 0b0010;
-        /// Implementation detail.
-        const LSB_SPECIAL = 0b0001;
-
-        /// Pawn advancement by 2 squares from the original rank (second for
-        /// white and seventh for black).
-        const DOUBLE_PAWN_PUSH = Self::LSB_SPECIAL.bits;
-        /// Short castle or O-O.
-        const KINGSIDE_CASTLE = Self::MSB_SPECIAL.bits;
-        /// Long castle or O-O-O.
-        const QUEENSIDE_CASTLE = Self::MSB_SPECIAL.bits | Self::LSB_SPECIAL.bits;
-
-        /// Moves that changes the material balance.
-        const CAPTURE = 0b0100;
-
-        /// Pawn move to the opponent's "home" rank and promotion to a queen
-        /// (often a default option), knight, bishop or rook.
-        const PROMOTION = 0b1000;
-
-        /// Pawn promotion to [`PieceKind::Knight`].
-        const KNIGHT_PROMOTION = Self::PROMOTION.bits;
-        /// Pawn promotion to [`PieceKind::Bishop`].
-        const BISHOP_PROMOTION = Self::PROMOTION.bits | Self::LSB_SPECIAL.bits;
-        /// Pawn promotion to [`PieceKind::Rook`].
-        const ROOK_PROMOTION = Self::PROMOTION.bits | Self::MSB_SPECIAL.bits;
-        /// Pawn promotion to [`PieceKind::Queen`].
-        const QUEEN_PROMOTION = Self::PROMOTION.bits
-            | Self::MSB_SPECIAL.bits
-            | Self::LSB_SPECIAL.bits;
-
-        /// Pawn capture and promotion to [`PieceKind::Knight`].
-        const CAPTURE_KNIGHT_PROMOTION = Self::CAPTURE.bits | Self::PROMOTION.bits;
-        /// Pawn capture and promotion to [`PieceKind::Bishop`].
-        const CAPTURE_BISHOP_PROMOTION = Self::CAPTURE.bits
-            | Self::PROMOTION.bits
-            | Self::LSB_SPECIAL.bits;
-        /// Pawn capture and promotion to [`PieceKind::Rook`].
-        const CAPTURE_ROOK_PROMOTION = Self::CAPTURE.bits
-            | Self::PROMOTION.bits
-            | Self::MSB_SPECIAL.bits;
-        /// Pawn capture and promotion to [`PieceKind::Queen`].
-        const CAPTURE_QUEEN_PROMOTION = Self::CAPTURE.bits
-            | Self::PROMOTION.bits
-            | Self::MSB_SPECIAL.bits
-            | Self::LSB_SPECIAL.bits;
-    }
-}
-
-/// Board squares: from left to right, from bottom to the top:
+/// Board squares: from left to right, from bottom to the top ([Little-Endian Rank-File Mapping]):
 ///
 /// ```
 /// use pabi::chess::core::Square;
@@ -177,12 +84,14 @@ bitflags::bitflags! {
 ///
 /// assert_eq!(std::mem::size_of::<Square>(), 1);
 /// ```
+///
+/// [Little-Endian Rank-File Mapping]: https://www.chessprogramming.org/Square_Mapping_Considerations#LittleEndianRankFileMapping
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
 #[rustfmt::skip]
 #[allow(missing_docs)]
 pub enum Square {
-    A1, B1, C1, D1, E1, F1, G1, H1,
+    A1 = 0, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
     A3, B3, C3, D3, E3, F3, G3, H3,
     A4, B4, C4, D4, E4, F4, G4, H4,
@@ -631,8 +540,8 @@ impl fmt::Display for Piece {
 bitflags::bitflags! {
     /// Track the ability to [castle] each side (kingside is often referred to
     /// as O-O or h-side castle, queenside -- O-O-O or a-side castle). When the
-    /// king moves, player loses ability to castle both sides. When the rook
-    /// moves, player loses ability to castle its corresponding side.
+    /// king moves, player loses ability to castle. When the rook moves, player
+    /// loses ability to castle to the side from which the rook moved.
     ///
     /// Castling is relatively straightforward in the Standard Chess but is
     /// often misunderstood in Fischer Random Chess (also known as FRC or
