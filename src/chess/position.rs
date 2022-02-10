@@ -1,4 +1,5 @@
-// //! Provides fully-specified [Chess Position] implementation: stores information
+// //! Provides fully-specified [Chess Position] implementation: stores
+// information
 //! about the board and tracks the state of castling, 50-move rule draw, etc.
 //!
 //! The core of Move Generator and move making is also implemented here as a way
@@ -14,7 +15,16 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights, File, Move, Piece, PieceKind, Player, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    File,
+    Move,
+    Piece,
+    PieceKind,
+    Player,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -486,20 +496,77 @@ impl Position {
     // TODO: Docs: this is the only way to mutate a position....
     // TODO: Make an checked version of it? With the move coming from the UCI
     // it's best to check if it's valid or not.
+    // TODO: Is it better to clone and return a new Position? It seems that the
+    // most usecases (e.g. for search) would clone the position and then mutate
+    // it anyway. This would prevent (im)mutability reference problems.
     pub fn make_move(&mut self, next_move: Move) {
-        let (our_pieces, _opponent_pieces) = match self.us() {
+        let us = self.us();
+        let our_backrank = Rank::backrank(us);
+        let (our_pieces, their_pieces) = match self.us() {
             Player::White => (&mut self.board.white_pieces, &mut self.board.black_pieces),
             Player::Black => (&mut self.board.black_pieces, &mut self.board.white_pieces),
         };
+        self.side_to_move = us.opponent();
         if our_pieces.king.contains(next_move.to) {
             // Check if the move is castling.
-            let backrank = Rank::backrank(self.us());
-            if next_move.from.rank() == backrank
-                && next_move.to.rank() == backrank
+            if next_move.from.rank() == our_backrank
+                && next_move.to.rank() == our_backrank
                 && next_move.from.file() == File::E
-                && (next_move.to.file() == File::G || next_move.to.file() == File::C)
-            {}
-            //
+            {
+                if next_move.to.file() == File::G {
+                    our_pieces.rooks.clear(Square::new(File::H, our_backrank));
+                    our_pieces.rooks.extend(Square::new(File::E, our_backrank));
+                } else if next_move.to.file() == File::C {
+                    our_pieces.rooks.clear(Square::new(File::A, our_backrank));
+                    our_pieces.rooks.extend(Square::new(File::D, our_backrank));
+                }
+            }
+            our_pieces.king.clear(next_move.from);
+            our_pieces.king.extend(next_move.to);
+            // TODO: Reset castling rights.
+            return;
+        }
+        // Handle captures.
+        if their_pieces.all().contains(next_move.to) {
+            // Capturing a piece resets the clock.
+            self.halfmove_clock = 0;
+            // TODO: Clear castling rights if we're capturing opponent's rook.
+            their_pieces.clear(next_move.to);
+        }
+        if our_pieces.pawns.contains(next_move.from) {
+            // Pawn move resets the clock.
+            self.halfmove_clock = 0;
+            // Check en passant.
+            if let Some(en_passant_square) = self.en_passant_square {
+                if next_move.to == en_passant_square {
+                    let captured_pawn = Square::new(next_move.to.file(), next_move.from.rank());
+                    their_pieces.pawns.clear(captured_pawn);
+                }
+            }
+            our_pieces.pawns.clear(next_move.from);
+            // Check promotions.
+            match next_move.promotion {
+                Some(Promotion::Queen) => our_pieces.queens.extend(next_move.to),
+                Some(Promotion::Rook) => our_pieces.rooks.extend(next_move.to),
+                Some(Promotion::Bishop) => our_pieces.bishops.extend(next_move.to),
+                Some(Promotion::Knight) => our_pieces.knights.extend(next_move.to),
+                None => our_pieces.pawns.extend(next_move.to),
+            }
+            // Check if the move is a double push and set en passant square.
+            return;
+        }
+        // Regular moves.
+        for piece in [
+            &mut our_pieces.queens,
+            &mut our_pieces.rooks,
+            &mut our_pieces.bishops,
+            &mut our_pieces.knights,
+        ] {
+            if piece.contains(next_move.from) {
+                piece.clear(next_move.from);
+                piece.extend(next_move.to);
+                return;
+            }
         }
     }
 

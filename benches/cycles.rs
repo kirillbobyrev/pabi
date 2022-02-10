@@ -11,17 +11,16 @@
 //! piece of code with iai: the measurements include the whole function
 //! execution.
 
+use std::fs;
+
 use pabi::chess::position::Position;
-use pabi::util;
 
 fn parse_stockfish_book_positions() {
-    for book in util::stockfish_books() {
-        for serialized_position in util::read_compressed_book(&book).lines() {
-            iai::black_box(
-                Position::try_from(serialized_position)
-                    .expect("benchmarks are given valid positions"),
-            );
-        }
+    for line in fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/positions.fen"))
+        .unwrap()
+        .lines()
+    {
+        iai::black_box(Position::try_from(line).expect("benchmarks are given valid positions"));
     }
 }
 

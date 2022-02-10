@@ -676,6 +676,15 @@ bitflags::bitflags! {
     }
 }
 
+impl CastleRights {
+    fn mask(player: Player) -> Self {
+        match player {
+            Player::White => Self::WHITE_BOTH,
+            Player::Black => Self::BLACK_BOTH,
+        }
+    }
+}
+
 impl TryFrom<&str> for CastleRights {
     type Error = anyhow::Error;
 

@@ -84,7 +84,7 @@ impl Bitboard {
     }
 
     /// Adds given square to the set.
-    pub(super) fn erase(&mut self, square: Square) {
+    pub(super) fn clear(&mut self, square: Square) {
         *self &= !Self::from(square)
     }
 
@@ -416,13 +416,13 @@ impl Pieces {
         None
     }
 
-    pub(super) fn clear_square(&mut self, square: Square) {
-        self.king.erase(square);
-        self.queens.erase(square);
-        self.rooks.erase(square);
-        self.bishops.erase(square);
-        self.knights.erase(square);
-        self.pawns.erase(square);
+    pub(super) fn clear(&mut self, square: Square) {
+        self.king.clear(square);
+        self.queens.clear(square);
+        self.rooks.clear(square);
+        self.bishops.clear(square);
+        self.knights.clear(square);
+        self.pawns.clear(square);
     }
 
     pub(super) fn iter(&self) -> PiecesIterator {

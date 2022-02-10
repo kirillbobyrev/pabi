@@ -1,3 +1,0 @@
-[submodule "data/books"]
-	path = data/books
-	url = https://github.com/official-stockfish/books

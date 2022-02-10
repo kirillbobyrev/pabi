@@ -20,7 +20,6 @@ include = [
   "/src/**/*.rs",
   "/Cargo.toml",
   "/Cargo.lock",
-  "/data/books/*.epd.zip",
   "/data/positions.fen",
   "LICENSE",
   "README.md",
@@ -34,11 +33,6 @@ itertools = "0.10.3"
 rustyline = "9.1.2"
 strum = {version = "0.23.0", features = ["derive"]}
 sysinfo = "0.23.1"
-
-[dependencies.zip]
-default_features = false
-features = ["deflate"]
-version = "0.5.13"
 
 [dev-dependencies]
 criterion = {version = "0.3.5", features = ["html_reports", "cargo_bench_support", "csv_output"]}

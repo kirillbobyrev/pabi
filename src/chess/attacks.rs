@@ -132,7 +132,7 @@ impl AttackInfo {
                                 .count()
                                 == 1
                         {
-                            result.safe_king_squares.erase(square);
+                            result.safe_king_squares.clear(square);
                         }
                     }
                     // An attack can be either a check or a (potential) pin, not
