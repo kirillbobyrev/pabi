@@ -267,14 +267,18 @@ fn pins() {
     );
 }
 
-// Artifacts from the fuzzer.
+// Artifacts from the fuzzer or perft.
 #[test]
-fn moves_in_other_positions() {
+fn fuzzing_artifact_moves() {
     assert_eq!(
         get_moves(&setup(
             "2r3r1/3p3k/1p3pp1/1B5P/5P2/2P1pqP1/PP4KP/3R4 w - - 0 34"
         )),
         sorted_moves(&["g2g1", "g2f3", "g2h3"])
+    );
+    assert_eq!(
+        get_moves(&setup("K7/8/8/8/1R2Pp1k/8/8/8 b - e3 0 1")),
+        sorted_moves(&["h4h5", "h4h3", "h4g4", "h4g5", "h4g3", "f4f3"])
     );
     assert_eq!(
         get_moves(&setup(
@@ -323,6 +327,13 @@ fn moves_in_other_positions() {
     assert_eq!(
         get_moves(&setup("4k1r1/8/8/4PpP1/6K1/8/8/8 w - f6 0 1")),
         sorted_moves(&["g4f4", "g4f3", "g4f5", "g4g3", "g4h3", "g4h4", "g4h5", "e5f6"])
+    );
+    assert_eq!(
+        get_moves(&setup("8/2p5/3p4/1P5r/KR3p1k/8/4P1P1/8 b - - 1 1")),
+        sorted_moves(&[
+            "c7c6", "c7c5", "d6d5", "h5b5", "h5c5", "h5d5", "h5e5", "h5g5", "h5f5", "h5h6", "h5h7",
+            "h5h8", "h4g4", "h4g5", "h4g3"
+        ])
     );
 }
 
@@ -551,7 +562,6 @@ fn perft_kiwipete() {
 // Position 3.
 #[test]
 fn perft_endgame() {
-    let mut position = setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
     let position = setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
     assert_eq!(perft(&position, 1), 14);
     assert_eq!(perft(&position, 2), 191);
@@ -585,10 +595,53 @@ fn perft_fifth() {
 // Position 6.
 #[test]
 fn perft_sixth() {
-    let position = setup("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+    let position =
+        setup("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
     assert_eq!(perft(&position, 1), 46);
     assert_eq!(perft(&position, 2), 2079);
     assert_eq!(perft(&position, 3), 89890);
     assert_eq!(perft(&position, 4), 3894594);
-    // assert_eq!(perft(&position, 5), 164075551);
+}
+
+// TODO: This is only needed for debugging problems.
+#[test]
+fn shakmaty_perft() {
+    let first_level_positions = setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1")
+        .generate_moves()
+        .iter()
+        .map(|m| {
+            let mut next_pos = setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
+            next_pos.make_move(&m);
+            next_pos.fen()
+        })
+        .sorted()
+        .collect::<Vec<_>>();
+    for position in first_level_positions {
+        let second_level_positions = setup(&position)
+            .generate_moves()
+            .iter()
+            .map(|m| {
+                let mut next_pos = setup(&position);
+                next_pos.make_move(&m);
+                next_pos.fen()
+            })
+            .sorted()
+            .collect::<Vec<_>>();
+        let shakmaty_setup: shakmaty::fen::Fen = position.parse().unwrap();
+        let shakmaty_position: Chess = shakmaty_setup.position(CastlingMode::Standard).unwrap();
+        let shakmaty_second_level_positions = shakmaty_position
+            .legal_moves()
+            .iter()
+            .map(|m| {
+                let mut next_pos = shakmaty_position.clone();
+                next_pos.play_unchecked(&m);
+                shakmaty::fen::fen(&next_pos)
+            })
+            .sorted()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            second_level_positions.len(),
+            shakmaty_second_level_positions.len()
+        );
+    }
 }

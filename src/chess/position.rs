@@ -357,14 +357,7 @@ impl Position {
                     PieceKind::Rook => attacks::rook_attacks(from, occupied_squares),
                     PieceKind::Bishop => attacks::bishop_attacks(from, occupied_squares),
                     PieceKind::Knight => attacks::knight_attacks(from),
-                    PieceKind::Pawn => {
-                        attacks::pawn_attacks(from, self.us())
-                            & (their_pieces.all()
-                                | match self.en_passant_square {
-                                    Some(square) => Bitboard::from(square),
-                                    None => Bitboard::empty(),
-                                })
-                    },
+                    PieceKind::Pawn => attacks::pawn_attacks(from, self.us()) & their_pieces.all(),
                 } - non_capture_mask;
                 for to in targets.iter() {
                     // TODO: This block is repeated several times; abstract it out.
@@ -388,19 +381,40 @@ impl Position {
                 }
             }
         }
-        // Check if capturing en passant resolves the check.
+        // Generate en passant moves.
         if let Some(en_passant_square) = self.en_passant_square {
             let en_passant_pawn = en_passant_square
                 .shift(self.they().push_direction())
                 .unwrap();
+            // Check if capturing en passant resolves the check.
+            let candidate_pawns =
+                attacks::pawn_attacks(en_passant_square, self.they()) & our_pieces.pawns;
             if attack_info.checkers.contains(en_passant_pawn) {
-                let candidate_pawns =
-                    attacks::pawn_attacks(en_passant_square, self.they()) & our_pieces.pawns;
                 for our_pawn in candidate_pawns.iter() {
                     if attack_info.pins.contains(our_pawn) {
                         continue;
                     }
                     moves.push(Move::new(our_pawn, en_passant_square, None));
+                }
+            } else {
+                // Check if capturing en passant does not create a discovered check.
+                for our_pawn in candidate_pawns.iter() {
+                    let mut occupancy_after_capture = occupied_squares;
+                    occupancy_after_capture.clear(our_pawn);
+                    occupancy_after_capture.clear(en_passant_pawn);
+                    occupancy_after_capture.extend(en_passant_square);
+                    if (attacks::queen_attacks(our_king, occupancy_after_capture)
+                        & their_pieces.queens)
+                        .is_empty()
+                        && (attacks::rook_attacks(our_king, occupancy_after_capture)
+                            & their_pieces.rooks)
+                            .is_empty()
+                        && (attacks::bishop_attacks(our_king, occupancy_after_capture)
+                            & their_pieces.bishops)
+                            .is_empty()
+                    {
+                        moves.push(Move::new(our_pawn, en_passant_square, None));
+                    }
                 }
             }
         }
@@ -685,11 +699,11 @@ impl fmt::Debug for Position {
 ///
 /// [Perft]: https://www.chessprogramming.org/Perft
 pub fn perft(position: &Position, depth: u8) -> u64 {
+    debug_assert!(position.is_legal());
     if depth == 0 {
         return 1;
     }
     let mut nodes = 0;
-    dbg!(position.generate_moves());
     for next_move in position.generate_moves().iter() {
         let mut next_position = position.clone();
         next_position.make_move(next_move);
