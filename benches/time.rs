@@ -98,15 +98,49 @@ criterion_group! {
     targets = movegen_bench
 }
 
-// TODO: Perft.
+// This acts both as performance and correctness test.
 fn perft_bench(c: &mut Criterion) {
-    let mut group = c.benchmark_group("perft starting position");
-    for depth in [5, 6, 7].iter() {
-        group.bench_with_input(BenchmarkId::from_parameter(depth), depth, |b, &depth| {
-            b.iter(|| {
-                criterion::black_box(pabi::chess::position::perft(&Position::starting(), depth))
-            });
-        });
+    let mut group = c.benchmark_group("perft");
+    // TODO: Abstract this out and have a single array/dataset of perft positons to
+    // check. Inlining these is quite unappealing.
+    // TODO: Add Throughput - it should be the number of nodes.
+    for (position, depth, nodes) in [
+        // Position 1.
+        (Position::starting(), 5, 4865609),
+        (Position::starting(), 6, 119060324),
+        // Position 3.
+        (
+            Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap(),
+            6,
+            11030083,
+        ),
+        // Position 4.
+        (
+            Position::from_fen("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1")
+                .unwrap(),
+            6,
+            706045033,
+        ),
+    ]
+    .iter()
+    {
+        group.bench_with_input(
+            BenchmarkId::new(
+                "perft",
+                format!(
+                    "position {}, depth {}, nodes {}",
+                    position.fen(),
+                    depth,
+                    nodes
+                ),
+            ),
+            depth,
+            |b, &depth| {
+                b.iter(|| {
+                    assert_eq!(pabi::chess::position::perft(&position, depth), *nodes);
+                });
+            },
+        );
     }
     group.finish();
 }

@@ -557,6 +557,7 @@ fn perft_kiwipete() {
     assert_eq!(perft(&position, 2), 2039);
     assert_eq!(perft(&position, 3), 97862);
     assert_eq!(perft(&position, 4), 4085603);
+    assert_eq!(perft(&position, 5), 193690690);
 }
 
 // Position 3.
@@ -573,7 +574,7 @@ fn perft_endgame() {
 // Position 4.
 #[test]
 fn perft_complex() {
-    let position = setup("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+    let position = setup("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1");
     assert_eq!(perft(&position, 1), 6);
     assert_eq!(perft(&position, 2), 264);
     assert_eq!(perft(&position, 3), 9467);
@@ -601,47 +602,78 @@ fn perft_sixth() {
     assert_eq!(perft(&position, 2), 2079);
     assert_eq!(perft(&position, 3), 89890);
     assert_eq!(perft(&position, 4), 3894594);
+    assert_eq!(perft(&position, 5), 164075551);
 }
 
-// TODO: This is only needed for debugging problems.
 #[test]
-fn shakmaty_perft() {
-    let first_level_positions = setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1")
-        .generate_moves()
-        .iter()
-        .map(|m| {
-            let mut next_pos = setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-            next_pos.make_move(&m);
-            next_pos.fen()
-        })
-        .sorted()
-        .collect::<Vec<_>>();
-    for position in first_level_positions {
-        let second_level_positions = setup(&position)
-            .generate_moves()
-            .iter()
-            .map(|m| {
-                let mut next_pos = setup(&position);
-                next_pos.make_move(&m);
-                next_pos.fen()
-            })
-            .sorted()
-            .collect::<Vec<_>>();
-        let shakmaty_setup: shakmaty::fen::Fen = position.parse().unwrap();
-        let shakmaty_position: Chess = shakmaty_setup.position(CastlingMode::Standard).unwrap();
-        let shakmaty_second_level_positions = shakmaty_position
-            .legal_moves()
-            .iter()
-            .map(|m| {
-                let mut next_pos = shakmaty_position.clone();
-                next_pos.play_unchecked(&m);
-                shakmaty::fen::fen(&next_pos)
-            })
-            .sorted()
-            .collect::<Vec<_>>();
-        assert_eq!(
-            second_level_positions.len(),
-            shakmaty_second_level_positions.len()
-        );
-    }
+fn perft_artifacts() {
+    let position = setup("");
+    assert_eq!(perft(&position, 1), 46);
+    assert_eq!(perft(&position, 2), 2079);
+    assert_eq!(perft(&position, 3), 89890);
+    assert_eq!(perft(&position, 4), 3894594);
+    assert_eq!(perft(&position, 5), 164075551);
 }
+
+// TODO: Expensive tests with depth of 6 or so.
+// TODO: Parallel perft for higher depths?
+
+// fn validated_perft(position: &Position, depth: u8) -> usize {
+//     let mut positions = vec![position.fen()];
+//     for level in 0..depth {
+//         println!("level: {level}");
+//         let mut new_positions = vec![];
+//         for position in positions {
+//             let generated_positions = setup(&position)
+//                 .generate_moves()
+//                 .iter()
+//                 .map(|m| {
+//                     let mut next_pos = setup(&position);
+//                     next_pos.make_move(&m);
+//                     next_pos.fen()
+//                 })
+//                 .sorted()
+//                 .collect::<Vec<_>>();
+//             if level >= 6 {
+//                 let shakmaty_setup: shakmaty::fen::Fen =
+// position.parse().unwrap();                 let shakmaty_position: Chess =
+//                     shakmaty_setup.position(CastlingMode::Standard).unwrap();
+//                 let reference_positions = shakmaty_position
+//                     .legal_moves()
+//                     .iter()
+//                     .map(|m| {
+//                         let mut next_pos = shakmaty_position.clone();
+//                         next_pos.play_unchecked(&m);
+//                         shakmaty::fen::fen(&next_pos)
+//                     })
+//                     .sorted()
+//                     .collect::<Vec<_>>();
+//                 assert_eq!(
+//                     generated_positions.len(),
+//                     reference_positions.len(),
+//                     "{}",
+//                     position
+//                 );
+//             }
+//             for pos in generated_positions {
+//                 new_positions.push(pos);
+//             }
+//         }
+//         positions = new_positions;
+//     }
+//     positions.len()
+// }
+
+// // TODO: This is only needed for debugging problems.
+// #[test]
+// fn shakmaty_perft() {
+//     assert_eq!(
+//         validated_perft(
+//             
+// &Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w
+// kq - 0 1")                 .unwrap(),
+//             6,
+//         ),
+//         15833292
+//     );
+// }
