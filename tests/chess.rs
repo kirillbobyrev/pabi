@@ -545,20 +545,37 @@ fn perft_starting_position() {
     assert_eq!(perft(&position, 1), 20);
     assert_eq!(perft(&position, 2), 400);
     assert_eq!(perft(&position, 3), 8902);
+}
+
+#[test]
+#[ignore]
+fn perft_expensive_starting() {
+    // Position 1.
+    let position = Position::starting();
     assert_eq!(perft(&position, 4), 197281);
     assert_eq!(perft(&position, 5), 4865609);
+    // assert_eq!(perft(&position, 6), 119060324);
 }
 
 // Position 2.
 #[test]
 fn perft_kiwipete() {
-    let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+    let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
     assert_eq!(perft(&position, 1), 48);
     assert_eq!(perft(&position, 2), 2039);
     assert_eq!(perft(&position, 3), 97862);
+}
+
+#[test]
+#[ignore]
+fn perft_kiwipete_expensive() {
+    // Positon 2.
+    let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
     assert_eq!(perft(&position, 4), 4085603);
     assert_eq!(perft(&position, 5), 193690690);
+    // assert_eq!(perft(&position, 6), 8031647685);
 }
+
 
 // Position 3.
 #[test]
@@ -567,8 +584,15 @@ fn perft_endgame() {
     assert_eq!(perft(&position, 1), 14);
     assert_eq!(perft(&position, 2), 191);
     assert_eq!(perft(&position, 3), 2812);
-    assert_eq!(perft(&position, 4), 43238);
-    assert_eq!(perft(&position, 5), 674624);
+}
+
+#[test]
+#[ignore]
+fn perft_endgame_expensive() {
+    let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+    assert_eq!(perft(&position, 4), 4085603);
+    assert_eq!(perft(&position, 5), 193690690);
+    // assert_eq!(perft(&position, 6), 8031647685);
 }
 
 // Position 4.
@@ -578,8 +602,15 @@ fn perft_complex() {
     assert_eq!(perft(&position, 1), 6);
     assert_eq!(perft(&position, 2), 264);
     assert_eq!(perft(&position, 3), 9467);
+}
+
+#[test]
+#[ignore]
+fn perft_complex_expensive() {
+    let position = setup("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1");
     assert_eq!(perft(&position, 4), 422333);
     assert_eq!(perft(&position, 5), 15833292);
+    // assert_eq!(perft(&position, 6), 706045033);
 }
 
 // Position 5.
@@ -589,6 +620,12 @@ fn perft_fifth() {
     assert_eq!(perft(&position, 1), 44);
     assert_eq!(perft(&position, 2), 1486);
     assert_eq!(perft(&position, 3), 62379);
+}
+
+#[test]
+#[ignore]
+fn perft_fifth_expensive() {
+    let position = setup("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
     assert_eq!(perft(&position, 4), 2103487);
     assert_eq!(perft(&position, 5), 89941194);
 }
@@ -601,21 +638,17 @@ fn perft_sixth() {
     assert_eq!(perft(&position, 1), 46);
     assert_eq!(perft(&position, 2), 2079);
     assert_eq!(perft(&position, 3), 89890);
-    assert_eq!(perft(&position, 4), 3894594);
-    assert_eq!(perft(&position, 5), 164075551);
 }
 
 #[test]
-fn perft_artifacts() {
-    let position = setup("");
-    assert_eq!(perft(&position, 1), 46);
-    assert_eq!(perft(&position, 2), 2079);
-    assert_eq!(perft(&position, 3), 89890);
+#[ignore]
+fn perft_sixth_expensive() {
+    let position =
+        setup("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
     assert_eq!(perft(&position, 4), 3894594);
     assert_eq!(perft(&position, 5), 164075551);
 }
 
-// TODO: Expensive tests with depth of 6 or so.
 // TODO: Parallel perft for higher depths?
 
 // fn validated_perft(position: &Position, depth: u8) -> usize {
@@ -669,7 +702,7 @@ fn perft_artifacts() {
 // fn shakmaty_perft() {
 //     assert_eq!(
 //         validated_perft(
-//             
+//
 // &Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w
 // kq - 0 1")                 .unwrap(),
 //             6,
