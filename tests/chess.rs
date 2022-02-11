@@ -2,7 +2,7 @@ use std::fs;
 
 use itertools::Itertools;
 use pabi::chess::core::{Move, Promotion, Square};
-use pabi::chess::position::Position;
+use pabi::chess::position::{perft, Position};
 use pabi::util;
 use pretty_assertions::assert_eq;
 use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
@@ -449,9 +449,9 @@ fn random_positions() {
         let position = Position::from_fen(&serialized_position).unwrap();
         let shakmaty_setup: shakmaty::fen::Fen = serialized_position.parse().unwrap();
         let shakmaty_position: Chess = shakmaty_setup.position(CastlingMode::Standard).unwrap();
+        let moves = position.generate_moves();
         assert_eq!(
-            position
-                .generate_moves()
+            moves
                 .iter()
                 .map(|m| m.to_string())
                 .sorted()
@@ -463,28 +463,47 @@ fn random_positions() {
                 .sorted()
                 .collect::<Vec<_>>()
         );
+        // TODO: Shakmaty en passant implementation deviates from the standard.
+        // for next_move in moves {
+        //     let mut next_position = position.clone();
+        //     next_position.make_move(&next_move);
+        //     let uci =
+        // shakmaty::uci::Uci::from_ascii(next_move.to_string().as_bytes()).
+        // unwrap();     let mut next_shakmaty_position =
+        // shakmaty_position.clone();     next_shakmaty_position.
+        // play_unchecked(&uci.to_move(&next_shakmaty_position).unwrap());
+        //     assert_eq!(
+        //         next_position.fen(),
+        //         shakmaty::fen::fen(&next_shakmaty_position),
+        //         "original position: {}, move: {}, position: {}, shakmaty:
+        // {}",         position.fen(),
+        //         next_move.to_string(),
+        //         next_position.fen(),
+        //         shakmaty::fen::fen(&next_shakmaty_position),
+        //     );
+        // }
     }
 }
 
 #[test]
 fn basic_moves() {
     let mut position = setup("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    position.make_move(Move::new(Square::E2, Square::E4, None));
+    position.make_move(&Move::new(Square::E2, Square::E4, None));
     assert_eq!(
         position.fen(),
-        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
     );
-    position.make_move(Move::new(Square::E7, Square::E5, None));
+    position.make_move(&Move::new(Square::E7, Square::E5, None));
     assert_eq!(
         position.fen(),
-        "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
+        "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
     );
-    position.make_move(Move::new(Square::G1, Square::F3, None));
+    position.make_move(&Move::new(Square::G1, Square::F3, None));
     assert_eq!(
         position.fen(),
         "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"
     );
-    position.make_move(Move::new(Square::E8, Square::E7, None));
+    position.make_move(&Move::new(Square::E8, Square::E7, None));
     assert_eq!(
         position.fen(),
         "rnbq1bnr/ppppkppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQ - 2 3"
@@ -494,7 +513,7 @@ fn basic_moves() {
 #[test]
 fn promotion_moves() {
     let mut position = setup("2n4k/1PP5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 w - - 0 1");
-    position.make_move(Move::new(Square::B7, Square::C8, Some(Promotion::Queen)));
+    position.make_move(&Move::new(Square::B7, Square::C8, Some(Promotion::Queen)));
     assert_eq!(
         position.fen(),
         "2Q4k/2P5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 b - - 0 1"
@@ -504,6 +523,72 @@ fn promotion_moves() {
 #[test]
 fn castling_reset() {
     let mut position = setup("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
-    position.make_move(Move::new(Square::A1, Square::A8, None));
+    position.make_move(&Move::new(Square::A1, Square::A8, None));
     assert_eq!(position.fen(), "R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1");
+}
+
+#[test]
+fn perft_starting_position() {
+    let position = Position::starting();
+    assert_eq!(perft(&position, 0), 1);
+    assert_eq!(perft(&position, 1), 20);
+    assert_eq!(perft(&position, 2), 400);
+    assert_eq!(perft(&position, 3), 8902);
+    assert_eq!(perft(&position, 4), 197281);
+    assert_eq!(perft(&position, 5), 4865609);
+}
+
+// Position 2.
+#[test]
+fn perft_kiwipete() {
+    let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+    assert_eq!(perft(&position, 1), 48);
+    assert_eq!(perft(&position, 2), 2039);
+    assert_eq!(perft(&position, 3), 97862);
+    assert_eq!(perft(&position, 4), 4085603);
+}
+
+// Position 3.
+#[test]
+fn perft_endgame() {
+    let mut position = setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
+    let position = setup("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
+    assert_eq!(perft(&position, 1), 14);
+    assert_eq!(perft(&position, 2), 191);
+    assert_eq!(perft(&position, 3), 2812);
+    assert_eq!(perft(&position, 4), 43238);
+    assert_eq!(perft(&position, 5), 674624);
+}
+
+// Position 4.
+#[test]
+fn perft_complex() {
+    let position = setup("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+    assert_eq!(perft(&position, 1), 6);
+    assert_eq!(perft(&position, 2), 264);
+    assert_eq!(perft(&position, 3), 9467);
+    assert_eq!(perft(&position, 4), 422333);
+    assert_eq!(perft(&position, 5), 15833292);
+}
+
+// Position 5.
+#[test]
+fn perft_fifth() {
+    let position = setup("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+    assert_eq!(perft(&position, 1), 44);
+    assert_eq!(perft(&position, 2), 1486);
+    assert_eq!(perft(&position, 3), 62379);
+    assert_eq!(perft(&position, 4), 2103487);
+    assert_eq!(perft(&position, 5), 89941194);
+}
+
+// Position 6.
+#[test]
+fn perft_sixth() {
+    let position = setup("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+    assert_eq!(perft(&position, 1), 46);
+    assert_eq!(perft(&position, 2), 2079);
+    assert_eq!(perft(&position, 3), 89890);
+    assert_eq!(perft(&position, 4), 3894594);
+    // assert_eq!(perft(&position, 5), 164075551);
 }

@@ -8,29 +8,29 @@ starting point.
 
 ## Code map
 
-### `src/`
+### [`src/`](/src/)
 
-#### `src/chess/`
+#### [`src/chess/`](/src/chess/)
 
-#### `src/search/`
+#### [`src/search/`](/src/search/)
 
-#### `src/evaluation/`
+#### [`src/evaluation/`](/src/evaluation/)
 
-#### `src/interface/`
+#### [`src/interface/`](/src/interface/)
 
-### `training/`
+### [`training/`](/training/)
 
-### `tests/`
+### [`tests/`](/tests/)
 
-### `benches/`
+### [`benches/`](/benches/)
 
-### `fuzz/`
+### [`fuzz/`](/fuzz/)
 
-### `generated/`
+### [`generated/`](/generated/)
 
-Move generator and search benefit from pre-computed constants such as [Magic
-Bitboards], [Vector Attacks] and [Zobrist hashing] table. This data can be
-calculated at build time or startup instead but the drawbacks are:
+Pre-computed constants (such as [Magic Bitboards], [Vector Attacks] and [Zobrist
+hashing] table) speed up move generation and search. This data can be calculated
+at build time or startup instead but the drawbacks are:
 
 - Build time (compile-time Rust code can not make use of most built
   infrastructure) or runtime (warm-up time) overhead

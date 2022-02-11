@@ -95,8 +95,7 @@ impl AttackInfo {
         let (our, their) = (position.pieces(us), position.pieces(opponent));
         let (our_occupancy_without_king, their_occupancy) = (our.all() - our_king, their.all());
         let occupancy = our_occupancy_without_king | our_king | their_occupancy;
-        // TODO: Do unchecked.
-        let king_square: Square = our_king.try_into().expect("there should be only one king");
+        let king_square: Square = our_king.as_square();
         result.safe_king_squares = !our_occupancy_without_king & king_attacks(king_square);
         // TODO: Maybe iterating manually would be faster.
         for (kind, bitboard) in their.iter() {

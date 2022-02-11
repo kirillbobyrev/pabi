@@ -47,6 +47,7 @@ use crate::chess::core::{
 // representations at once to speed up querying the piece on a specific square.
 // Implement and benchmark this.
 // TODO: Make the fields private, expose appropriate assessors.
+#[derive(Clone)]
 pub struct Position {
     board: Board,
     castling: CastleRights,
@@ -303,7 +304,7 @@ impl Position {
     // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
     #[must_use]
     pub fn generate_moves(&self) -> Vec<Move> {
-        debug_assert!(validate(&self).is_ok());
+        // debug_assert!(validate(&self).is_ok(), "{}", self.fen());
         let attack_info = attacks::AttackInfo::new(self);
         // TODO: The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
@@ -505,14 +506,16 @@ impl Position {
     // TODO: Is it better to clone and return a new Position? It seems that the
     // most usecases (e.g. for search) would clone the position and then mutate
     // it anyway. This would prevent (im)mutability reference problems.
-    pub fn make_move(&mut self, next_move: Move) {
-        debug_assert!(self.is_legal());
+    pub fn make_move(&mut self, next_move: &Move) {
+        // debug_assert!(self.is_legal());
         let (us, they) = (self.us(), self.they());
         let our_backrank = Rank::backrank(us);
         let (our_pieces, their_pieces) = match self.us() {
             Player::White => (&mut self.board.white_pieces, &mut self.board.black_pieces),
             Player::Black => (&mut self.board.black_pieces, &mut self.board.white_pieces),
         };
+        let previous_en_passant = self.en_passant_square;
+        self.en_passant_square = None;
         if us == Player::Black {
             self.fullmove_counter += 1;
         }
@@ -547,7 +550,7 @@ impl Position {
             // Pawn move resets the clock.
             self.halfmove_clock = 0;
             // Check en passant.
-            if let Some(en_passant_square) = self.en_passant_square {
+            if let Some(en_passant_square) = previous_en_passant {
                 if next_move.to == en_passant_square {
                     let captured_pawn = Square::new(next_move.to.file(), next_move.from.rank());
                     their_pieces.pawns.clear(captured_pawn);
@@ -567,15 +570,16 @@ impl Position {
             }
             our_pieces.pawns.extend(next_move.to);
             let single_push_square = next_move.from.shift(us.push_direction()).unwrap();
-            if single_push_square != next_move.to {
+            if next_move.from.rank() == Rank::pawns_starting(us)
+                && next_move.from.file() == next_move.to.file()
+                && single_push_square != next_move.to
+                // Technically, this is not correct: https://github.com/jhlywa/chess.js/issues/294
+                && (their_pieces.pawns & attacks::pawn_attacks(single_push_square, us)).has_any()
+            {
                 self.en_passant_square = Some(single_push_square);
-            } else {
-                self.en_passant_square = None;
             }
             return;
         }
-        // Non-pawn move resets the en passant square.
-        self.en_passant_square = None;
         if our_pieces.king.contains(next_move.from) {
             // Check if the move is castling.
             if next_move.from.rank() == our_backrank
@@ -585,7 +589,7 @@ impl Position {
                 if next_move.to.file() == File::G {
                     // TODO: debug_assert!(self.can_castle_short())
                     our_pieces.rooks.clear(Square::new(File::H, our_backrank));
-                    our_pieces.rooks.extend(Square::new(File::E, our_backrank));
+                    our_pieces.rooks.extend(Square::new(File::F, our_backrank));
                 } else if next_move.to.file() == File::C {
                     // TODO: debug_assert!(self.can_castle_long())
                     our_pieces.rooks.clear(Square::new(File::A, our_backrank));
@@ -673,6 +677,25 @@ impl fmt::Debug for Position {
         writeln!(f, "FEN: {}", &self.to_string())?;
         Ok(())
     }
+}
+
+/// [Perft] (**per**formance **t**esting) is a technique for checking
+/// correctness of move generation by traversing the tree of possible positions
+/// (nodes) and calculating all the leaf nodes at certain depth.
+///
+/// [Perft]: https://www.chessprogramming.org/Perft
+pub fn perft(position: &Position, depth: u8) -> u64 {
+    if depth == 0 {
+        return 1;
+    }
+    let mut nodes = 0;
+    dbg!(position.generate_moves());
+    for next_move in position.generate_moves().iter() {
+        let mut next_position = position.clone();
+        next_position.make_move(next_move);
+        nodes += perft(&next_position, depth - 1);
+    }
+    nodes
 }
 
 // Checks if the position is "legal", i.e. if it can be reasoned about by

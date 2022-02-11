@@ -48,7 +48,6 @@
 // TODO: Re-export types for convenience.
 pub mod chess;
 
-pub mod perft;
 pub mod util;
 
 use clap::Parser;

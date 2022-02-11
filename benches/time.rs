@@ -99,5 +99,22 @@ criterion_group! {
 }
 
 // TODO: Perft.
+fn perft_bench(c: &mut Criterion) {
+    let mut group = c.benchmark_group("perft starting position");
+    for depth in [5, 6, 7].iter() {
+        group.bench_with_input(BenchmarkId::from_parameter(depth), depth, |b, &depth| {
+            b.iter(|| {
+                criterion::black_box(pabi::chess::position::perft(&Position::starting(), depth))
+            });
+        });
+    }
+    group.finish();
+}
 
-criterion_main!(position, movegen);
+criterion_group! {
+    name = perft;
+    config = Criterion::default().sample_size(10);
+    targets = perft_bench
+}
+
+criterion_main!(position, movegen, perft);

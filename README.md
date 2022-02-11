@@ -72,18 +72,19 @@ will help you get started:
 - [Building guide](/BUILDING.md)
 - [Contribution guide](/CONTRIBUTING.md)
 - [Architecture overview](/ARCHITECTURE.md)
+- [Developer Documentation](https://kirillbobyrev.github.io/pabi/docs/pabi/index.html)
+  For easier code navigation, read the developer documentation that is updated
+  after each commit.
 - [GitHub Issues](https://github.com/kirillbobyrev/pabi/issues) have some tasks
   you can pick up. Issues with ["good first issue"
   label](https://github.com/kirillbobyrev/pabi/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
   are the best if you are new to the project.
-
-[Developer Documentation](https://kirillbobyrev.github.io/pabi/docs/pabi/index.html)
-For easier code navigation, read the developer documentation that is updated
-after each commit.
+- [Resources] is a collection of materials about Chess Programming and ideas
+  for trying out in Pabi
 
 ## [Milestones]
 
-The project is in pre-0.1.0 stage and the plan can be changed.
+The project is in pre-0.1.0 stage, the plan is vague and subject to change.
 
 - [0.1.0] should be the skeleton of a chess engine. Most important features are
   implemented or drafted, the performance testing is in-place. There is a

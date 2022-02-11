@@ -28,7 +28,7 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 /// "check"/"checkmate" or moving piece disambiguation).
 // TODO: Implement bijection for a move and a numeric index.
 // TODO: Switch this to an enum representation (regular, en passant, castling).
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Move {
     pub(super) from: Square,
     pub(super) to: Square,
