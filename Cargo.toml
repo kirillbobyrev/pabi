@@ -53,7 +53,8 @@ name = "time"
 
 [profile.release]
 panic = "abort"
-debug = true
+# Needed for cargo flamegraph.
+# debug = true
 # TODO: Reduce binary size (requires nightly now, should be released in the
 # next stable version): https://github.com/rust-lang/cargo/pull/10088
 # strip = true

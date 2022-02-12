@@ -47,4 +47,4 @@ jobs:
       # Using -- --ignored is not possible with actions-rs/cargo, run plain
       # cargo instead.
       - name: Run expensive testts
-        run: cargo test -- --ignored
+        run: cargo test --release -- --ignored
