@@ -121,6 +121,32 @@ fn perft_bench(c: &mut Criterion) {
             6,
             706045033,
         ),
+        // Position 6.
+        (
+            Position::from_fen(
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+            )
+            .unwrap(),
+            5,
+            164075551,
+        ),
+        // Other positions.
+        (
+            Position::from_fen(
+                "r1bqkbnr/pppppppp/2n5/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 2 11",
+            )
+            .unwrap(),
+            5,
+            4865609,
+        ),
+        (
+            Position::from_fen(
+                "rnbqkbnr/pppppppp/8/8/8/N7/PPPPPPPP/R1BQKBNR b KQkq - 1 1 9",
+            )
+            .unwrap(),
+            6,
+            119060324,
+        ),
     ]
     .iter()
     {

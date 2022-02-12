@@ -576,7 +576,6 @@ fn perft_kiwipete_expensive() {
     // assert_eq!(perft(&position, 6), 8031647685);
 }
 
-
 // Position 3.
 #[test]
 fn perft_endgame() {

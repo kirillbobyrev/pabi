@@ -50,21 +50,9 @@ pub mod chess;
 
 pub mod util;
 
-use clap::Parser;
 use sysinfo::{System, SystemExt};
 
 const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
-
-/// Options for Command-Line Driver.
-// TODO: Write a decent message for the CLI options here.
-// TODO: Write a decent help message.
-// TODO: Print version containing features, build type, etc (+BMI2, etc). This
-// will require making build.rs and building the version string out of Cargo env
-// values
-// (https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates).
-#[derive(Parser, Debug)]
-#[clap(version=VERSION, author)]
-pub struct Opts {}
 
 /// Prints information about the host system.
 pub fn print_system_info() {

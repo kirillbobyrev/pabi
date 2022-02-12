@@ -11,14 +11,14 @@
 
 [![Dependencies](https://deps.rs/repo/github/kirillbobyrev/pabi/status.svg)](https://deps.rs/repo/github/kirillbobyrev/pabi)
 
-Pabi is a hypermodern chess engine.
+Pabi is a modern chess engine.
 
 ## Goals
 
 Pabi is inspired by existing Chess and Go engines (mainly [AlphaGo], [lc0],
-[Ceres] and [KataGo]). It strives to be a high-quality hypermodern engine.
+[Ceres] and [KataGo]). It strives to be a high-quality modern engine.
 
-**Hypermodern**: Pabi should use up-to-date [Rust] toolchain, is targeting new
+**Modern**: Pabi should use up-to-date [Rust] toolchain, is targeting new
 processor architectures, uses latest developments in the domains of programming
 tooling, Chess Programming and Machine Learning.
 

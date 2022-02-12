@@ -305,15 +305,13 @@ impl TryInto<Square> for Bitboard {
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
 /// is [`crate::chess::position::Position`], [Bitboard] is not very useful on
 /// its own.
-// TODO: Caching all() and either replacing it or adding to the set might
-// improve performance. This is what lc0 does:
-// https://github.com/LeelaChessZero/lc0/blob/d2e372e59cd9188315d5c02a20e0bdce88033bc5/src/chess/board.h
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct Pieces {
     pub(super) king: Bitboard,
     pub(super) queens: Bitboard,
     pub(super) rooks: Bitboard,
     pub(super) bishops: Bitboard,
+    // TODO: Store "all" instead.
     pub(super) knights: Bitboard,
     pub(super) pawns: Bitboard,
 }
