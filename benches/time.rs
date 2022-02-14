@@ -52,6 +52,7 @@ fn movegen_bench(c: &mut Criterion) {
     {
         positions.push(Position::try_from(line).unwrap());
     }
+    group.throughput(criterion::Throughput::Elements(positions.len() as u64));
     group.bench_with_input(
         BenchmarkId::new(
             "movegen_pabi",
@@ -75,6 +76,9 @@ fn movegen_bench(c: &mut Criterion) {
         let shakmaty_setup: shakmaty::fen::Fen = line.parse().unwrap();
         shakmaty_positions.push(shakmaty_setup.position(CastlingMode::Standard).unwrap());
     }
+    group.throughput(criterion::Throughput::Elements(
+        shakmaty_positions.len() as u64
+    ));
     group.bench_with_input(
         BenchmarkId::new(
             "movegen_reference_shakmaty",
@@ -132,24 +136,21 @@ fn perft_bench(c: &mut Criterion) {
         ),
         // Other positions.
         (
-            Position::from_fen(
-                "r1bqkbnr/pppppppp/2n5/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 2",
-            )
-            .unwrap(),
+            Position::from_fen("r1bqkbnr/pppppppp/2n5/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 2")
+                .unwrap(),
             6,
             336655487,
         ),
         (
-            Position::from_fen(
-                "rnbqkbnr/pppppppp/8/8/8/N7/PPPPPPPP/R1BQKBNR b KQkq - 1 1",
-            )
-            .unwrap(),
+            Position::from_fen("rnbqkbnr/pppppppp/8/8/8/N7/PPPPPPPP/R1BQKBNR b KQkq - 1 1")
+                .unwrap(),
             6,
             120142144,
         ),
     ]
     .iter()
     {
+        group.throughput(criterion::Throughput::Elements(nodes.clone()));
         group.bench_with_input(
             BenchmarkId::new(
                 "perft",

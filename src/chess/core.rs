@@ -686,6 +686,7 @@ pub enum Promotion {
 /// Traditionally those are North (Up), West (Left), East (Right), South (Down)
 /// and their combinations. However, using cardinal directions is confusing,
 /// hence they are replaced by relative directions.
+// TODO: Either use double directions in en passant calculations or only leave Up an Down.
 #[derive(Copy, Clone, Debug, strum::EnumIter)]
 pub enum Direction {
     /// Also known as NorthWest.

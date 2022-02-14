@@ -1,6 +1,6 @@
-// //! Provides fully-specified [Chess Position] implementation: stores
-// information
-//! about the board and tracks the state of castling, 50-move rule draw, etc.
+//! Provides fully-specified [Chess Position] implementation: stores
+//! information about the board and tracks the state of castling, 50-move rule
+//! draw, etc.
 //!
 //! The core of Move Generator and move making is also implemented here as a way
 //! to produce ways of mutating [`Position`].
@@ -67,6 +67,9 @@ pub struct Position {
 }
 
 impl Position {
+    // TODO: Document.
+    const MAX_MOVES: usize = 256;
+
     /// Creates the starting position of the standard chess.
     ///
     /// ```
@@ -294,22 +297,20 @@ impl Position {
     // https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/movegen.rs#L68-L85
     // TODO: Maybe use python-chess testset of perft moves:
     // https://github.com/niklasf/python-chess/blob/master/examples/perft/random.perft
-    // TODO: Compare with other engines and perft generators, e.g. Berserk,
-    // shakmaty (https://github.com/jordanbray/chess_perft).
+    // TODO: Compare with other engines and perft generators
+    // (https://github.com/jniemann66/juddperft).
     // TODO: Check movegen comparison (https://github.com/Gigantua/Chess_Movegen).
-    // TODO:: Store the moves on the stack instead? It might be faster, see
-    // https://github.com/niklasf/shakmaty/blob/e0020c0ab4b5f8601486c17c87b3313476a3cf12/src/movelist.rs
-    // Likely the best crate for this is https://github.com/servo/rust-smallvec
     // TODO: Use monomorphization to generate code for calculating attacks for both sides to reduce
     // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
+    // TODO: Split into subroutines so that it's easier to tune performance.
     #[must_use]
-    pub fn generate_moves(&self) -> Vec<Move> {
+    pub fn generate_moves(&self) -> arrayvec::ArrayVec<Move, { Position::MAX_MOVES }> {
         // debug_assert!(validate(&self).is_ok(), "{}", self.fen());
         let attack_info = attacks::AttackInfo::new(self);
         // TODO: The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
         // https://en.wikipedia.org/wiki/Branching_factor
-        let mut moves = Vec::with_capacity(50);
+        let mut moves = arrayvec::ArrayVec::<_, { Position::MAX_MOVES }>::new();
         // Cache squares occupied by each player.
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
@@ -422,19 +423,20 @@ impl Position {
         let push_direction = self.us().push_direction();
         let pawn_pushes = our_pieces.pawns.shift(push_direction) - occupied_squares;
         let original_squares = pawn_pushes.shift(push_direction.opposite());
-        let add_pawn_moves = |moves: &mut Vec<Move>, from, to: Square| {
-            // TODO: This is probably better with self.side_to_move.opponent().backrank()
-            // but might be slower.
-            match to.rank() {
-                Rank::Eight | Rank::One => {
-                    moves.push(Move::new(from, to, Some(Promotion::Queen)));
-                    moves.push(Move::new(from, to, Some(Promotion::Rook)));
-                    moves.push(Move::new(from, to, Some(Promotion::Bishop)));
-                    moves.push(Move::new(from, to, Some(Promotion::Knight)));
-                },
-                _ => moves.push(Move::new(from, to, None)),
-            }
-        };
+        let add_pawn_moves =
+            |moves: &mut arrayvec::ArrayVec<_, { Position::MAX_MOVES }>, from, to: Square| {
+                // TODO: This is probably better with self.side_to_move.opponent().backrank()
+                // but might be slower.
+                match to.rank() {
+                    Rank::Eight | Rank::One => {
+                        moves.push(Move::new(from, to, Some(Promotion::Queen)));
+                        moves.push(Move::new(from, to, Some(Promotion::Rook)));
+                        moves.push(Move::new(from, to, Some(Promotion::Bishop)));
+                        moves.push(Move::new(from, to, Some(Promotion::Knight)));
+                    },
+                    _ => moves.push(Move::new(from, to, None)),
+                }
+            };
         for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
             if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
                 continue;

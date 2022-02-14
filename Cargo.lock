@@ -408,9 +408,9 @@ dependencies = [
 
 [[package]]
 name = "output_vt100"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53cdc5b785b7a58c5aad8216b3dfa114df64b0b06ae6e1501cef91df2fbdf8f9"
+checksum = "628223faebab4e3e40667ee0b2336d34a5b960ff60ea743ddfdbcf7770bcfb66"
 dependencies = [
  "winapi",
 ]
@@ -420,6 +420,7 @@ name = "pabi"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "arrayvec",
  "bitflags",
  "clap 3.0.14",
  "criterion",
@@ -606,9 +607,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.78"
+version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d23c1ba4cf0efd44be32017709280b32d1cea5c3f1275c3b6d9e8bc54f758085"
+checksum = "8e8d9fa5c3b304765ce1fd9c4c8a3de2c8db365a5b91be52f186efc675681d95"
 dependencies = [
  "itoa 1.0.1",
  "ryu",
@@ -667,9 +668,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.23.1"
+version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bb29fc86b56b6d432ecdbbff2e5726aeaa69bf1bb48ddd994432b60d8bccd01"
+checksum = "92d82ade9d6621d4ca052a00bb6ea9ed513d223cba75a84625c5e9c0698ab6f5"
 dependencies = [
  "cfg-if",
  "core-foundation-sys",
