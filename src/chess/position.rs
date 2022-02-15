@@ -320,7 +320,9 @@ impl Position {
         let occupied_squares = self.occupied_squares();
         // Moving the king to safety is always correct regardless of the checks.
         for safe_square in attack_info.safe_king_squares.iter() {
-            moves.push(Move::new(our_king, safe_square, None));
+            unsafe {
+                moves.push_unchecked(Move::new(our_king, safe_square, None));
+            }
         }
         // If there are checks, the moves are restricted to resolving them.
         let blocking_ray = match attack_info.checkers.count() {
@@ -371,13 +373,13 @@ impl Position {
                         continue;
                     }
                     match (kind, to.rank()) {
-                        (PieceKind::Pawn, Rank::Eight | Rank::One) => {
-                            moves.push(Move::new(from, to, Some(Promotion::Queen)));
-                            moves.push(Move::new(from, to, Some(Promotion::Rook)));
-                            moves.push(Move::new(from, to, Some(Promotion::Bishop)));
-                            moves.push(Move::new(from, to, Some(Promotion::Knight)));
+                        (PieceKind::Pawn, Rank::Eight | Rank::One) => unsafe {
+                            moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
+                            moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
+                            moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
+                            moves.push_unchecked(Move::new(from, to, Some(Promotion::Knight)));
                         },
-                        _ => moves.push(Move::new(from, to, None)),
+                        _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
                     }
                 }
             }
@@ -395,7 +397,9 @@ impl Position {
                     if attack_info.pins.contains(our_pawn) {
                         continue;
                     }
-                    moves.push(Move::new(our_pawn, en_passant_square, None));
+                    unsafe {
+                        moves.push_unchecked(Move::new(our_pawn, en_passant_square, None));
+                    }
                 }
             } else {
                 // Check if capturing en passant does not create a discovered check.
@@ -414,7 +418,9 @@ impl Position {
                             & their_pieces.bishops)
                             .is_empty()
                     {
-                        moves.push(Move::new(our_pawn, en_passant_square, None));
+                        unsafe {
+                            moves.push_unchecked(Move::new(our_pawn, en_passant_square, None));
+                        }
                     }
                 }
             }
@@ -428,13 +434,13 @@ impl Position {
                 // TODO: This is probably better with self.side_to_move.opponent().backrank()
                 // but might be slower.
                 match to.rank() {
-                    Rank::Eight | Rank::One => {
-                        moves.push(Move::new(from, to, Some(Promotion::Queen)));
-                        moves.push(Move::new(from, to, Some(Promotion::Rook)));
-                        moves.push(Move::new(from, to, Some(Promotion::Bishop)));
-                        moves.push(Move::new(from, to, Some(Promotion::Knight)));
+                    Rank::Eight | Rank::One => unsafe {
+                        moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
+                        moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
+                        moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
+                        moves.push_unchecked(Move::new(from, to, Some(Promotion::Knight)));
                     },
-                    _ => moves.push(Move::new(from, to, None)),
+                    _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
                 }
             };
         for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
@@ -465,7 +471,9 @@ impl Position {
             {
                 continue;
             }
-            moves.push(Move::new(from, to, None));
+            unsafe {
+                moves.push_unchecked(Move::new(from, to, None));
+            }
         }
         // TODO: Generalize castling to FCR.
         // TODO: In FCR we should check if the rook is pinned or not.
@@ -479,7 +487,9 @@ impl Position {
                                 | attacks::WHITE_SHORT_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
-                        moves.push(Move::new(Square::E1, Square::G1, None));
+                        unsafe {
+                            moves.push_unchecked(Move::new(Square::E1, Square::G1, None));
+                        }
                     }
                     if self.castling.contains(CastleRights::WHITE_LONG)
                         && (attack_info.attacks & attacks::WHITE_LONG_CASTLE_KING_WALK).is_empty()
@@ -488,7 +498,9 @@ impl Position {
                                 | attacks::WHITE_LONG_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
-                        moves.push(Move::new(Square::E1, Square::C1, None));
+                        unsafe {
+                            moves.push_unchecked(Move::new(Square::E1, Square::C1, None));
+                        }
                     }
                 },
                 Player::Black => {
@@ -499,7 +511,9 @@ impl Position {
                                 | attacks::BLACK_SHORT_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
-                        moves.push(Move::new(Square::E8, Square::G8, None));
+                        unsafe {
+                            moves.push_unchecked(Move::new(Square::E8, Square::G8, None));
+                        }
                     }
                     if self.castling.contains(CastleRights::BLACK_LONG)
                         && (attack_info.attacks & attacks::BLACK_LONG_CASTLE_KING_WALK).is_empty()
@@ -508,7 +522,9 @@ impl Position {
                                 | attacks::BLACK_LONG_CASTLE_ROOK_WALK))
                             .is_empty()
                     {
-                        moves.push(Move::new(Square::E8, Square::C8, None));
+                        unsafe {
+                            moves.push_unchecked(Move::new(Square::E8, Square::C8, None));
+                        }
                     }
                 },
             }
