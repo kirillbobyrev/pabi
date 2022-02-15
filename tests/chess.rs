@@ -92,7 +92,7 @@ fn en_passant_double_check() {
 
 #[test]
 #[should_panic(expected = "expected <= 2 checks, got 3")]
-fn tripple_check() {
+fn triple_check() {
     Position::try_from("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34").unwrap();
 }
 
@@ -457,7 +457,7 @@ fn random_positions() {
             .unwrap()
             .lines()
     {
-        let position = Position::from_fen(&serialized_position).unwrap();
+        let position = Position::from_fen(serialized_position).unwrap();
         let shakmaty_setup: shakmaty::fen::Fen = serialized_position.parse().unwrap();
         let shakmaty_position: Chess = shakmaty_setup.position(CastlingMode::Standard).unwrap();
         let moves = position.generate_moves();
@@ -569,7 +569,7 @@ fn perft_kiwipete() {
 #[test]
 #[ignore]
 fn perft_kiwipete_expensive() {
-    // Positon 2.
+    // Position 2.
     let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
     assert_eq!(perft(&position, 4), 4085603);
     assert_eq!(perft(&position, 5), 193690690);

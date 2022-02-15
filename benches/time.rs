@@ -105,7 +105,7 @@ criterion_group! {
 // This acts both as performance and correctness test.
 fn perft_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("perft");
-    // TODO: Abstract this out and have a single array/dataset of perft positons to
+    // TODO: Abstract this out and have a single array/dataset of perft positions to
     // check. Inlining these is quite unappealing.
     // TODO: Add Throughput - it should be the number of nodes.
     for (position, depth, nodes) in [
@@ -150,7 +150,7 @@ fn perft_bench(c: &mut Criterion) {
     ]
     .iter()
     {
-        group.throughput(criterion::Throughput::Elements(nodes.clone()));
+        group.throughput(criterion::Throughput::Elements(*nodes));
         group.bench_with_input(
             BenchmarkId::new(
                 "perft",
@@ -164,7 +164,7 @@ fn perft_bench(c: &mut Criterion) {
             depth,
             |b, &depth| {
                 b.iter(|| {
-                    assert_eq!(pabi::chess::position::perft(&position, depth), *nodes);
+                    assert_eq!(pabi::chess::position::perft(position, depth), *nodes);
                 });
             },
         );

@@ -258,11 +258,9 @@ impl Position {
             None => bail!("incorrect FEN: missing halfmove clock"),
         };
         match parts.next() {
-            None => {
-                return match validate(&result) {
-                    Ok(_) => Ok(result),
-                    Err(e) => Err(e.context("illegal position")),
-                }
+            None => match validate(&result) {
+                Ok(_) => Ok(result),
+                Err(e) => Err(e.context("illegal position")),
             },
             Some(_) => bail!("trailing symbols are not allowed in FEN"),
         }
@@ -304,13 +302,13 @@ impl Position {
     // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
     // TODO: Split into subroutines so that it's easier to tune performance.
     #[must_use]
-    pub fn generate_moves(&self) -> arrayvec::ArrayVec<Move, { Position::MAX_MOVES }> {
+    pub fn generate_moves(&self) -> arrayvec::ArrayVec<Move, { Self::MAX_MOVES }> {
         // debug_assert!(validate(&self).is_ok(), "{}", self.fen());
         let attack_info = attacks::AttackInfo::new(self);
         // TODO: The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
         // https://en.wikipedia.org/wiki/Branching_factor
-        let mut moves = arrayvec::ArrayVec::<_, { Position::MAX_MOVES }>::new();
+        let mut moves = arrayvec::ArrayVec::<_, { Self::MAX_MOVES }>::new();
         // Cache squares occupied by each player.
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
@@ -430,7 +428,7 @@ impl Position {
         let pawn_pushes = our_pieces.pawns.shift(push_direction) - occupied_squares;
         let original_squares = pawn_pushes.shift(push_direction.opposite());
         let add_pawn_moves =
-            |moves: &mut arrayvec::ArrayVec<_, { Position::MAX_MOVES }>, from, to: Square| {
+            |moves: &mut arrayvec::ArrayVec<_, { Self::MAX_MOVES }>, from, to: Square| {
                 // TODO: This is probably better with self.side_to_move.opponent().backrank()
                 // but might be slower.
                 match to.rank() {
@@ -716,6 +714,7 @@ impl fmt::Debug for Position {
 /// (nodes) and calculating all the leaf nodes at certain depth.
 ///
 /// [Perft]: https://www.chessprogramming.org/Perft
+#[must_use]
 pub fn perft(position: &Position, depth: u8) -> u64 {
     debug_assert!(position.is_legal());
     if depth == 0 {

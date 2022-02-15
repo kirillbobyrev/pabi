@@ -46,7 +46,7 @@ impl Move {
     }
 
     #[must_use]
-    pub fn from_san(position: &Position) -> Self {
+    pub fn from_san(_position: &Position) -> Self {
         todo!()
     }
 }
