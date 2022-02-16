@@ -52,27 +52,26 @@ name = "cycles"
 harness = false
 name = "time"
 
+# This is not the most perofrmmance-optimized profile. Use `fast` instead. Read
+# BUILDING.md for more information.
 [profile.release]
 panic = "abort"
 # Needed for cargo flamegraph.
-# debug = true
-# TODO: Reduce binary size (requires nightly now, should be released in the
-# next stable version): https://github.com/rust-lang/cargo/pull/10088
-# strip = true
+debug = true
 
 # TODO: Mention this in BUILDING.md.
 # TODO: Test this out once the benchmarks are available and tweak specific
 # values. So far, this gives around -8% on parsing FEN/EPD positions.
 [profile.fast]
+debug = false
 codegen-units = 1
 inherits = "release"
 lto = "fat"
+# TODO: Reduce binary size (requires nightly now, should be released in the
+# next stable version): https://github.com/rust-lang/cargo/pull/10088
+# strip = true
 # TODO: Oh-oh, this is dangerous! So far, it doesn't give any benefits for
 # parsing positions but might be useful in the future.
 # overflow-checks = false
-# TODO: This should be a rustc flag. So far, parse_position benchmarks actually
-# show a regression in performance with this flag turned on. I'm not sure why
-# that is, probably better to wait for more benchmarks.
-# target-cpu = "native"
 # TODO: Tweak inline-threshold.
 # TODO: Set profile-generate and profile-use (https://github.com/kirillbobyrev/pabi/issues/9).

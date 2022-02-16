@@ -4,9 +4,8 @@
 // TODO: This code is probably by far the less appealing in the project.
 // Refactor it and make it nicer.
 
-use crate::chess::bitboard::Bitboard;
+use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{PieceKind, Player, Square, BOARD_SIZE};
-use crate::chess::position::Position;
 
 pub(super) fn king_attacks(from: Square) -> Bitboard {
     KING_ATTACKS[from as usize]
@@ -80,7 +79,13 @@ pub(super) struct AttackInfo {
 
 impl AttackInfo {
     // TODO: Handle each piece separately.
-    pub(super) fn new(position: &Position) -> Self {
+    pub(super) fn new(
+        they: Player,
+        their: &Pieces,
+        king: Square,
+        our_occupancy: Bitboard,
+        occupancy: Bitboard,
+    ) -> Self {
         let mut result = Self {
             attacks: Bitboard::empty(),
             checkers: Bitboard::empty(),
@@ -88,14 +93,8 @@ impl AttackInfo {
             xrays: Bitboard::empty(),
             safe_king_squares: Bitboard::empty(),
         };
-        let (us, opponent) = (position.us(), position.they());
-        let our_king = position.pieces(us).king;
-        let (our, their) = (position.pieces(us), position.pieces(opponent));
-        let (our_occupancy_without_king, their_occupancy) = (our.all() - our_king, their.all());
-        let occupancy = our_occupancy_without_king | our_king | their_occupancy;
-        let king_square: Square = our_king.as_square();
-        result.safe_king_squares = !our_occupancy_without_king & king_attacks(king_square);
-        // TODO: Maybe iterating manually would be faster.
+        result.safe_king_squares = !our_occupancy & king_attacks(king);
+        let occupancy_without_king = occupancy - Bitboard::from(king);
         for (kind, bitboard) in their.iter() {
             for attacker_square in bitboard.iter() {
                 let targets = match kind {
@@ -104,10 +103,10 @@ impl AttackInfo {
                     PieceKind::Rook => rook_attacks(attacker_square, occupancy),
                     PieceKind::Bishop => bishop_attacks(attacker_square, occupancy),
                     PieceKind::Knight => knight_attacks(attacker_square),
-                    PieceKind::Pawn => pawn_attacks(attacker_square, opponent),
+                    PieceKind::Pawn => pawn_attacks(attacker_square, they),
                 };
                 result.attacks |= targets;
-                if targets.contains(king_square) {
+                if targets.contains(king) {
                     result.checkers.extend(attacker_square);
                 }
                 // Only the sliders can take away more safe squares than attacked directly.
@@ -115,7 +114,7 @@ impl AttackInfo {
                     continue;
                 }
                 // TODO: Document this.
-                if targets.contains(king_square) {
+                if targets.contains(king) {
                     for square in result.safe_king_squares.iter() {
                         let new_attack_ray = match kind {
                             PieceKind::Queen => ray(attacker_square, square),
@@ -124,9 +123,7 @@ impl AttackInfo {
                             _ => unreachable!(),
                         };
                         if !new_attack_ray.is_empty()
-                            && (new_attack_ray & (our_occupancy_without_king | their_occupancy))
-                                .count()
-                                == 1
+                            && (new_attack_ray & occupancy_without_king).count() == 1
                         {
                             result.safe_king_squares.clear(square);
                         }
@@ -137,14 +134,14 @@ impl AttackInfo {
                 }
                 // Calculate the pin.
                 let attack_ray = match kind {
-                    PieceKind::Queen => ray(attacker_square, king_square),
-                    PieceKind::Rook => rook_ray(attacker_square, king_square),
-                    PieceKind::Bishop => bishop_ray(attacker_square, king_square),
+                    PieceKind::Queen => ray(attacker_square, king),
+                    PieceKind::Rook => rook_ray(attacker_square, king),
+                    PieceKind::Bishop => bishop_ray(attacker_square, king),
                     _ => Bitboard::empty(),
                 };
                 let blocker = (attack_ray & occupancy) - Bitboard::from(attacker_square);
                 if blocker.count() == 1 {
-                    if (blocker & our_occupancy_without_king).has_any() {
+                    if (blocker & our_occupancy).has_any() {
                         result.pins |= blocker;
                     } else {
                         result.xrays |= blocker;
@@ -570,7 +567,7 @@ mod test {
     #[test]
     fn basic_attack_info() {
         let position = Position::try_from("3kn3/3p4/8/6B1/8/6K1/3R4/8 b - - 0 1").unwrap();
-        let attacks = AttackInfo::new(&position);
+        let attacks = position.attack_info();
         assert_eq!(
             format!("{:?}", attacks.attacks),
             ". . . 1 . . . .\n\
@@ -611,7 +608,7 @@ mod test {
     #[test]
     fn xrays() {
         let position = Position::try_from("b6k/8/8/3p4/8/8/8/7K w - - 0 1").unwrap();
-        let attacks = AttackInfo::new(&position);
+        let attacks = position.attack_info();
         assert_eq!(
             format!("{:?}", attacks.attacks),
             ". . . . . . 1 .\n\
@@ -642,7 +639,7 @@ mod test {
     fn rich_attack_info() {
         let position =
             Position::try_from("1k3q2/8/8/4PP2/q4K2/3nRBR1/3b1Nr1/5r2 w - - 0 1").unwrap();
-        let attacks = AttackInfo::new(&position);
+        let attacks = position.attack_info();
         assert_eq!(
             format!("{:?}", attacks.attacks),
             "1 1 1 1 1 . 1 1\n\
@@ -675,6 +672,36 @@ mod test {
             . . . . 1 . . .\n\
             . . . . . . . .\n\
             . . . . . . . ."
+        );
+        assert!(attacks.xrays.is_empty());
+    }
+
+    #[test]
+    fn complicated_attack_info() {
+        let position =
+            Position::try_from("2r3r1/3p3k/1p3pp1/1B5P/5P2/2P1pqP1/PP4KP/3R4 w - - 0 34").unwrap();
+        let attacks = position.attack_info();
+        assert_eq!(
+            format!("{:?}", attacks.checkers),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . 1 . .\n\
+            . . . . . . . .\n\
+            . . . . . . . ."
+        );
+        assert_eq!(
+            format!("{:?}", attacks.safe_king_squares),
+            ". . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . . . .\n\
+            . . . . . 1 . 1\n\
+            . . . . . . . .\n\
+            . . . . . . 1 ."
         );
         assert!(attacks.xrays.is_empty());
     }

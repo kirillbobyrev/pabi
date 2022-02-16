@@ -472,27 +472,9 @@ fn random_positions() {
                 .iter()
                 .map(|m| m.to_uci(CastlingMode::Standard).to_string())
                 .sorted()
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
+            "position: {serialized_position}"
         );
-        // TODO: Shakmaty en passant implementation deviates from the standard.
-        // for next_move in moves {
-        //     let mut next_position = position.clone();
-        //     next_position.make_move(&next_move);
-        //     let uci =
-        // shakmaty::uci::Uci::from_ascii(next_move.to_string().as_bytes()).
-        // unwrap();     let mut next_shakmaty_position =
-        // shakmaty_position.clone();     next_shakmaty_position.
-        // play_unchecked(&uci.to_move(&next_shakmaty_position).unwrap());
-        //     assert_eq!(
-        //         next_position.fen(),
-        //         shakmaty::fen::fen(&next_shakmaty_position),
-        //         "original position: {}, move: {}, position: {}, shakmaty:
-        // {}",         position.fen(),
-        //         next_move.to_string(),
-        //         next_position.fen(),
-        //         shakmaty::fen::fen(&next_shakmaty_position),
-        //     );
-        // }
     }
 }
 

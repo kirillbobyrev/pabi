@@ -276,6 +276,15 @@ impl Position {
         validate(self).is_ok()
     }
 
+    pub(super) fn attack_info(&self) -> attacks::AttackInfo {
+        let (us, they) = (self.us(), self.they());
+        let (our_pieces, their_pieces) = (self.pieces(us), self.pieces(they));
+        let king: Square = our_pieces.king.as_square();
+        let (our_occupancy, their_occupancy) = (our_pieces.all(), their_pieces.all());
+        let occupancy = our_occupancy | their_occupancy;
+        attacks::AttackInfo::new(they, their_pieces, king, our_occupancy, occupancy)
+    }
+
     /// Calculates a list of legal moves (i.e. the moves that do not leave our
     /// king in check).
     ///
@@ -309,15 +318,17 @@ impl Position {
     pub fn generate_moves(&self) -> MoveList {
         let mut moves = MoveList::new();
         // debug_assert!(validate(&self).is_ok(), "{}", self.fen());
-        let attack_info = attacks::AttackInfo::new(self);
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
-        let (our_pieces, their_pieces) = (self.pieces(self.us()), self.pieces(self.they()));
-        let our_king: Square = our_pieces.king.as_square();
-        let non_capture_mask = our_pieces.all();
-        let occupied_squares = self.occupied_squares();
+        let (us, they) = (self.us(), self.they());
+        let (our_pieces, their_pieces) = (self.pieces(us), self.pieces(they));
+        let king: Square = our_pieces.king.as_square();
+        let (our_occupancy, their_occupancy) = (our_pieces.all(), their_pieces.all());
+        let occupancy = our_occupancy | their_occupancy;
+        let attack_info =
+            attacks::AttackInfo::new(they, their_pieces, king, our_occupancy, occupancy);
         // Moving the king to safety is always a valid move.
-        generate_king_moves(our_king, attack_info.safe_king_squares, &mut moves);
+        generate_king_moves(king, attack_info.safe_king_squares, &mut moves);
         // If there are checks, the moves are restricted to resolving them.
         let blocking_ray = match attack_info.checkers.count() {
             0 => Bitboard::empty(),
@@ -329,7 +340,7 @@ impl Position {
             // The former is calculated above, the latter is dealt with below.
             1 => {
                 let checker: Square = attack_info.checkers.as_square();
-                let ray = attacks::ray(checker, our_king);
+                let ray = attacks::ray(checker, king);
                 if ray.is_empty() {
                     // This means the checker is a knight: capture is the only
                     // way left to resolve this check.
@@ -347,107 +358,61 @@ impl Position {
         };
         generate_queen_moves(
             our_pieces.queens,
-            occupied_squares,
-            non_capture_mask,
+            occupancy,
+            our_occupancy,
             blocking_ray,
             attack_info.pins,
-            our_king,
+            king,
             &mut moves,
         );
         generate_knight_moves(
             our_pieces.knights,
-            non_capture_mask,
+            our_occupancy,
             attack_info.pins,
             blocking_ray,
             &mut moves,
         );
         generate_rook_moves(
             our_pieces.rooks,
-            occupied_squares,
-            non_capture_mask,
+            occupancy,
+            our_occupancy,
             blocking_ray,
             attack_info.pins,
-            our_king,
+            king,
             &mut moves,
         );
         generate_bishop_moves(
             our_pieces.bishops,
-            occupied_squares,
-            non_capture_mask,
+            occupancy,
+            our_occupancy,
             blocking_ray,
             attack_info.pins,
-            our_king,
+            king,
             &mut moves,
         );
         generate_pawn_moves(
             our_pieces.pawns,
-            self.us(),
-            self.they(),
+            us,
+            they,
             their_pieces,
-            their_pieces.all(),
-            non_capture_mask,
+            their_occupancy,
+            our_occupancy,
             blocking_ray,
             attack_info.pins,
             attack_info.checkers,
-            our_king,
+            king,
             self.en_passant_square,
-            occupied_squares,
+            occupancy,
             &mut moves,
         );
-        // TODO: Generalize castling to FCR.
-        // TODO: In FCR we should check if the rook is pinned or not.
-        if attack_info.checkers.is_empty() {
-            match self.us() {
-                Player::White => {
-                    if self.castling.contains(CastleRights::WHITE_SHORT)
-                        && (attack_info.attacks & attacks::WHITE_SHORT_CASTLE_KING_WALK).is_empty()
-                        && (occupied_squares
-                            & (attacks::WHITE_SHORT_CASTLE_KING_WALK
-                                | attacks::WHITE_SHORT_CASTLE_ROOK_WALK))
-                            .is_empty()
-                    {
-                        unsafe {
-                            moves.push_unchecked(Move::new(Square::E1, Square::G1, None));
-                        }
-                    }
-                    if self.castling.contains(CastleRights::WHITE_LONG)
-                        && (attack_info.attacks & attacks::WHITE_LONG_CASTLE_KING_WALK).is_empty()
-                        && (occupied_squares
-                            & (attacks::WHITE_LONG_CASTLE_KING_WALK
-                                | attacks::WHITE_LONG_CASTLE_ROOK_WALK))
-                            .is_empty()
-                    {
-                        unsafe {
-                            moves.push_unchecked(Move::new(Square::E1, Square::C1, None));
-                        }
-                    }
-                },
-                Player::Black => {
-                    if self.castling.contains(CastleRights::BLACK_SHORT)
-                        && (attack_info.attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
-                        && (occupied_squares
-                            & (attacks::BLACK_SHORT_CASTLE_KING_WALK
-                                | attacks::BLACK_SHORT_CASTLE_ROOK_WALK))
-                            .is_empty()
-                    {
-                        unsafe {
-                            moves.push_unchecked(Move::new(Square::E8, Square::G8, None));
-                        }
-                    }
-                    if self.castling.contains(CastleRights::BLACK_LONG)
-                        && (attack_info.attacks & attacks::BLACK_LONG_CASTLE_KING_WALK).is_empty()
-                        && (occupied_squares
-                            & (attacks::BLACK_LONG_CASTLE_KING_WALK
-                                | attacks::BLACK_LONG_CASTLE_ROOK_WALK))
-                            .is_empty()
-                    {
-                        unsafe {
-                            moves.push_unchecked(Move::new(Square::E8, Square::C8, None));
-                        }
-                    }
-                },
-            }
-        }
+        generate_castle_moves(
+            us,
+            attack_info.checkers,
+            self.castling,
+            attack_info.attacks,
+            occupancy,
+            &mut moves,
+        );
         moves
     }
 
@@ -487,7 +452,6 @@ impl Position {
         if their_pieces.all().contains(next_move.to) {
             // Capturing a piece resets the clock.
             self.halfmove_clock = 0;
-            // TODO: Clear castling rights if we're capturing opponent's rook.
             match (they, next_move.to) {
                 (Player::White, Square::H1) => self.castling.remove(CastleRights::WHITE_SHORT),
                 (Player::White, Square::A1) => self.castling.remove(CastleRights::WHITE_LONG),
@@ -573,8 +537,6 @@ impl Position {
     }
 }
 
-// TODO: Take plain bytes through from_ascii: that's more principled and may be
-// faster.
 impl TryFrom<&str> for Position {
     type Error = anyhow::Error;
 
@@ -686,10 +648,10 @@ fn validate(position: &Position) -> anyhow::Result<()> {
     {
         bail!("pawns can not be placed on backranks")
     }
-    let attacks = attacks::AttackInfo::new(position);
+    let attack_info = position.attack_info();
     // Can't have more than two checks.
-    if attacks.checkers.count() > 2 {
-        bail!("expected <= 2 checks, got {}", attacks.checkers.count())
+    if attack_info.checkers.count() > 2 {
+        bail!("expected <= 2 checks, got {}", attack_info.checkers.count())
     }
     if let Some(en_passant_square) = position.en_passant_square {
         let expected_rank = match position.side_to_move {
@@ -714,13 +676,13 @@ fn validate(position: &Position) -> anyhow::Result<()> {
         // If en-passant was played and there's a check, doubly pushed pawn
         // should be the only checker or it should be a discovery.
         let king = position.pieces(position.us()).king.as_square();
-        if attacks.checkers.has_any() {
-            if attacks.checkers.count() > 1 {
+        if attack_info.checkers.has_any() {
+            if attack_info.checkers.count() > 1 {
                 bail!("more than 1 check after double pawn push is impossible")
             }
             // The check wasn't delivered by pushed pawn.
-            if attacks.checkers != Bitboard::from(pushed_pawn) {
-                let checker = attacks.checkers.as_square();
+            if attack_info.checkers != Bitboard::from(pushed_pawn) {
+                let checker = attack_info.checkers.as_square();
                 let original_square = en_passant_square
                     .shift(position.us().push_direction())
                     .unwrap();
@@ -972,6 +934,70 @@ fn generate_pawn_moves(
         }
         unsafe {
             moves.push_unchecked(Move::new(from, to, None));
+        }
+    }
+}
+
+fn generate_castle_moves(
+    us: Player,
+    checkers: Bitboard,
+    castling: CastleRights,
+    attacks: Bitboard,
+    occupied_squares: Bitboard,
+    moves: &mut MoveList,
+) {
+    // TODO: Generalize castling to FCR.
+    // TODO: In FCR we should check if the rook is pinned or not.
+    if checkers.is_empty() {
+        match us {
+            Player::White => {
+                if castling.contains(CastleRights::WHITE_SHORT)
+                    && (attacks & attacks::WHITE_SHORT_CASTLE_KING_WALK).is_empty()
+                    && (occupied_squares
+                        & (attacks::WHITE_SHORT_CASTLE_KING_WALK
+                            | attacks::WHITE_SHORT_CASTLE_ROOK_WALK))
+                        .is_empty()
+                {
+                    unsafe {
+                        moves.push_unchecked(Move::new(Square::E1, Square::G1, None));
+                    }
+                }
+                if castling.contains(CastleRights::WHITE_LONG)
+                    && (attacks & attacks::WHITE_LONG_CASTLE_KING_WALK).is_empty()
+                    && (occupied_squares
+                        & (attacks::WHITE_LONG_CASTLE_KING_WALK
+                            | attacks::WHITE_LONG_CASTLE_ROOK_WALK))
+                        .is_empty()
+                {
+                    unsafe {
+                        moves.push_unchecked(Move::new(Square::E1, Square::C1, None));
+                    }
+                }
+            },
+            Player::Black => {
+                if castling.contains(CastleRights::BLACK_SHORT)
+                    && (attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
+                    && (occupied_squares
+                        & (attacks::BLACK_SHORT_CASTLE_KING_WALK
+                            | attacks::BLACK_SHORT_CASTLE_ROOK_WALK))
+                        .is_empty()
+                {
+                    unsafe {
+                        moves.push_unchecked(Move::new(Square::E8, Square::G8, None));
+                    }
+                }
+                if castling.contains(CastleRights::BLACK_LONG)
+                    && (attacks & attacks::BLACK_LONG_CASTLE_KING_WALK).is_empty()
+                    && (occupied_squares
+                        & (attacks::BLACK_LONG_CASTLE_KING_WALK
+                            | attacks::BLACK_LONG_CASTLE_ROOK_WALK))
+                        .is_empty()
+                {
+                    unsafe {
+                        moves.push_unchecked(Move::new(Square::E8, Square::C8, None));
+                    }
+                }
+            },
         }
     }
 }

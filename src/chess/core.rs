@@ -71,7 +71,7 @@ const MAX_MOVES: usize = 256;
 
 /// Moves are stored on stack to avoid memory allocations. This is important for
 /// performance reasons and also prevents unnecessary copying that would occur
-/// if the moves would be stored in std::Vec with unknown capacity.
+/// if the moves would be stored in `std::Vec` with unknown capacity.
 pub type MoveList = arrayvec::ArrayVec<Move, { MAX_MOVES }>;
 
 /// Board squares: from left to right, from bottom to the top ([Little-Endian Rank-File Mapping]):

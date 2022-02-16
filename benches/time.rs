@@ -31,7 +31,7 @@ fn parse(c: &mut Criterion) {
 }
 
 criterion_group! {
-    name = position;
+    name = position_parsing;
     config = Criterion::default().sample_size(10);
     targets = parse
 }
@@ -178,4 +178,4 @@ criterion_group! {
     targets = perft_bench
 }
 
-criterion_main!(position, movegen, perft);
+criterion_main!(position_parsing, movegen, perft);
