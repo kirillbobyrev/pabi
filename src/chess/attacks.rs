@@ -73,6 +73,7 @@ pub(super) struct AttackInfo {
     pub(super) attacks: Bitboard,
     pub(super) checkers: Bitboard,
     pub(super) pins: Bitboard,
+    // TODO: Get rid of the XRays.
     pub(super) xrays: Bitboard,
     pub(super) safe_king_squares: Bitboard,
 }
@@ -95,57 +96,84 @@ impl AttackInfo {
         };
         result.safe_king_squares = !our_occupancy & king_attacks(king);
         let occupancy_without_king = occupancy - Bitboard::from(king);
-        for (kind, bitboard) in their.iter() {
-            for attacker_square in bitboard.iter() {
-                let targets = match kind {
-                    PieceKind::King => king_attacks(attacker_square),
-                    PieceKind::Queen => queen_attacks(attacker_square, occupancy),
-                    PieceKind::Rook => rook_attacks(attacker_square, occupancy),
-                    PieceKind::Bishop => bishop_attacks(attacker_square, occupancy),
-                    PieceKind::Knight => knight_attacks(attacker_square),
-                    PieceKind::Pawn => pawn_attacks(attacker_square, they),
-                };
-                result.attacks |= targets;
-                if targets.contains(king) {
-                    result.checkers.extend(attacker_square);
+        // King.
+        let their_king = their.king.as_square();
+        result.attacks |= king_attacks(their_king);
+        // Knights.
+        for knight in their.knights.iter() {
+            let targets = knight_attacks(knight);
+            result.attacks |= targets;
+            if targets.contains(king) {
+                result.checkers.extend(knight);
+            }
+        }
+        // Pawns.
+        for pawn in their.pawns.iter() {
+            let targets = pawn_attacks(pawn, they);
+            result.attacks |= targets;
+            if targets.contains(king) {
+                result.checkers.extend(pawn);
+            }
+        }
+        // Queens.
+        // TODO: Sliders repeat each other. Pull this into a function.
+        for queen in their.queens.iter() {
+            let targets = queen_attacks(queen, occupancy);
+            result.attacks |= targets;
+            if targets.contains(king) {
+                result.checkers.extend(queen);
+                result.safe_king_squares -= queen_attacks(queen, occupancy_without_king);
+                // An attack can be either a check or a (potential) pin, not
+                // both.
+                continue;
+            }
+            let attack_ray = ray(queen, king);
+            let blocker = (attack_ray & occupancy) - Bitboard::from(queen);
+            if blocker.count() == 1 {
+                if (blocker & our_occupancy).has_any() {
+                    result.pins |= blocker;
+                } else {
+                    result.xrays |= blocker;
                 }
-                // Only the sliders can take away more safe squares than attacked directly.
-                if kind == PieceKind::King || kind == PieceKind::Pawn || kind == PieceKind::Knight {
-                    continue;
+            }
+        }
+        for bishop in their.bishops.iter() {
+            let targets = bishop_attacks(bishop, occupancy);
+            result.attacks |= targets;
+            if targets.contains(king) {
+                result.checkers.extend(bishop);
+                result.safe_king_squares -= bishop_attacks(bishop, occupancy_without_king);
+                // An attack can be either a check or a (potential) pin, not
+                // both.
+                continue;
+            }
+            let attack_ray = bishop_ray(bishop, king);
+            let blocker = (attack_ray & occupancy) - Bitboard::from(bishop);
+            if blocker.count() == 1 {
+                if (blocker & our_occupancy).has_any() {
+                    result.pins |= blocker;
+                } else {
+                    result.xrays |= blocker;
                 }
-                // TODO: Document this.
-                if targets.contains(king) {
-                    for square in result.safe_king_squares.iter() {
-                        let new_attack_ray = match kind {
-                            PieceKind::Queen => ray(attacker_square, square),
-                            PieceKind::Rook => rook_ray(attacker_square, square),
-                            PieceKind::Bishop => bishop_ray(attacker_square, square),
-                            _ => unreachable!(),
-                        };
-                        if !new_attack_ray.is_empty()
-                            && (new_attack_ray & occupancy_without_king).count() == 1
-                        {
-                            result.safe_king_squares.clear(square);
-                        }
-                    }
-                    // An attack can be either a check or a (potential) pin, not
-                    // both.
-                    continue;
-                }
-                // Calculate the pin.
-                let attack_ray = match kind {
-                    PieceKind::Queen => ray(attacker_square, king),
-                    PieceKind::Rook => rook_ray(attacker_square, king),
-                    PieceKind::Bishop => bishop_ray(attacker_square, king),
-                    _ => Bitboard::empty(),
-                };
-                let blocker = (attack_ray & occupancy) - Bitboard::from(attacker_square);
-                if blocker.count() == 1 {
-                    if (blocker & our_occupancy).has_any() {
-                        result.pins |= blocker;
-                    } else {
-                        result.xrays |= blocker;
-                    }
+            }
+        }
+        for rook in their.rooks.iter() {
+            let targets = rook_attacks(rook, occupancy);
+            result.attacks |= targets;
+            if targets.contains(king) {
+                result.checkers.extend(rook);
+                result.safe_king_squares -= rook_attacks(rook, occupancy_without_king);
+                // An attack can be either a check or a (potential) pin, not
+                // both.
+                continue;
+            }
+            let attack_ray = rook_ray(rook, king);
+            let blocker = (attack_ray & occupancy) - Bitboard::from(rook);
+            if blocker.count() == 1 {
+                if (blocker & our_occupancy).has_any() {
+                    result.pins |= blocker;
+                } else {
+                    result.xrays |= blocker;
                 }
             }
         }
@@ -233,6 +261,7 @@ mod test {
 
     use super::*;
     use crate::chess::core::Rank;
+    use crate::chess::position::Position;
 
     #[test]
     fn sliders() {
