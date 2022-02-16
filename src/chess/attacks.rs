@@ -69,9 +69,6 @@ fn pext(a: u64, mask: u64) -> u64 {
     }
 }
 
-// TODO: It's probably better off decomposed into fn checkers(), fn pins(), fn
-// safe_king_squares(), fn xrays(). The overllap might not be worth it to keep
-// everything together.
 #[derive(Debug)]
 pub(super) struct AttackInfo {
     pub(super) attacks: Bitboard,
@@ -82,6 +79,7 @@ pub(super) struct AttackInfo {
 }
 
 impl AttackInfo {
+    // TODO: Handle each piece separately.
     pub(super) fn new(position: &Position) -> Self {
         let mut result = Self {
             attacks: Bitboard::empty(),

@@ -19,7 +19,6 @@ use crate::chess::core::{
     Move,
     MoveList,
     Piece,
-    PieceKind,
     Player,
     Promotion,
     Rank,
@@ -267,6 +266,16 @@ impl Position {
         self.to_string()
     }
 
+    #[must_use]
+    pub fn has_insufficient_material(&self) -> bool {
+        todo!()
+    }
+
+    #[must_use]
+    pub fn is_legal(&self) -> bool {
+        validate(self).is_ok()
+    }
+
     /// Calculates a list of legal moves (i.e. the moves that do not leave our
     /// king in check).
     ///
@@ -298,25 +307,17 @@ impl Position {
     // TODO: Split into subroutines so that it's easier to tune performance.
     #[must_use]
     pub fn generate_moves(&self) -> MoveList {
+        let mut moves = MoveList::new();
         // debug_assert!(validate(&self).is_ok(), "{}", self.fen());
         let attack_info = attacks::AttackInfo::new(self);
-        // TODO: The average branching factor for chess is 35 but we probably
-        // have to account for a healthy percentile instead of the average.
-        // https://en.wikipedia.org/wiki/Branching_factor
-        let mut moves = MoveList::new();
-        // Cache squares occupied by each player.
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
         let (our_pieces, their_pieces) = (self.pieces(self.us()), self.pieces(self.they()));
         let our_king: Square = our_pieces.king.as_square();
         let non_capture_mask = our_pieces.all();
         let occupied_squares = self.occupied_squares();
-        // Moving the king to safety is always correct regardless of the checks.
-        for safe_square in attack_info.safe_king_squares.iter() {
-            unsafe {
-                moves.push_unchecked(Move::new(our_king, safe_square, None));
-            }
-        }
+        // Moving the king to safety is always a valid move.
+        generate_king_moves(our_king, attack_info.safe_king_squares, &mut moves);
         // If there are checks, the moves are restricted to resolving them.
         let blocking_ray = match attack_info.checkers.count() {
             0 => Bitboard::empty(),
@@ -344,129 +345,55 @@ impl Position {
             2 => return moves,
             _ => unreachable!("more than two pieces can not check the king"),
         };
-        // TODO: Maybe iterating manually would be faster.
-        for (kind, bitboard) in self.pieces(self.us()).iter() {
-            for from in bitboard.iter() {
-                let targets = match kind {
-                    PieceKind::King => Bitboard::empty(),
-                    PieceKind::Queen => attacks::queen_attacks(from, occupied_squares),
-                    PieceKind::Rook => attacks::rook_attacks(from, occupied_squares),
-                    PieceKind::Bishop => attacks::bishop_attacks(from, occupied_squares),
-                    PieceKind::Knight => attacks::knight_attacks(from),
-                    PieceKind::Pawn => attacks::pawn_attacks(from, self.us()) & their_pieces.all(),
-                } - non_capture_mask;
-                for to in targets.iter() {
-                    // TODO: This block is repeated several times; abstract it out.
-                    if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
-                        continue;
-                    }
-                    if attack_info.pins.contains(from)
-                        && (attacks::ray(from, our_king) & attacks::ray(to, our_king)).is_empty()
-                    {
-                        continue;
-                    }
-                    match (kind, to.rank()) {
-                        (PieceKind::Pawn, Rank::Eight | Rank::One) => unsafe {
-                            moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
-                            moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
-                            moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
-                            moves.push_unchecked(Move::new(from, to, Some(Promotion::Knight)));
-                        },
-                        _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
-                    }
-                }
-            }
-        }
-        // Generate en passant moves.
-        if let Some(en_passant_square) = self.en_passant_square {
-            let en_passant_pawn = en_passant_square
-                .shift(self.they().push_direction())
-                .unwrap();
-            // Check if capturing en passant resolves the check.
-            let candidate_pawns =
-                attacks::pawn_attacks(en_passant_square, self.they()) & our_pieces.pawns;
-            if attack_info.checkers.contains(en_passant_pawn) {
-                for our_pawn in candidate_pawns.iter() {
-                    if attack_info.pins.contains(our_pawn) {
-                        continue;
-                    }
-                    unsafe {
-                        moves.push_unchecked(Move::new(our_pawn, en_passant_square, None));
-                    }
-                }
-            } else {
-                // Check if capturing en passant does not create a discovered check.
-                for our_pawn in candidate_pawns.iter() {
-                    let mut occupancy_after_capture = occupied_squares;
-                    occupancy_after_capture.clear(our_pawn);
-                    occupancy_after_capture.clear(en_passant_pawn);
-                    occupancy_after_capture.extend(en_passant_square);
-                    if (attacks::queen_attacks(our_king, occupancy_after_capture)
-                        & their_pieces.queens)
-                        .is_empty()
-                        && (attacks::rook_attacks(our_king, occupancy_after_capture)
-                            & their_pieces.rooks)
-                            .is_empty()
-                        && (attacks::bishop_attacks(our_king, occupancy_after_capture)
-                            & their_pieces.bishops)
-                            .is_empty()
-                    {
-                        unsafe {
-                            moves.push_unchecked(Move::new(our_pawn, en_passant_square, None));
-                        }
-                    }
-                }
-            }
-        }
-        // Regular pawn pushes.
-        let push_direction = self.us().push_direction();
-        let pawn_pushes = our_pieces.pawns.shift(push_direction) - occupied_squares;
-        let original_squares = pawn_pushes.shift(push_direction.opposite());
-        let add_pawn_moves = |moves: &mut MoveList, from, to: Square| {
-            // TODO: This is probably better with self.side_to_move.opponent().backrank()
-            // but might be slower.
-            match to.rank() {
-                Rank::Eight | Rank::One => unsafe {
-                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
-                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
-                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
-                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Knight)));
-                },
-                _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
-            }
-        };
-        for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
-            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
-                continue;
-            }
-            if attack_info.pins.contains(from)
-                && (attacks::ray(from, our_king) & attacks::ray(to, our_king)).is_empty()
-            {
-                continue;
-            }
-            add_pawn_moves(&mut moves, from, to);
-        }
-        // Double pawn pushes.
-        // TODO: Come up with a better name for it.
-        let third_rank = Rank::pawns_starting(self.us()).mask().shift(push_direction);
-        let double_pushes = (pawn_pushes & third_rank).shift(push_direction) - occupied_squares;
-        let original_squares = double_pushes
-            .shift(push_direction.opposite())
-            .shift(push_direction.opposite());
-        // Double pawn pushes are never promoting.
-        for (from, to) in itertools::zip(original_squares.iter(), double_pushes.iter()) {
-            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
-                continue;
-            }
-            if attack_info.pins.contains(from)
-                && (attacks::ray(from, our_king) & attacks::ray(to, our_king)).is_empty()
-            {
-                continue;
-            }
-            unsafe {
-                moves.push_unchecked(Move::new(from, to, None));
-            }
-        }
+        generate_queen_moves(
+            our_pieces.queens,
+            occupied_squares,
+            non_capture_mask,
+            blocking_ray,
+            attack_info.pins,
+            our_king,
+            &mut moves,
+        );
+        generate_knight_moves(
+            our_pieces.knights,
+            non_capture_mask,
+            attack_info.pins,
+            blocking_ray,
+            &mut moves,
+        );
+        generate_rook_moves(
+            our_pieces.rooks,
+            occupied_squares,
+            non_capture_mask,
+            blocking_ray,
+            attack_info.pins,
+            our_king,
+            &mut moves,
+        );
+        generate_bishop_moves(
+            our_pieces.bishops,
+            occupied_squares,
+            non_capture_mask,
+            blocking_ray,
+            attack_info.pins,
+            our_king,
+            &mut moves,
+        );
+        generate_pawn_moves(
+            our_pieces.pawns,
+            self.us(),
+            self.they(),
+            their_pieces,
+            their_pieces.all(),
+            non_capture_mask,
+            blocking_ray,
+            attack_info.pins,
+            attack_info.checkers,
+            our_king,
+            self.en_passant_square,
+            occupied_squares,
+            &mut moves,
+        );
         // TODO: Generalize castling to FCR.
         // TODO: In FCR we should check if the rook is pinned or not.
         if attack_info.checkers.is_empty() {
@@ -644,16 +571,6 @@ impl Position {
             }
         }
     }
-
-    #[must_use]
-    pub fn has_insufficient_material(&self) -> bool {
-        todo!()
-    }
-
-    #[must_use]
-    pub fn is_legal(&self) -> bool {
-        validate(self).is_ok()
-    }
 }
 
 // TODO: Take plain bytes through from_ascii: that's more principled and may be
@@ -830,4 +747,231 @@ fn validate(position: &Position) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn generate_king_moves(king: Square, safe_squares: Bitboard, moves: &mut MoveList) {
+    for safe_square in safe_squares.iter() {
+        unsafe {
+            moves.push_unchecked(Move::new(king, safe_square, None));
+        }
+    }
+}
+
+fn generate_knight_moves(
+    knights: Bitboard,
+    non_capture_mask: Bitboard,
+    pins: Bitboard,
+    blocking_ray: Bitboard,
+    moves: &mut MoveList,
+) {
+    // TODO: Elaborate on pins.
+    for from in (knights - pins).iter() {
+        let targets = attacks::knight_attacks(from) - non_capture_mask;
+        for to in targets.iter() {
+            // TODO: This block is repeated several times; abstract it out.
+            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+                continue;
+            }
+            unsafe {
+                moves.push_unchecked(Move::new(from, to, None));
+            }
+        }
+    }
+}
+
+fn generate_queen_moves(
+    queens: Bitboard,
+    occupied_squares: Bitboard,
+    non_capture_mask: Bitboard,
+    blocking_ray: Bitboard,
+    pins: Bitboard,
+    king: Square,
+    moves: &mut MoveList,
+) {
+    for from in queens.iter() {
+        let targets = attacks::queen_attacks(from, occupied_squares) - non_capture_mask;
+        for to in targets.iter() {
+            // TODO: This block is repeated several times; abstract it out.
+            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+                continue;
+            }
+            if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
+            {
+                continue;
+            }
+            unsafe { moves.push_unchecked(Move::new(from, to, None)) }
+        }
+    }
+}
+
+fn generate_rook_moves(
+    rooks: Bitboard,
+    occupied_squares: Bitboard,
+    non_capture_mask: Bitboard,
+    blocking_ray: Bitboard,
+    pins: Bitboard,
+    king: Square,
+    moves: &mut MoveList,
+) {
+    for from in rooks.iter() {
+        let targets = attacks::rook_attacks(from, occupied_squares) - non_capture_mask;
+        for to in targets.iter() {
+            // TODO: This block is repeated several times; abstract it out.
+            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+                continue;
+            }
+            if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
+            {
+                continue;
+            }
+            unsafe { moves.push_unchecked(Move::new(from, to, None)) }
+        }
+    }
+}
+
+fn generate_bishop_moves(
+    bishops: Bitboard,
+    occupied_squares: Bitboard,
+    non_capture_mask: Bitboard,
+    blocking_ray: Bitboard,
+    pins: Bitboard,
+    king: Square,
+    moves: &mut MoveList,
+) {
+    for from in bishops.iter() {
+        let targets = attacks::bishop_attacks(from, occupied_squares) - non_capture_mask;
+        for to in targets.iter() {
+            // TODO: This block is repeated several times; abstract it out.
+            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+                continue;
+            }
+            if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
+            {
+                continue;
+            }
+            unsafe { moves.push_unchecked(Move::new(from, to, None)) }
+        }
+    }
+}
+
+fn generate_pawn_moves(
+    pawns: Bitboard,
+    us: Player,
+    they: Player,
+    their_pieces: &Pieces,
+    their_occupancy: Bitboard,
+    non_capture_mask: Bitboard,
+    blocking_ray: Bitboard,
+    pins: Bitboard,
+    checkers: Bitboard,
+    king: Square,
+    en_passant_square: Option<Square>,
+    occupied_squares: Bitboard,
+    moves: &mut MoveList,
+) {
+    // TODO: Get rid of the branch: AND pawns getting to the promotion rank and the
+    // rest.
+    for from in pawns.iter() {
+        let targets = (attacks::pawn_attacks(from, us) & their_occupancy) - non_capture_mask;
+        for to in targets.iter() {
+            // TODO: This block is repeated several times; abstract it out.
+            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+                continue;
+            }
+            if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
+            {
+                continue;
+            }
+            match to.rank() {
+                Rank::One | Rank::Eight => unsafe {
+                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
+                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
+                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
+                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Knight)));
+                },
+                _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
+            }
+        }
+    }
+    // Generate en passant moves.
+    if let Some(en_passant_square) = en_passant_square {
+        let en_passant_pawn = en_passant_square.shift(they.push_direction()).unwrap();
+        // Check if capturing en passant resolves the check.
+        let candidate_pawns = attacks::pawn_attacks(en_passant_square, they) & pawns;
+        if checkers.contains(en_passant_pawn) {
+            for our_pawn in candidate_pawns.iter() {
+                if pins.contains(our_pawn) {
+                    continue;
+                }
+                unsafe {
+                    moves.push_unchecked(Move::new(our_pawn, en_passant_square, None));
+                }
+            }
+        } else {
+            // Check if capturing en passant does not create a discovered check.
+            for our_pawn in candidate_pawns.iter() {
+                let mut occupancy_after_capture = occupied_squares;
+                occupancy_after_capture.clear(our_pawn);
+                occupancy_after_capture.clear(en_passant_pawn);
+                occupancy_after_capture.extend(en_passant_square);
+                if (attacks::queen_attacks(king, occupancy_after_capture) & their_pieces.queens)
+                    .is_empty()
+                    && (attacks::rook_attacks(king, occupancy_after_capture) & their_pieces.rooks)
+                        .is_empty()
+                    && (attacks::bishop_attacks(king, occupancy_after_capture)
+                        & their_pieces.bishops)
+                        .is_empty()
+                {
+                    unsafe {
+                        moves.push_unchecked(Move::new(our_pawn, en_passant_square, None));
+                    }
+                }
+            }
+        }
+    }
+    // Regular pawn pushes.
+    let push_direction = us.push_direction();
+    let pawn_pushes = pawns.shift(push_direction) - occupied_squares;
+    let original_squares = pawn_pushes.shift(push_direction.opposite());
+    let add_pawn_moves = |moves: &mut MoveList, from, to: Square| {
+        // TODO: This is probably better with self.side_to_move.opponent().backrank()
+        // but might be slower.
+        match to.rank() {
+            Rank::Eight | Rank::One => unsafe {
+                moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
+                moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
+                moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
+                moves.push_unchecked(Move::new(from, to, Some(Promotion::Knight)));
+            },
+            _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
+        }
+    };
+    for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
+        if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+            continue;
+        }
+        if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty() {
+            continue;
+        }
+        add_pawn_moves(moves, from, to);
+    }
+    // Double pawn pushes.
+    // TODO: Come up with a better name for it.
+    let third_rank = Rank::pawns_starting(us).mask().shift(push_direction);
+    let double_pushes = (pawn_pushes & third_rank).shift(push_direction) - occupied_squares;
+    let original_squares = double_pushes
+        .shift(push_direction.opposite())
+        .shift(push_direction.opposite());
+    // Double pawn pushes are never promoting.
+    for (from, to) in itertools::zip(original_squares.iter(), double_pushes.iter()) {
+        if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+            continue;
+        }
+        if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty() {
+            continue;
+        }
+        unsafe {
+            moves.push_unchecked(Move::new(from, to, None));
+        }
+    }
 }
