@@ -17,6 +17,7 @@ use crate::chess::core::{
     CastleRights,
     File,
     Move,
+    MoveList,
     Piece,
     PieceKind,
     Player,
@@ -42,11 +43,8 @@ use crate::chess::core::{
 /// [Forsyth-Edwards Notation]: https://www.chessprogramming.org/Forsyth-Edwards_Notation
 /// [Extended Position Description]: https://www.chessprogramming.org/Extended_Position_Description
 /// [Operations]: https://www.chessprogramming.org/Extended_Position_Description#Operations
-// TODO: This only stores information about pieces in BitboardSets. Stockfish
-// and many other engines maintain both piece- and square-centric
-// representations at once to speed up querying the piece on a specific square.
-// Implement and benchmark this.
 // TODO: Make the fields private, expose appropriate assessors.
+// TODO: Store Zobrist hash, possibly other info.
 #[derive(Clone)]
 pub struct Position {
     board: Board,
@@ -67,9 +65,6 @@ pub struct Position {
 }
 
 impl Position {
-    // TODO: Document.
-    const MAX_MOVES: usize = 256;
-
     /// Creates the starting position of the standard chess.
     ///
     /// ```
@@ -302,13 +297,13 @@ impl Position {
     // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
     // TODO: Split into subroutines so that it's easier to tune performance.
     #[must_use]
-    pub fn generate_moves(&self) -> arrayvec::ArrayVec<Move, { Self::MAX_MOVES }> {
+    pub fn generate_moves(&self) -> MoveList {
         // debug_assert!(validate(&self).is_ok(), "{}", self.fen());
         let attack_info = attacks::AttackInfo::new(self);
         // TODO: The average branching factor for chess is 35 but we probably
         // have to account for a healthy percentile instead of the average.
         // https://en.wikipedia.org/wiki/Branching_factor
-        let mut moves = arrayvec::ArrayVec::<_, { Self::MAX_MOVES }>::new();
+        let mut moves = MoveList::new();
         // Cache squares occupied by each player.
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
@@ -427,20 +422,19 @@ impl Position {
         let push_direction = self.us().push_direction();
         let pawn_pushes = our_pieces.pawns.shift(push_direction) - occupied_squares;
         let original_squares = pawn_pushes.shift(push_direction.opposite());
-        let add_pawn_moves =
-            |moves: &mut arrayvec::ArrayVec<_, { Self::MAX_MOVES }>, from, to: Square| {
-                // TODO: This is probably better with self.side_to_move.opponent().backrank()
-                // but might be slower.
-                match to.rank() {
-                    Rank::Eight | Rank::One => unsafe {
-                        moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
-                        moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
-                        moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
-                        moves.push_unchecked(Move::new(from, to, Some(Promotion::Knight)));
-                    },
-                    _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
-                }
-            };
+        let add_pawn_moves = |moves: &mut MoveList, from, to: Square| {
+            // TODO: This is probably better with self.side_to_move.opponent().backrank()
+            // but might be slower.
+            match to.rank() {
+                Rank::Eight | Rank::One => unsafe {
+                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
+                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
+                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
+                    moves.push_unchecked(Move::new(from, to, Some(Promotion::Knight)));
+                },
+                _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
+            }
+        };
         for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
             if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
                 continue;

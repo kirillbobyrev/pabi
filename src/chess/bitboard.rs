@@ -107,12 +107,12 @@ impl Bitboard {
 
     #[must_use]
     pub(super) fn is_empty(self) -> bool {
-        self.count() == 0
+        self.bits == 0
     }
 
     #[must_use]
     pub(super) fn has_any(self) -> bool {
-        self.count() != 0
+        !self.is_empty()
     }
 
     #[must_use]

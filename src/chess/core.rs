@@ -64,6 +64,16 @@ impl fmt::Display for Move {
     }
 }
 
+/// Size of [`MoveList`] and an upper bound of moves in a chess position (which
+/// [seems to be 218](https://www.chessprogramming.org/Chess_Position). 256 provides the best
+/// performance through optimal memory alignment.
+const MAX_MOVES: usize = 256;
+
+/// Moves are stored on stack to avoid memory allocations. This is important for
+/// performance reasons and also prevents unnecessary copying that would occur
+/// if the moves would be stored in std::Vec with unknown capacity.
+pub type MoveList = arrayvec::ArrayVec<Move, { MAX_MOVES }>;
+
 /// Board squares: from left to right, from bottom to the top ([Little-Endian Rank-File Mapping]):
 ///
 /// ```
@@ -120,9 +130,6 @@ impl Square {
         unsafe { mem::transmute(self as u8 / BOARD_WIDTH) }
     }
 
-    // TODO: Is this needed at all? I thought this could be useful for
-    // compile-/build-time computations but this doesn't look useful and is dead
-    // code right now.
     #[must_use]
     pub fn shift(self, direction: Direction) -> Option<Self> {
         // TODO: Maybe extend this to all cases and don't check for
