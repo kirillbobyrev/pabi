@@ -422,38 +422,6 @@ impl Pieces {
         self.knights.clear(square);
         self.pawns.clear(square);
     }
-
-    pub(super) fn iter(&self) -> PiecesIterator {
-        PiecesIterator {
-            pieces: self,
-            index: 0,
-        }
-    }
-}
-
-// TODO: Document.
-pub(super) struct PiecesIterator<'a> {
-    pieces: &'a Pieces,
-    index: u8,
-}
-
-impl Iterator for PiecesIterator<'_> {
-    type Item = (PieceKind, Bitboard);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = match self.index {
-            0 => Some((PieceKind::King, self.pieces.king)),
-            1 => Some((PieceKind::Queen, self.pieces.queens)),
-            2 => Some((PieceKind::Rook, self.pieces.rooks)),
-            3 => Some((PieceKind::Bishop, self.pieces.bishops)),
-            4 => Some((PieceKind::Knight, self.pieces.knights)),
-            5 => Some((PieceKind::Pawn, self.pieces.pawns)),
-            6 => None,
-            _ => unreachable!(),
-        };
-        self.index += 1;
-        result
-    }
 }
 
 /// Piece-centric implementation of the chess board. This is the "back-end" of
