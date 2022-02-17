@@ -730,12 +730,8 @@ fn generate_knight_moves(
     // When a knight is pinned, it can not move at all because it can't stay on
     // the same horizontal, vertical or diagonal.
     for from in (knights - pins).iter() {
-        let targets = attacks::knight_attacks(from) & their_or_empty;
+        let targets = attacks::knight_attacks(from) & their_or_empty & blocking_ray;
         for to in targets.iter() {
-            // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.contains(to) {
-                continue;
-            }
             unsafe {
                 moves.push_unchecked(Move::new(from, to, None));
             }
@@ -753,12 +749,9 @@ fn generate_queen_moves(
     moves: &mut MoveList,
 ) {
     for from in queens.iter() {
-        let targets = attacks::queen_attacks(from, occupied_squares) & their_or_empty;
+        let targets =
+            attacks::queen_attacks(from, occupied_squares) & their_or_empty & blocking_ray;
         for to in targets.iter() {
-            // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.contains(to) {
-                continue;
-            }
             if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
             {
                 continue;
@@ -778,12 +771,9 @@ fn generate_rook_moves(
     moves: &mut MoveList,
 ) {
     for from in rooks.iter() {
-        let targets = attacks::rook_attacks(from, occupied_squares) & their_or_empty;
+        let targets = attacks::rook_attacks(from, occupied_squares) & their_or_empty & blocking_ray;
         for to in targets.iter() {
             // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.contains(to) {
-                continue;
-            }
             if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
             {
                 continue;
@@ -803,12 +793,10 @@ fn generate_bishop_moves(
     moves: &mut MoveList,
 ) {
     for from in bishops.iter() {
-        let targets = attacks::bishop_attacks(from, occupied_squares) & their_or_empty;
+        let targets =
+            attacks::bishop_attacks(from, occupied_squares) & their_or_empty & blocking_ray;
         for to in targets.iter() {
             // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.contains(to) {
-                continue;
-            }
             if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
             {
                 continue;
@@ -836,12 +824,10 @@ fn generate_pawn_moves(
     // TODO: Get rid of the branch: AND pawns getting to the promotion rank and the
     // rest.
     for from in pawns.iter() {
-        let targets = (attacks::pawn_attacks(from, us) & their_occupancy) & their_or_empty;
+        let targets =
+            (attacks::pawn_attacks(from, us) & their_occupancy) & their_or_empty & blocking_ray;
         for to in targets.iter() {
             // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.contains(to) {
-                continue;
-            }
             if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
             {
                 continue;

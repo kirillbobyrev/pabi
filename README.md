@@ -73,8 +73,7 @@ will help you get started:
 - [Contribution guide](/CONTRIBUTING.md)
 - [Architecture overview](/ARCHITECTURE.md)
 - [Developer Documentation](https://kirillbobyrev.github.io/pabi/docs/pabi/index.html)
-  For easier code navigation, read the developer documentation that is updated
-  after each commit.
+  is updated after each commit and 
 - [GitHub Issues](https://github.com/kirillbobyrev/pabi/issues) have some tasks
   you can pick up. Issues with ["good first issue"
   label](https://github.com/kirillbobyrev/pabi/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
