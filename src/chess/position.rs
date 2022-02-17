@@ -324,14 +324,15 @@ impl Position {
         let (our_pieces, their_pieces) = (self.pieces(us), self.pieces(they));
         let king: Square = our_pieces.king.as_square();
         let (our_occupancy, their_occupancy) = (our_pieces.all(), their_pieces.all());
-        let occupancy = our_occupancy | their_occupancy;
+        let occupied_squares = our_occupancy | their_occupancy;
+        let their_or_empty = !our_occupancy;
         let attack_info =
-            attacks::AttackInfo::new(they, their_pieces, king, our_occupancy, occupancy);
+            attacks::AttackInfo::new(they, their_pieces, king, our_occupancy, occupied_squares);
         // Moving the king to safety is always a valid move.
         generate_king_moves(king, attack_info.safe_king_squares, &mut moves);
         // If there are checks, the moves are restricted to resolving them.
         let blocking_ray = match attack_info.checkers.count() {
-            0 => Bitboard::empty(),
+            0 => Bitboard::full(),
             // There are two ways of getting out of check:
             //
             // - Moving king to safety (calculated above)
@@ -358,8 +359,8 @@ impl Position {
         };
         generate_queen_moves(
             our_pieces.queens,
-            occupancy,
-            our_occupancy,
+            occupied_squares,
+            their_or_empty,
             blocking_ray,
             attack_info.pins,
             king,
@@ -367,15 +368,15 @@ impl Position {
         );
         generate_knight_moves(
             our_pieces.knights,
-            our_occupancy,
+            their_or_empty,
             attack_info.pins,
             blocking_ray,
             &mut moves,
         );
         generate_rook_moves(
             our_pieces.rooks,
-            occupancy,
-            our_occupancy,
+            occupied_squares,
+            their_or_empty,
             blocking_ray,
             attack_info.pins,
             king,
@@ -383,8 +384,8 @@ impl Position {
         );
         generate_bishop_moves(
             our_pieces.bishops,
-            occupancy,
-            our_occupancy,
+            occupied_squares,
+            their_or_empty,
             blocking_ray,
             attack_info.pins,
             king,
@@ -396,13 +397,13 @@ impl Position {
             they,
             their_pieces,
             their_occupancy,
-            our_occupancy,
+            their_or_empty,
             blocking_ray,
             attack_info.pins,
             attack_info.checkers,
             king,
             self.en_passant_square,
-            occupancy,
+            occupied_squares,
             &mut moves,
         );
         generate_castle_moves(
@@ -410,7 +411,7 @@ impl Position {
             attack_info.checkers,
             self.castling,
             attack_info.attacks,
-            occupancy,
+            occupied_squares,
             &mut moves,
         );
         moves
@@ -721,17 +722,18 @@ fn generate_king_moves(king: Square, safe_squares: Bitboard, moves: &mut MoveLis
 
 fn generate_knight_moves(
     knights: Bitboard,
-    non_capture_mask: Bitboard,
+    their_or_empty: Bitboard,
     pins: Bitboard,
     blocking_ray: Bitboard,
     moves: &mut MoveList,
 ) {
-    // TODO: Elaborate on pins.
+    // When a knight is pinned, it can not move at all because it can't stay on
+    // the same horizontal, vertical or diagonal.
     for from in (knights - pins).iter() {
-        let targets = attacks::knight_attacks(from) - non_capture_mask;
+        let targets = attacks::knight_attacks(from) & their_or_empty;
         for to in targets.iter() {
             // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+            if !blocking_ray.contains(to) {
                 continue;
             }
             unsafe {
@@ -744,17 +746,17 @@ fn generate_knight_moves(
 fn generate_queen_moves(
     queens: Bitboard,
     occupied_squares: Bitboard,
-    non_capture_mask: Bitboard,
+    their_or_empty: Bitboard,
     blocking_ray: Bitboard,
     pins: Bitboard,
     king: Square,
     moves: &mut MoveList,
 ) {
     for from in queens.iter() {
-        let targets = attacks::queen_attacks(from, occupied_squares) - non_capture_mask;
+        let targets = attacks::queen_attacks(from, occupied_squares) & their_or_empty;
         for to in targets.iter() {
             // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+            if !blocking_ray.contains(to) {
                 continue;
             }
             if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
@@ -769,17 +771,17 @@ fn generate_queen_moves(
 fn generate_rook_moves(
     rooks: Bitboard,
     occupied_squares: Bitboard,
-    non_capture_mask: Bitboard,
+    their_or_empty: Bitboard,
     blocking_ray: Bitboard,
     pins: Bitboard,
     king: Square,
     moves: &mut MoveList,
 ) {
     for from in rooks.iter() {
-        let targets = attacks::rook_attacks(from, occupied_squares) - non_capture_mask;
+        let targets = attacks::rook_attacks(from, occupied_squares) & their_or_empty;
         for to in targets.iter() {
             // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+            if !blocking_ray.contains(to) {
                 continue;
             }
             if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
@@ -794,17 +796,17 @@ fn generate_rook_moves(
 fn generate_bishop_moves(
     bishops: Bitboard,
     occupied_squares: Bitboard,
-    non_capture_mask: Bitboard,
+    their_or_empty: Bitboard,
     blocking_ray: Bitboard,
     pins: Bitboard,
     king: Square,
     moves: &mut MoveList,
 ) {
     for from in bishops.iter() {
-        let targets = attacks::bishop_attacks(from, occupied_squares) - non_capture_mask;
+        let targets = attacks::bishop_attacks(from, occupied_squares) & their_or_empty;
         for to in targets.iter() {
             // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+            if !blocking_ray.contains(to) {
                 continue;
             }
             if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
@@ -822,7 +824,7 @@ fn generate_pawn_moves(
     they: Player,
     their_pieces: &Pieces,
     their_occupancy: Bitboard,
-    non_capture_mask: Bitboard,
+    their_or_empty: Bitboard,
     blocking_ray: Bitboard,
     pins: Bitboard,
     checkers: Bitboard,
@@ -834,10 +836,10 @@ fn generate_pawn_moves(
     // TODO: Get rid of the branch: AND pawns getting to the promotion rank and the
     // rest.
     for from in pawns.iter() {
-        let targets = (attacks::pawn_attacks(from, us) & their_occupancy) - non_capture_mask;
+        let targets = (attacks::pawn_attacks(from, us) & their_occupancy) & their_or_empty;
         for to in targets.iter() {
             // TODO: This block is repeated several times; abstract it out.
-            if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+            if !blocking_ray.contains(to) {
                 continue;
             }
             if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
@@ -909,7 +911,7 @@ fn generate_pawn_moves(
         }
     };
     for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
-        if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+        if !blocking_ray.contains(to) {
             continue;
         }
         if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty() {
@@ -926,7 +928,7 @@ fn generate_pawn_moves(
         .shift(push_direction.opposite());
     // Double pawn pushes are never promoting.
     for (from, to) in itertools::zip(original_squares.iter(), double_pushes.iter()) {
-        if !blocking_ray.is_empty() & !blocking_ray.contains(to) {
+        if !blocking_ray.contains(to) {
             continue;
         }
         if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty() {
