@@ -357,15 +357,6 @@ impl Position {
             2 => return moves,
             _ => unreachable!("more than two pieces can not check the king"),
         };
-        generate_queen_moves(
-            our_pieces.queens,
-            occupied_squares,
-            their_or_empty,
-            blocking_ray,
-            attack_info.pins,
-            king,
-            &mut moves,
-        );
         generate_knight_moves(
             our_pieces.knights,
             their_or_empty,
@@ -374,7 +365,7 @@ impl Position {
             &mut moves,
         );
         generate_rook_moves(
-            our_pieces.rooks,
+            our_pieces.rooks | our_pieces.queens,
             occupied_squares,
             their_or_empty,
             blocking_ray,
@@ -383,7 +374,7 @@ impl Position {
             &mut moves,
         );
         generate_bishop_moves(
-            our_pieces.bishops,
+            our_pieces.bishops | our_pieces.queens,
             occupied_squares,
             their_or_empty,
             blocking_ray,
@@ -735,28 +726,6 @@ fn generate_knight_moves(
             unsafe {
                 moves.push_unchecked(Move::new(from, to, None));
             }
-        }
-    }
-}
-
-fn generate_queen_moves(
-    queens: Bitboard,
-    occupied_squares: Bitboard,
-    their_or_empty: Bitboard,
-    blocking_ray: Bitboard,
-    pins: Bitboard,
-    king: Square,
-    moves: &mut MoveList,
-) {
-    for from in queens.iter() {
-        let targets =
-            attacks::queen_attacks(from, occupied_squares) & their_or_empty & blocking_ray;
-        for to in targets.iter() {
-            if pins.contains(from) && (attacks::ray(from, king) & attacks::ray(to, king)).is_empty()
-            {
-                continue;
-            }
-            unsafe { moves.push_unchecked(Move::new(from, to, None)) }
         }
     }
 }
