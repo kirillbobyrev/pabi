@@ -533,6 +533,7 @@ impl TryFrom<&str> for Position {
     type Error = anyhow::Error;
 
     // TODO: Docs.
+    // TODO: Parse UCI position move1 move2 ...
     fn try_from(input: &str) -> anyhow::Result<Self> {
         let input = input.trim();
         for prefix in ["fen ", "epd "] {
@@ -661,7 +662,7 @@ fn validate(position: &Position) -> anyhow::Result<()> {
         // en_passant_square.
         let pushed_pawn = en_passant_square
             .shift(position.they().push_direction())
-            .expect("we already checked for correct rank");
+            .unwrap();
         if !position.pieces(position.they()).pawns.contains(pushed_pawn) {
             bail!("en passant square is not beyond pushed pawn")
         }

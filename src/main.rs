@@ -1,7 +1,7 @@
 use std::io;
 use std::io::prelude::*;
 
-use pabi::chess::position::{perft, Position};
+use pabi::chess::position::Position;
 
 fn main() {
     pabi::print_system_info();

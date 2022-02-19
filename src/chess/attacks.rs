@@ -5,7 +5,7 @@
 // Refactor it and make it nicer.
 
 use crate::chess::bitboard::{Bitboard, Pieces};
-use crate::chess::core::{PieceKind, Player, Square, BOARD_SIZE};
+use crate::chess::core::{Player, Square, BOARD_SIZE};
 
 pub(super) fn king_attacks(from: Square) -> Bitboard {
     KING_ATTACKS[from as usize]

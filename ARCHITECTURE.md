@@ -10,6 +10,8 @@ starting point.
 
 ### [`src/`](/src/)
 
+The source directory contains code for the engine driver implemented in Rust.
+
 #### [`src/chess/`](/src/chess/)
 
 #### [`src/search/`](/src/search/)

@@ -132,30 +132,9 @@ impl Square {
 
     #[must_use]
     pub fn shift(self, direction: Direction) -> Option<Self> {
-        // TODO: Maybe extend this to all cases and don't check for
-        // candidate < 0. Check if it's faster on the benchmarks.
-        match direction {
-            Direction::UpLeft | Direction::Right | Direction::DownLeft => {
-                if self.file() == File::H {
-                    return None;
-                }
-            },
-            Direction::UpRight | Direction::Left | Direction::DownRight => {
-                if self.file() == File::A {
-                    return None;
-                }
-            },
-            _ => (),
-        }
         let shift: i8 = match direction {
-            Direction::UpLeft => BOARD_WIDTH as i8 + 1,
             Direction::Up => BOARD_WIDTH as i8,
-            Direction::UpRight => BOARD_WIDTH as i8 - 1,
-            Direction::Right => 1,
-            Direction::Left => -1,
-            Direction::DownLeft => -(BOARD_WIDTH as i8 - 1),
             Direction::Down => -(BOARD_WIDTH as i8),
-            Direction::DownRight => -(BOARD_WIDTH as i8 + 1),
         };
         // TODO: Should this be TryFrom<i8> instead?
         let candidate = self as i8 + shift;
@@ -696,35 +675,17 @@ pub enum Promotion {
 // TODO: Either use double directions in en passant calculations or only leave Up an Down.
 #[derive(Copy, Clone, Debug, strum::EnumIter)]
 pub enum Direction {
-    /// Also known as NorthWest.
-    UpLeft,
     /// Also known as North.
     Up,
-    /// Also known as NorthEast.
-    UpRight,
-    /// Also known as East.
-    Right,
-    /// Also known as West.
-    Left,
-    /// Also known as SouthWest.
-    DownLeft,
     /// Also known as South.
     Down,
-    /// Also known as SouthEast.
-    DownRight,
 }
 
 impl Direction {
     pub(super) fn opposite(self) -> Self {
         match self {
-            Self::UpLeft => Self::DownRight,
             Self::Up => Self::Down,
-            Self::UpRight => Self::DownLeft,
-            Self::Right => Self::Left,
-            Self::Left => Self::Right,
-            Self::DownLeft => Self::UpRight,
             Self::Down => Self::Up,
-            Self::DownRight => Self::UpLeft,
         }
     }
 }
@@ -886,134 +847,10 @@ mod test {
     }
 
     #[test]
-    fn within_board_shift() {
-        // D1.
-        let square = Square::E4;
-        assert_eq!(square.shift(Direction::Left), Some(Square::D4));
-        assert_eq!(square.shift(Direction::Up), Some(Square::E5));
-        assert_eq!(square.shift(Direction::UpRight), Some(Square::D5));
-        assert_eq!(square.shift(Direction::UpLeft), Some(Square::F5));
-        assert_eq!(square.shift(Direction::Right), Some(Square::F4));
-        assert_eq!(square.shift(Direction::Down), Some(Square::E3));
-        assert_eq!(square.shift(Direction::DownRight), Some(Square::D3));
-        assert_eq!(square.shift(Direction::DownLeft), Some(Square::F3));
-    }
-
-    #[test]
-    fn border_squares_shift_d1() {
-        let square = Square::D1;
-        assert_eq!(square.shift(Direction::Left), Some(Square::C1));
-        assert_eq!(square.shift(Direction::Up), Some(Square::D2));
-        assert_eq!(square.shift(Direction::UpRight), Some(Square::C2));
-        assert_eq!(square.shift(Direction::UpLeft), Some(Square::E2));
-        assert_eq!(square.shift(Direction::Right), Some(Square::E1));
-        for direction in [Direction::Down, Direction::DownRight, Direction::DownLeft] {
-            assert_eq!(square.shift(direction), None);
-        }
-    }
-
-    #[test]
-    fn border_squares_shift_a2() {
-        let square = Square::A2;
-        assert_eq!(square.shift(Direction::Up), Some(Square::A3));
-        assert_eq!(square.shift(Direction::UpLeft), Some(Square::B3));
-        assert_eq!(square.shift(Direction::Down), Some(Square::A1));
-        assert_eq!(square.shift(Direction::DownLeft), Some(Square::B1));
-        assert_eq!(square.shift(Direction::Right), Some(Square::B2));
-        for direction in [Direction::Left, Direction::UpRight, Direction::DownRight] {
-            assert_eq!(square.shift(direction), None);
-        }
-    }
-
-    #[test]
-    fn border_squares_shift_f8() {
-        let square = Square::F8;
-        assert_eq!(square.shift(Direction::Left), Some(Square::E8));
-        assert_eq!(square.shift(Direction::Down), Some(Square::F7));
-        assert_eq!(square.shift(Direction::DownRight), Some(Square::E7));
-        assert_eq!(square.shift(Direction::DownLeft), Some(Square::G7));
-        assert_eq!(square.shift(Direction::Right), Some(Square::G8));
-        for direction in [Direction::Up, Direction::UpRight, Direction::UpLeft] {
-            assert_eq!(square.shift(direction), None);
-        }
-    }
-
-    #[test]
-    fn border_squares_shift_h6() {
-        let square = Square::H6;
-        assert_eq!(square.shift(Direction::Left), Some(Square::G6));
-        assert_eq!(square.shift(Direction::Up), Some(Square::H7));
-        assert_eq!(square.shift(Direction::UpRight), Some(Square::G7));
-        assert_eq!(square.shift(Direction::Down), Some(Square::H5));
-        assert_eq!(square.shift(Direction::DownRight), Some(Square::G5));
-        for direction in [Direction::UpLeft, Direction::DownLeft, Direction::Right] {
-            assert_eq!(square.shift(direction), None);
-        }
-    }
-
-    #[test]
-    fn corner_squares_shift() {
-        // A1.
-        let square = Square::A1;
-        assert_eq!(square.shift(Direction::Up), Some(Square::A2));
-        assert_eq!(square.shift(Direction::UpLeft), Some(Square::B2));
-        assert_eq!(square.shift(Direction::Right), Some(Square::B1));
-        for direction in [
-            Direction::Left,
-            Direction::UpRight,
-            Direction::Down,
-            Direction::DownRight,
-            Direction::DownLeft,
-        ] {
-            assert_eq!(square.shift(direction), None);
-        }
-
-        // A8.
-        let square = Square::A8;
-        assert_eq!(square.shift(Direction::Down), Some(Square::A7));
-        assert_eq!(square.shift(Direction::DownLeft), Some(Square::B7));
-        assert_eq!(square.shift(Direction::Right), Some(Square::B8));
-        for direction in [
-            Direction::Left,
-            Direction::Up,
-            Direction::UpRight,
-            Direction::UpLeft,
-            Direction::DownRight,
-        ] {
-            assert_eq!(square.shift(direction), None);
-        }
-
-        // H8.
-        let square = Square::H8;
-        assert_eq!(square.shift(Direction::Left), Some(Square::G8));
-        assert_eq!(square.shift(Direction::Down), Some(Square::H7));
-        assert_eq!(square.shift(Direction::DownRight), Some(Square::G7));
-        for direction in [
-            Direction::Up,
-            Direction::UpRight,
-            Direction::UpLeft,
-            Direction::DownLeft,
-            Direction::Right,
-        ] {
-            assert_eq!(square.shift(direction), None);
-        }
-
-        // H1.
-        let square = Square::H1;
-        assert_eq!(square.shift(Direction::Left), Some(Square::G1));
-        assert_eq!(square.shift(Direction::Up), Some(Square::H2));
-        assert_eq!(square.shift(Direction::UpRight), Some(Square::G2));
-        for direction in [
-            Direction::UpLeft,
-            Direction::Right,
-            Direction::DownRight,
-            Direction::Down,
-            Direction::DownLeft,
-        ] {
-            assert_eq!(square.shift(direction), None);
-        }
-
-        let square = Square::E4;
-        assert_eq!(square.shift(Direction::Up), Some(Square::E5));
+    fn square_shift() {
+        assert_eq!(Square::A2.shift(Direction::Up), Some(Square::A3));
+        assert_eq!(Square::B5.shift(Direction::Down), Some(Square::B4));
+        assert_eq!(Square::C1.shift(Direction::Down), None);
+        assert_eq!(Square::G8.shift(Direction::Up), None);
     }
 }

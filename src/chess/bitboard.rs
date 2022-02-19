@@ -120,9 +120,6 @@ impl Bitboard {
         match direction {
             Direction::Up => self << u32::from(BOARD_WIDTH),
             Direction::Down => self >> u32::from(BOARD_WIDTH),
-            Direction::Left => self << 1,
-            Direction::Right => self >> 1,
-            _ => unreachable!(),
         }
     }
 
