@@ -1,4 +1,4 @@
-//! Implementation of chess game, its rules and specifics.
+//! Implementation of chess environment, its rules and specifics.
 
 pub mod attacks;
 pub mod bitboard;

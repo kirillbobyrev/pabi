@@ -47,6 +47,8 @@
 
 // TODO: Re-export types for convenience.
 pub mod chess;
+pub mod evaluation;
+pub mod interface;
 
 pub mod util;
 
