@@ -39,7 +39,7 @@ sysinfo = "0.23.2"
 criterion = {version = "0.3.5", features = ["html_reports", "cargo_bench_support", "csv_output"]}
 iai = "0.1.1"
 pretty_assertions = "1.1.0"
-shakmaty = "0.20.7"
+shakmaty = "0.21.0"
 
 [build-dependencies]
 clap = {version = "3.1.1", features = ["cargo"]}
