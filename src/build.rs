@@ -29,7 +29,7 @@ fn generate_version() -> Result<(), Box<dyn Error>> {
     writeln!(
         version,
         "{} ({})",
-        clap::crate_version!(),
+        env!("CARGO_PKG_VERSION"),
         git_revision_hash()
     )?;
     writeln!(version, "Build type: {}", env::var("PROFILE").unwrap())?;

@@ -7,7 +7,7 @@ use pabi::util;
 use pretty_assertions::assert_eq;
 use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
 
-fn legal_position(input: &str) {
+fn expect_legal_position(input: &str) {
     let position = Position::from_fen(input).expect("we are parsing valid position: {input}");
     assert_eq!(position.fen(), util::sanitize_fen(input));
 }
@@ -18,16 +18,18 @@ fn legal_position(input: &str) {
 #[allow(unused_results)]
 fn basic_positions() {
     // Full FEN.
-    legal_position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    legal_position("2r3r1/p3k3/1p3pp1/1B5p/5P2/2P1p1P1/PP4KP/3R4 w - - 0 34");
-    legal_position("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq c6 0 7");
-    legal_position("r2qkb1r/1pp1pp1p/p1np1np1/1B6/3PP1b1/2N1BN2/PPP2PPP/R2QK2R w KQkq - 0 7");
-    legal_position("r3k3/5p2/2p5/p7/P3r3/2N2n2/1PP2P2/2K2B2 w q - 0 24");
-    legal_position("r1b1qrk1/ppp2pbp/n2p1np1/4p1B1/2PPP3/2NB1N1P/PP3PP1/R2QK2R w KQ e6 0 9");
-    legal_position("8/8/8/8/2P5/3k4/8/KB6 b - c3 0 1");
-    legal_position("rnbq1rk1/pp4pp/1b1ppn2/2p2p2/2PP4/1P2PN2/PB2BPPP/RN1Q1RK1 w - c6 0 9");
+    expect_legal_position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    expect_legal_position("2r3r1/p3k3/1p3pp1/1B5p/5P2/2P1p1P1/PP4KP/3R4 w - - 0 34");
+    expect_legal_position("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq c6 0 7");
+    expect_legal_position(
+        "r2qkb1r/1pp1pp1p/p1np1np1/1B6/3PP1b1/2N1BN2/PPP2PPP/R2QK2R w KQkq - 0 7",
+    );
+    expect_legal_position("r3k3/5p2/2p5/p7/P3r3/2N2n2/1PP2P2/2K2B2 w q - 0 24");
+    expect_legal_position("r1b1qrk1/ppp2pbp/n2p1np1/4p1B1/2PPP3/2NB1N1P/PP3PP1/R2QK2R w KQ e6 0 9");
+    expect_legal_position("8/8/8/8/2P5/3k4/8/KB6 b - c3 0 1");
+    expect_legal_position("rnbq1rk1/pp4pp/1b1ppn2/2p2p2/2PP4/1P2PN2/PB2BPPP/RN1Q1RK1 w - c6 0 9");
     // Trimmed FEN.
-    legal_position("rnbqkb1r/pp2pppp/3p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R b KQkq -");
+    expect_legal_position("rnbqkb1r/pp2pppp/3p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R b KQkq -");
 }
 
 #[test]
@@ -459,7 +461,9 @@ fn random_positions() {
     {
         let position = Position::from_fen(serialized_position).unwrap();
         let shakmaty_setup: shakmaty::fen::Fen = serialized_position.parse().unwrap();
-        let shakmaty_position: Chess = shakmaty_setup.position(CastlingMode::Standard).unwrap();
+        let shakmaty_position: Chess = shakmaty_setup
+            .into_position(CastlingMode::Standard)
+            .unwrap();
         let moves = position.generate_moves();
         assert_eq!(
             moves

@@ -29,6 +29,7 @@
     "readline",
     "repr",
     "roadmap",
+    "Rustc",
     "rustdoc",
     "rustfmt",
     "rustyline",

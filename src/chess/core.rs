@@ -535,6 +535,7 @@ bitflags::bitflags! {
     ///
     /// [castle]: https://www.chessprogramming.org/Castling
     // TODO: Update docs for FCR.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct CastleRights : u8 {
         #[allow(missing_docs)]
         const NONE = 0;
@@ -543,15 +544,15 @@ bitflags::bitflags! {
         #[allow(missing_docs)]
         const WHITE_LONG = 0b0100;
         #[allow(missing_docs)]
-        const WHITE_BOTH = Self::WHITE_SHORT.bits | Self::WHITE_LONG.bits;
+        const WHITE_BOTH = Self::WHITE_SHORT.bits() | Self::WHITE_LONG.bits();
         #[allow(missing_docs)]
         const BLACK_SHORT = 0b0010;
         #[allow(missing_docs)]
         const BLACK_LONG = 0b0001;
         #[allow(missing_docs)]
-        const BLACK_BOTH = Self::BLACK_SHORT.bits | Self::BLACK_LONG.bits;
+        const BLACK_BOTH = Self::BLACK_SHORT.bits() | Self::BLACK_LONG.bits();
         #[allow(missing_docs)]
-        const ALL = Self::WHITE_BOTH.bits | Self::BLACK_BOTH.bits;
+        const ALL = Self::WHITE_BOTH.bits() | Self::BLACK_BOTH.bits();
     }
 }
 

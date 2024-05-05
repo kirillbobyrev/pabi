@@ -52,32 +52,26 @@ pub mod interface;
 
 pub mod util;
 
-use sysinfo::{System, SystemExt};
+use sysinfo::System;
 
-const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
+pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
 
 /// Prints information about the host system.
 pub fn print_system_info() {
     let sys = System::new_all();
     println!(
         "System: {}",
-        sys.long_os_version()
-            .unwrap_or_else(|| "UNKNOWN".to_string())
+        System::long_os_version().unwrap_or_else(|| "UNKNOWN".to_string())
     );
     println!(
         "System kernel version: {}",
-        sys.kernel_version()
-            .unwrap_or_else(|| "UNKNOWN".to_string())
+        System::kernel_version().unwrap_or_else(|| "UNKNOWN".to_string())
     );
     println!(
         "Host name: {}",
-        sys.host_name().unwrap_or_else(|| "UNKNOWN".to_string())
+        System::host_name().unwrap_or_else(|| "UNKNOWN".to_string())
     );
     // Convert returned KB to GB.
     println!("RAM: {} GB", sys.total_memory() / 1_000_000);
-    println!(
-        "Processors: {}, Physical cores: {}",
-        sys.processors().len(),
-        sys.physical_core_count().unwrap_or_default()
-    );
+    println!("Physical cores: {}", sys.physical_core_count().unwrap());
 }

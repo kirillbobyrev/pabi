@@ -29,9 +29,9 @@ fn parse_stockfish_book_positions() {
 // Low depths of known perft results (https://www.chessprogramming.org/Perft_Results).
 fn perft() {
     for (position, depth, nodes) in [
-        // Posiition 1 (startinig).
+        // Position 1 (starting).
         (Position::starting(), 5, 4865609),
-        // Posiition 2.
+        // Position 2.
         (
             Position::from_fen(
                 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",

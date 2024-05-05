@@ -9,6 +9,7 @@ fn main() {
     let stdin = io::stdin();
     // TODO: Pull into a reasonable interface.
     // TODO: Add perft.
+    println!("pabi {}", pabi::VERSION);
     for line in stdin.lock().lines() {
         let line = line.unwrap();
         if let Some(fen) = line.strip_prefix("position ") {

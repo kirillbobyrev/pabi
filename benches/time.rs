@@ -74,7 +74,11 @@ fn movegen_bench(c: &mut Criterion) {
         .lines()
     {
         let shakmaty_setup: shakmaty::fen::Fen = line.parse().unwrap();
-        shakmaty_positions.push(shakmaty_setup.position(CastlingMode::Standard).unwrap());
+        shakmaty_positions.push(
+            shakmaty_setup
+                .into_position(CastlingMode::Standard)
+                .unwrap(),
+        );
     }
     group.throughput(criterion::Throughput::Elements(
         shakmaty_positions.len() as u64
