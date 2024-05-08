@@ -28,7 +28,7 @@ include = [
 [dependencies]
 arrayvec = "0.7.2"
 # TODO: Get rid of error handling? Just panic on errors for performance?
-anyhow = "1.0.55"
+anyhow = "1.0.83"
 bitflags = "2.2.1"
 itertools = "0.12.1"
 # TODO: Get rid of strum - it can be replaced by 20-30 LOC.
