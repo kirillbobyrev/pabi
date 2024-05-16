@@ -44,8 +44,6 @@ it is not hard to learn and can be an easy way to debug some parts of the engine
 manually, so it is also extended with several useful commands (for example, `go
 perft`).
 
-### [`training/`](/training/)
-
 ### [`tests/`](/tests/)
 
 Tests the engine through public interfaces. Most tests should go here, unit
@@ -82,7 +80,7 @@ arrays. These constants shouldn't change over time.
 [Bitboard]: https://www.chessprogramming.org/Bitboards
 [Monte-Carlo Tree Search]: https://www.chessprogramming.org/Monte-Carlo_Tree_Search
 [search]: https://www.chessprogramming.org/Search
-[evaluation]: https://www.chessprogramming.org/Evaluation
+[position evaluation]: https://www.chessprogramming.org/Evaluation
 [Fuzzers]: https://en.wikipedia.org/wiki/Fuzzing
 [communicate with a front-end]: https://www.chessprogramming.org/User_Interface
 [Universal Chess Interface]: http://wbec-ridderkerk.nl/html/UCIProtocol.html

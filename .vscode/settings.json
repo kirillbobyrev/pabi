@@ -37,6 +37,7 @@
     "Stockfish",
     "sysinfo",
     "TCEC",
+    "Valgrind",
     "xrays",
     "Zobrist"
   ]
