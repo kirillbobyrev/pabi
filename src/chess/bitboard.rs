@@ -16,7 +16,6 @@ use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, Not, Shl, Shr, 
 use std::{fmt, mem};
 
 use itertools::Itertools;
-use strum::IntoEnumIterator;
 
 use crate::chess::core::{
     Direction,
@@ -97,7 +96,7 @@ impl Bitboard {
     #[must_use]
     pub(super) fn as_square(self) -> Square {
         debug_assert!(self.bits.count_ones() == 1);
-        unsafe { std::mem::transmute(self.bits.trailing_zeros() as u8) }
+        unsafe { mem::transmute(self.bits.trailing_zeros() as u8) }
     }
 
     #[must_use]
@@ -294,7 +293,7 @@ impl TryInto<Square> for Bitboard {
                 self.bits.count_ones()
             );
         }
-        Ok(unsafe { std::mem::transmute(self.bits.trailing_zeros() as u8) })
+        Ok(unsafe { mem::transmute(self.bits.trailing_zeros() as u8) })
     }
 }
 
@@ -483,9 +482,11 @@ impl Board {
 impl fmt::Display for Board {
     /// Prints board representation in FEN format.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for rank in Rank::iter().rev() {
+        for rank_idx in (0..BOARD_WIDTH).rev() {
+            let rank: Rank = unsafe { mem::transmute(rank_idx) };
             let mut empty_squares = 0i32;
-            for file in File::iter() {
+            for file_idx in 0..BOARD_WIDTH {
+                let file: File = unsafe { mem::transmute(file_idx) };
                 let square = Square::new(file, rank);
                 if let Some(piece) = self.at(square) {
                     if empty_squares != 0 {
@@ -513,8 +514,10 @@ impl fmt::Debug for Board {
     /// Dumps the board in a simple format ('.' for empty square, FEN algebraic
     /// symbol for piece) a-la Stockfish "debug" command in UCI mode.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for rank in Rank::iter().rev() {
-            for file in File::iter() {
+        for rank_idx in (0..BOARD_WIDTH).rev() {
+            let rank: Rank = unsafe { mem::transmute(rank_idx) };
+            for file_idx in 0..BOARD_WIDTH {
+                let file: File = unsafe { mem::transmute(file_idx) };
                 match self.at(Square::new(file, rank)) {
                     Some(piece) => write!(f, "{piece}"),
                     None => f.write_char('.'),
@@ -543,7 +546,7 @@ mod test {
 
     #[test]
     fn basics() {
-        assert_eq!(std::mem::size_of::<Bitboard>(), 8);
+        assert_eq!(mem::size_of::<Bitboard>(), 8);
         assert_eq!(Bitboard::full().bits, u64::MAX);
         assert_eq!(Bitboard::empty().bits, u64::MIN);
 

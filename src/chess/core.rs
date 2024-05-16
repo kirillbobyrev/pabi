@@ -97,7 +97,7 @@ pub type MoveList = arrayvec::ArrayVec<Move, { MAX_MOVES }>;
 ///
 /// [Little-Endian Rank-File Mapping]: https://www.chessprogramming.org/Square_Mapping_Considerations#LittleEndianRankFileMapping
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[rustfmt::skip]
 #[allow(missing_docs)]
 pub enum Square {
@@ -157,7 +157,7 @@ impl TryFrom<u8> for Square {
     ///
     /// If given square index is outside 0..[`BOARD_SIZE`] range.
     fn try_from(square_index: u8) -> anyhow::Result<Self> {
-        // Exclusive range patterns are not allowed:
+        // Exclusive range patterns are not allowed until Rust 1.80.
         // https://github.com/rust-lang/rust/issues/37854
         const MAX_INDEX: u8 = BOARD_SIZE - 1;
         match square_index {
@@ -192,7 +192,7 @@ impl fmt::Display for Square {
 /// is normally represented with a lowercase letter.
 // TODO: Re-export in lib.rs for convenience?
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(missing_docs)]
 pub enum File {
     A = 0,
@@ -203,23 +203,6 @@ pub enum File {
     F = 5,
     G = 6,
     H = 7,
-}
-
-impl File {
-    /// Returns a pre-calculated bitboard mask with 1s set for squares of the
-    /// given file.
-    pub(super) fn mask(self) -> Bitboard {
-        match self {
-            File::A => Bitboard::from_bits(0x101010101010101),
-            File::B => Bitboard::from_bits(0x202020202020202),
-            File::C => Bitboard::from_bits(0x404040404040404),
-            File::D => Bitboard::from_bits(0x808080808080808),
-            File::E => Bitboard::from_bits(0x1010101010101010),
-            File::F => Bitboard::from_bits(0x2020202020202020),
-            File::G => Bitboard::from_bits(0x4040404040404040),
-            File::H => Bitboard::from_bits(0x8080808080808080),
-        }
-    }
 }
 
 impl fmt::Display for File {
@@ -255,10 +238,8 @@ impl TryFrom<u8> for File {
 /// Represents a horizontal row of the chessboard. In chess notation, it is
 /// represented with a number. The implementation assumes zero-based values
 /// (i.e. rank 1 would be 0).
-// TODO: Check if implementing iterators manually (instead of using strum) would
-// be faster.
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(missing_docs)]
 pub enum Rank {
     One = 0,
@@ -556,15 +537,6 @@ bitflags::bitflags! {
     }
 }
 
-impl CastleRights {
-    fn mask(player: Player) -> Self {
-        match player {
-            Player::White => Self::WHITE_BOTH,
-            Player::Black => Self::BLACK_BOTH,
-        }
-    }
-}
-
 impl TryFrom<&str> for CastleRights {
     type Error = anyhow::Error;
 
@@ -657,8 +629,7 @@ pub enum Promotion {
 /// Traditionally those are North (Up), West (Left), East (Right), South (Down)
 /// and their combinations. However, using cardinal directions is confusing,
 /// hence they are replaced by relative directions.
-// TODO: Either use double directions in en passant calculations or only leave Up an Down.
-#[derive(Copy, Clone, Debug, strum::EnumIter)]
+#[derive(Copy, Clone, Debug)]
 pub enum Direction {
     /// Also known as North.
     Up,

@@ -10,8 +10,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4.2"
-itertools = "0.10.3"
-shakmaty = "0.20.7"
+itertools = "0.13.0"
+shakmaty = "0.27.0"
 pretty_assertions = "1.1.0"
 
 [dependencies.pabi]

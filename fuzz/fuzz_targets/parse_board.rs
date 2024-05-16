@@ -7,5 +7,5 @@ fuzz_target!(|data: &[u8]| {
         Ok(input) => input,
         Err(_) => return,
     };
-    position::Position::try_from(input);
+    let _ = position::Position::try_from(input);
 });

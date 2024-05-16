@@ -50,7 +50,7 @@ fn rook_ray(from: Square, to: Square) -> Bitboard {
 
 // TODO: Document.
 fn pext(a: u64, mask: u64) -> u64 {
-    if cfg!(target_feature = "bmi2") {
+    if cfg!(target_arch = "x86_64") && cfg!(target_feature = "bmi2") {
         unsafe { core::arch::x86_64::_pext_u64(a, mask) }
     } else {
         let mut result = 0u64;
@@ -257,7 +257,6 @@ pub(super) const BLACK_LONG_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
-    use strum::IntoEnumIterator;
 
     use super::*;
     use crate::chess::core::Rank;
@@ -528,7 +527,8 @@ mod test {
     #[test]
     fn rays() {
         // Rays with source == destination don't exist.
-        for square in Square::iter() {
+        for square_idx in 0..BOARD_SIZE {
+            let square = Square::try_from(square_idx).unwrap();
             assert!(ray(square, square).is_empty());
         }
         // Rays don't exist for squares not on the same diagonal or vertical.

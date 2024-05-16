@@ -866,7 +866,7 @@ fn generate_pawn_moves(
             _ => unsafe { moves.push_unchecked(Move::new(from, to, None)) },
         }
     };
-    for (from, to) in itertools::zip(original_squares.iter(), pawn_pushes.iter()) {
+    for (from, to) in std::iter::zip(original_squares.iter(), pawn_pushes.iter()) {
         if !blocking_ray.contains(to) {
             continue;
         }
@@ -883,7 +883,7 @@ fn generate_pawn_moves(
         .shift(push_direction.opposite())
         .shift(push_direction.opposite());
     // Double pawn pushes are never promoting.
-    for (from, to) in itertools::zip(original_squares.iter(), double_pushes.iter()) {
+    for (from, to) in std::iter::zip(original_squares.iter(), double_pushes.iter()) {
         if !blocking_ray.contains(to) {
             continue;
         }

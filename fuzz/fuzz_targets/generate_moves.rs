@@ -17,7 +17,7 @@ fuzz_target!(|data: &[u8]| {
     let shakmaty_setup: shakmaty::fen::Fen = input
         .parse()
         .expect("when we parsed a valid position it should be accepted by shakmaty");
-    let shakmaty_position: Result<Chess, _> = shakmaty_setup.position(CastlingMode::Standard);
+    let shakmaty_position: Result<Chess, _> = shakmaty_setup.into_position(CastlingMode::Standard);
     if shakmaty_position.is_err() {
         return;
     }

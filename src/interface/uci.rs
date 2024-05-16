@@ -11,13 +11,23 @@ fn run() {
         match tokens[0] {
             "uci" => {
                 // Handle UCI initialization
-                println!("id name MyChessEngine");
-                println!("id author YourName");
+                println!(
+                    "id name {} {}",
+                    env!("CARGO_PKG_NAME"),
+                    env!("CARGO_PKG_VERSION")
+                );
+                println!("id author {}", env!("CARGO_PKG_AUTHORS"));
                 println!("uciok");
+            },
+            "debug" => {
+                // Handle debug mode
             },
             "isready" => {
                 // Handle engine initialization
                 println!("readyok");
+            },
+            "setoption" => {
+                // Handle engine options
             },
             "ucinewgame" => {
                 // Handle new game setup

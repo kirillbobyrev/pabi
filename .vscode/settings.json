@@ -1,5 +1,6 @@
 {
   "cSpell.words": [
+    "arrayvec",
     "backrank",
     "bitand",
     "bitboard",
@@ -17,6 +18,7 @@
     "hasher",
     "hypermodern",
     "idents",
+    "isready",
     "itertools",
     "Kata",
     "libfuzzer",
@@ -33,10 +35,12 @@
     "rustdoc",
     "rustfmt",
     "rustyline",
+    "setoption",
     "shakmaty",
     "Stockfish",
     "sysinfo",
     "TCEC",
+    "ucinewgame",
     "Valgrind",
     "xrays",
     "Zobrist"
