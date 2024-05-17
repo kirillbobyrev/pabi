@@ -36,14 +36,16 @@
 )]
 // Clippy lints.
 #![warn(
-    clippy::perf,
-    clippy::pedantic,
-    clippy::style,
-    clippy::nursery,
-    clippy::complexity,
     clippy::correctness,
+    clippy::suspicious,
+    clippy::style,
+    clippy::complexity,
+    clippy::pedantic,
+    clippy::nursery,
     clippy::cargo
 )]
+// Performance is extremely important.
+#![deny(clippy::perf)]
 
 // TODO: Re-export types for convenience.
 pub mod chess;
