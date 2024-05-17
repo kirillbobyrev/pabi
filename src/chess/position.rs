@@ -55,7 +55,7 @@ pub struct Position {
     ///
     ///
     /// [Halfmove Clock]: https://www.chessprogramming.org/Halfmove_Clock
-    /// [^ply]: "Half-move" or ["ply"](https://www.chessprogramming.org/Ply) means a move of only
+    /// [^ply]: Half-move or [ply](https://www.chessprogramming.org/Ply) means a move of only
     ///     one side.
     /// [^fifty]: 50 __full__ moves
     halfmove_clock: u8,
@@ -95,7 +95,7 @@ impl Position {
         }
     }
 
-    pub(super) fn us(&self) -> Player {
+    pub(super) const fn us(&self) -> Player {
         self.side_to_move
     }
 
@@ -227,7 +227,7 @@ impl Position {
             // This is a correct EPD: exit early.
             None => {
                 return match validate(&result) {
-                    Ok(_) => Ok(result),
+                    Ok(()) => Ok(result),
                     Err(e) => Err(e.context("illegal position")),
                 }
             },
@@ -253,7 +253,7 @@ impl Position {
         };
         match parts.next() {
             None => match validate(&result) {
-                Ok(_) => Ok(result),
+                Ok(()) => Ok(result),
                 Err(e) => Err(e.context("illegal position")),
             },
             Some(_) => bail!("trailing symbols are not allowed in FEN"),
@@ -587,9 +587,9 @@ pub fn perft(position: &Position, depth: u8) -> u64 {
         return 1;
     }
     let mut nodes = 0;
-    for next_move in position.generate_moves().iter() {
+    for next_move in position.generate_moves() {
         let mut next_position = position.clone();
-        next_position.make_move(next_move);
+        next_position.make_move(&next_move);
         nodes += perft(&next_position, depth - 1);
     }
     nodes
@@ -603,7 +603,6 @@ pub fn perft(position: &Position, depth: u8) -> u64 {
 // most obvious incorrect positions and prevents them from being analyzed.
 // This helps set up barrier (constructing positions from FEN) between the
 // untrusted environment (UCI front-end, user input) and the engine.
-#[must_use]
 fn validate(position: &Position) -> anyhow::Result<()> {
     if position.fullmove_counter == 0 {
         bail!("fullmove counter cannot be zero")

@@ -11,7 +11,7 @@ use std::{env, fs, process};
 // TODO: This can fail at several levels: be more principled about it.
 fn git_revision_hash() -> String {
     let output = process::Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .unwrap()
         .stdout;
@@ -21,7 +21,7 @@ fn git_revision_hash() -> String {
 fn generate_file(filename: &str, contents: &str) {
     let out_dir = env::var_os("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join(filename);
-    fs::write(&dest_path, contents).unwrap();
+    fs::write(dest_path, contents).unwrap();
 }
 
 fn generate_version() -> Result<(), Box<dyn Error>> {
@@ -39,6 +39,5 @@ fn generate_version() -> Result<(), Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    generate_version()?;
-    Ok(())
+    generate_version()
 }

@@ -79,17 +79,17 @@ impl Bitboard {
 
     /// Adds given square to the set.
     pub(super) fn extend(&mut self, square: Square) {
-        *self |= Self::from(square)
+        *self |= Self::from(square);
     }
 
     /// Adds given square to the set.
     pub(super) fn clear(&mut self, square: Square) {
-        *self &= !Self::from(square)
+        *self &= !Self::from(square);
     }
 
     /// Returns true if this bitboard contains given square.
     #[must_use]
-    pub(super) fn contains(self, square: Square) -> bool {
+    pub(super) const fn contains(self, square: Square) -> bool {
         (self.bits & (1u64 << square as u8)) != 0
     }
 
@@ -313,7 +313,7 @@ pub(super) struct Pieces {
 }
 
 impl Pieces {
-    pub(super) fn empty() -> Self {
+    pub(super) const fn empty() -> Self {
         Self {
             king: Bitboard::empty(),
             queens: Bitboard::empty(),
@@ -385,26 +385,19 @@ impl Pieces {
     // Option<Piece> mapping, this is potentially obsolete.
     pub(super) fn at(&self, square: Square) -> Option<PieceKind> {
         if self.all().contains(square) {
-            let mut kind = if self.king.contains(square) {
+            let kind = if self.king.contains(square) {
                 PieceKind::King
-            } else {
+            } else if self.pawns.contains(square) {
                 PieceKind::Pawn
+            } else if self.queens.contains(square) {
+                PieceKind::Queen
+            } else if self.rooks.contains(square) {
+                PieceKind::Rook
+            } else if self.bishops.contains(square) {
+                PieceKind::Bishop
+            } else {
+                PieceKind::Knight
             };
-            if self.king.contains(square) {
-                kind = PieceKind::King;
-            }
-            if self.queens.contains(square) {
-                kind = PieceKind::Queen;
-            }
-            if self.rooks.contains(square) {
-                kind = PieceKind::Rook;
-            }
-            if self.bishops.contains(square) {
-                kind = PieceKind::Bishop;
-            }
-            if self.knights.contains(square) {
-                kind = PieceKind::Knight;
-            }
             return Some(kind);
         }
         None

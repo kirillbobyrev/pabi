@@ -1,7 +1,7 @@
 //! Mappings of occupied squares to the attacked squares for each piece. The
 //! mappings are pre-calculated where possible to provide an efficient way of
 //! generating moves.
-// TODO: This code is probably by far the less appealing in the project.
+// TODO: This code is probably by far the least appealing in the project.
 // Refactor it and make it nicer.
 
 use crate::chess::bitboard::{Bitboard, Pieces};
@@ -25,47 +25,50 @@ pub(super) fn bishop_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
         + pext(occupancy.bits(), BISHOP_RELEVANT_OCCUPANCIES[from as usize]) as usize]
 }
 
-pub(super) fn knight_attacks(square: Square) -> Bitboard {
+pub(super) const fn knight_attacks(square: Square) -> Bitboard {
     KNIGHT_ATTACKS[square as usize]
 }
 
-pub(super) fn pawn_attacks(square: Square, player: Player) -> Bitboard {
+pub(super) const fn pawn_attacks(square: Square, player: Player) -> Bitboard {
     match player {
         Player::White => WHITE_PAWN_ATTACKS[square as usize],
         Player::Black => BLACK_PAWN_ATTACKS[square as usize],
     }
 }
 
-pub(super) fn ray(from: Square, to: Square) -> Bitboard {
+pub(super) const fn ray(from: Square, to: Square) -> Bitboard {
     RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
-pub(super) fn bishop_ray(from: Square, to: Square) -> Bitboard {
+pub(super) const fn bishop_ray(from: Square, to: Square) -> Bitboard {
     BISHOP_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
-fn rook_ray(from: Square, to: Square) -> Bitboard {
+const fn rook_ray(from: Square, to: Square) -> Bitboard {
     ROOK_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
 // TODO: Document.
 fn pext(a: u64, mask: u64) -> u64 {
-    if cfg!(target_arch = "x86_64") && cfg!(target_feature = "bmi2") {
-        unsafe { core::arch::x86_64::_pext_u64(a, mask) }
-    } else {
-        let mut result = 0u64;
-        let mut mask = mask;
-        let mut scanning_bit = 1u64;
-        while mask != 0 {
-            let ls1b = 1u64 << mask.trailing_zeros();
-            if (a & ls1b) != 0 {
-                result |= scanning_bit;
-            }
-            mask ^= ls1b;
-            scanning_bit <<= 1;
+    #[cfg(target_arch = "x86_64")]
+    {
+        if cfg!(target_feature = "bmi2") {
+            return unsafe { core::arch::x86_64::_pext_u64(a, mask) };
         }
-        result
     }
+    // Fallback.
+    let mut result = 0u64;
+    let mut mask = mask;
+    let mut scanning_bit = 1u64;
+    while mask != 0 {
+        let ls1b = 1u64 << mask.trailing_zeros();
+        if (a & ls1b) != 0 {
+            result |= scanning_bit;
+        }
+        mask ^= ls1b;
+        scanning_bit <<= 1;
+    }
+    result
 }
 
 #[derive(Debug)]

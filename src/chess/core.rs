@@ -137,11 +137,7 @@ impl Square {
             Direction::Down => -(BOARD_WIDTH as i8),
         };
         // TODO: Should this be TryFrom<i8> instead?
-        let candidate = self as i8 + shift;
-        if candidate < 0 {
-            return None;
-        }
-        match Self::try_from(candidate as u8) {
+        match Self::try_from(self as i8 + shift) {
             Ok(square) => Some(square),
             Err(_) => None,
         }
@@ -160,6 +156,25 @@ impl TryFrom<u8> for Square {
         // Exclusive range patterns are not allowed until Rust 1.80.
         // https://github.com/rust-lang/rust/issues/37854
         const MAX_INDEX: u8 = BOARD_SIZE - 1;
+        match square_index {
+            0..=MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
+            _ => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
+        }
+    }
+}
+
+impl TryFrom<i8> for Square {
+    type Error = anyhow::Error;
+
+    /// Creates a square given its position on the board.
+    ///
+    /// # Errors
+    ///
+    /// If given square index is outside 0..[`BOARD_SIZE`] range.
+    fn try_from(square_index: i8) -> anyhow::Result<Self> {
+        // Exclusive range patterns are not allowed until Rust 1.80.
+        // https://github.com/rust-lang/rust/issues/37854
+        const MAX_INDEX: i8 = BOARD_SIZE as i8 - 1;
         match square_index {
             0..=MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
             _ => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
@@ -255,27 +270,27 @@ pub enum Rank {
 impl Rank {
     /// Returns a pre-calculated bitboard mask with 1s set for squares of the
     /// given rank.
-    pub(super) fn mask(self) -> Bitboard {
+    pub(super) const fn mask(self) -> Bitboard {
         match self {
-            Rank::One => Bitboard::from_bits(0x0000_0000_0000_00FF),
-            Rank::Two => Bitboard::from_bits(0x0000_0000_0000_FF00),
-            Rank::Three => Bitboard::from_bits(0x0000_0000_00FF_0000),
-            Rank::Four => Bitboard::from_bits(0x0000_0000_FF00_0000),
-            Rank::Five => Bitboard::from_bits(0x0000_00FF_0000_0000),
-            Rank::Six => Bitboard::from_bits(0x0000_FF00_0000_0000),
-            Rank::Seven => Bitboard::from_bits(0x00FF_0000_0000_0000),
-            Rank::Eight => Bitboard::from_bits(0xFF00_0000_0000_0000),
+            Self::One => Bitboard::from_bits(0x0000_0000_0000_00FF),
+            Self::Two => Bitboard::from_bits(0x0000_0000_0000_FF00),
+            Self::Three => Bitboard::from_bits(0x0000_0000_00FF_0000),
+            Self::Four => Bitboard::from_bits(0x0000_0000_FF00_0000),
+            Self::Five => Bitboard::from_bits(0x0000_00FF_0000_0000),
+            Self::Six => Bitboard::from_bits(0x0000_FF00_0000_0000),
+            Self::Seven => Bitboard::from_bits(0x00FF_0000_0000_0000),
+            Self::Eight => Bitboard::from_bits(0xFF00_0000_0000_0000),
         }
     }
 
-    pub(super) fn backrank(player: Player) -> Self {
+    pub(super) const fn backrank(player: Player) -> Self {
         match player {
             Player::White => Self::One,
             Player::Black => Self::Eight,
         }
     }
 
-    pub(super) fn pawns_starting(player: Player) -> Self {
+    pub(super) const fn pawns_starting(player: Player) -> Self {
         match player {
             Player::White => Self::Two,
             Player::Black => Self::Seven,
@@ -323,14 +338,14 @@ pub enum Player {
 impl Player {
     /// "Flips" the color.
     #[must_use]
-    pub fn opponent(self) -> Self {
+    pub const fn opponent(self) -> Self {
         match self {
             Self::White => Self::Black,
             Self::Black => Self::White,
         }
     }
 
-    pub(super) fn push_direction(self) -> Direction {
+    pub(super) const fn push_direction(self) -> Direction {
         match self {
             Self::White => Direction::Up,
             Self::Black => Direction::Down,
@@ -356,8 +371,8 @@ impl fmt::Display for Player {
             f,
             "{}",
             match &self {
-                Player::White => 'w',
-                Player::Black => 'b',
+                Self::White => 'w',
+                Self::Black => 'b',
             }
         )
     }
@@ -638,7 +653,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub(super) fn opposite(self) -> Self {
+    pub(super) const fn opposite(self) -> Self {
         match self {
             Self::Up => Self::Down,
             Self::Down => Self::Up,

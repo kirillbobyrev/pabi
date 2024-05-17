@@ -73,5 +73,8 @@ pub fn print_system_info() {
     );
     // Convert returned KB to GB.
     println!("RAM: {} GB", sys.total_memory() / 1_000_000);
-    println!("Physical cores: {}", sys.physical_core_count().unwrap());
+    match sys.physical_core_count() {
+        Some(cores) => println!("Physical cores: {cores}"),
+        None => println!("Physical cores: UNKNOWN"),
+    }
 }
