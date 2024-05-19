@@ -510,9 +510,9 @@ bitflags::bitflags! {
     /// loses ability to castle to the side from which the rook moved.
     ///
     /// Castling is relatively straightforward in the Standard Chess but is
-    /// often misunderstood in Fischer Random Chess (also known as FRC or
-    /// Chess960). An easy mnemonic is that the king and the rook end up on the
-    /// same files for both Standard and FRC:
+    /// often misunderstood in Chess960 (also known as Fischer Random Chess). An
+    /// easy mnemonic is that the king and the rook end up on the same files for
+    /// both Standard and FRC:
     ///
     /// - When castling h-side (short), the king ends up on [`File::G`] and the
     ///   rook on [`File::F`]
@@ -530,7 +530,7 @@ bitflags::bitflags! {
     ///   vacant except for the king and castling rook.
     ///
     /// [castle]: https://www.chessprogramming.org/Castling
-    // TODO: Update docs for FCR.
+    // TODO: Update with castling squares for Chess960.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct CastleRights : u8 {
         #[allow(missing_docs)]

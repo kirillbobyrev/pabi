@@ -4,7 +4,7 @@ This document describes high-level architecture of Pabi. If you want to get
 familiar with the code and understand the project structure, this is a great
 starting point.
 
-## Overview
+## Design considerations
 
 ## Code map
 
@@ -25,6 +25,10 @@ Contains code that extracts features from a given position and runs "static"
 [position evaluation]: a Neural Network considers just a single position and
 computes the score that determines how good it is for the player that is going
 to make the next move.
+
+The development of the Neural Network model is in another repo:
+[kirillbobyrev/pabi-brain](https://github.com/kirillbobyrev/pabi-brain). The
+Rust code only runs inference of an already trained model.
 
 #### [`src/search/`](/src/search/)
 

@@ -145,7 +145,7 @@ impl Position {
     /// additional whitespace. Use [`Position::try_from`] for cleaning up the
     /// input if it is coming from untrusted source and is likely to contain
     /// extra symbols.
-    // was not legal.
+    // TODO: Add support for Shredder FEN and Chess960.
     pub fn from_fen(input: &str) -> anyhow::Result<Self> {
         let mut parts = input.split(' ');
         // Parse Piece Placement.
@@ -301,8 +301,6 @@ impl Position {
     /// [BMI2 Pext Bitboards]: https://www.chessprogramming.org/BMI2#PEXTBitboards
     /// [BMI Instruction Set]: https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set
     /// [PEXT]: https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set#Parallel_bit_deposit_and_extract
-    // TODO: Fall back to Fancy Magic Bitboards if BMI2 is not available for
-    // portability?
     // TODO: Look at and compare speed with https://github.com/jordanbray/chess
     // TODO: Another source for comparison:
     // https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/movegen.rs#L68-L85
@@ -595,14 +593,14 @@ pub fn perft(position: &Position, depth: u8) -> u64 {
     nodes
 }
 
-// Checks if the position is "legal", i.e. if it can be reasoned about by
-// the engine. Checking whether the position is truly reachable from the
-// starting position (either in standard chess or Fischer Random Chess)
-// requires retrograde analysis and potentially unreasonable amount of time.
-// This check employs a limited number of heuristics that filter out the
-// most obvious incorrect positions and prevents them from being analyzed.
-// This helps set up barrier (constructing positions from FEN) between the
-// untrusted environment (UCI front-end, user input) and the engine.
+// Checks if the position is "legal", i.e. if it can be reasoned about by the
+// engine. Checking whether the position is truly reachable from the starting
+// position (either in standard chess or Chess960) requires retrograde analysis
+// and potentially unreasonable amount of time.  This check employs a limited
+// number of heuristics that filter out the most obvious incorrect positions and
+// prevents them from being analyzed.  This helps set up barrier (constructing
+// positions from FEN) between the untrusted environment (UCI front-end, user
+// input) and the engine.
 fn validate(position: &Position) -> anyhow::Result<()> {
     if position.fullmove_counter == 0 {
         bail!("fullmove counter cannot be zero")

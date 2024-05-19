@@ -49,34 +49,35 @@
 
 // TODO: Re-export types for convenience.
 pub mod chess;
+pub mod engine;
 pub mod evaluation;
-pub mod interface;
+pub mod uci;
 
 pub mod util;
 
 use sysinfo::System;
 
+/// Full version of the engine, including commit hash. Produced by `build.rs`.
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
+/// Build type and target. Produced by `build.rs`.
+pub const BUILD_INFO: &str = include_str!(concat!(env!("OUT_DIR"), "/build_info"));
 
 /// Prints information about the host system.
 pub fn print_system_info() {
-    let sys = System::new_all();
     println!(
         "System: {}",
         System::long_os_version().unwrap_or_else(|| "UNKNOWN".to_string())
     );
-    println!(
-        "System kernel version: {}",
-        System::kernel_version().unwrap_or_else(|| "UNKNOWN".to_string())
-    );
-    println!(
-        "Host name: {}",
-        System::host_name().unwrap_or_else(|| "UNKNOWN".to_string())
-    );
-    // Convert returned KB to GB.
-    println!("RAM: {} GB", sys.total_memory() / 1_000_000);
+    let sys = System::new_all();
+    // Convert returned bytes to GB.
+    println!("RAM: {:.2} GB", sys.total_memory() as f64 / 1e9);
     match sys.physical_core_count() {
         Some(cores) => println!("Physical cores: {cores}"),
         None => println!("Physical cores: UNKNOWN"),
+    }
+    if cfg!(target_feature = "bmi2") {
+        println!("BMI2 is supported, move generation will use PEXT and PDEP to speed up");
+    } else {
+        println!("WARNING: BMI2 is not supported, move generation will be significantly slower");
     }
 }

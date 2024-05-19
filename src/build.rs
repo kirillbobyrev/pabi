@@ -1,7 +1,6 @@
-// TODO: Describe why this is needed and what the details are.
-// This would be better compile-time but is not possible without Nightly Rust
-// and unstable features right now, possibly due to a bug:
-// https://github.com/rust-lang/rust/issues/93481
+//! Retrieves information about the version of the engine from Git and the build
+//! environment. This information is then written to a file in the output
+//! directory and can be accessed at runtime by the engine.
 
 use std::error::Error;
 use std::fmt::Write;
@@ -25,16 +24,14 @@ fn generate_file(filename: &str, contents: &str) {
 }
 
 fn generate_version() -> Result<(), Box<dyn Error>> {
-    let mut version = String::new();
-    writeln!(
-        version,
-        "{} ({})",
-        env!("CARGO_PKG_VERSION"),
-        git_revision_hash()
-    )?;
-    writeln!(version, "Build type: {}", env::var("PROFILE").unwrap())?;
-    write!(version, "Target: {}", env::var("TARGET").unwrap())?;
+    let version = format!("{} ({})", env!("CARGO_PKG_VERSION"), git_revision_hash());
     generate_file("version", &version);
+    let build_info = format!(
+        "Build type: {}, Target: {}",
+        env::var("PROFILE").unwrap(),
+        env::var("TARGET").unwrap()
+    );
+    generate_file("build_info", &build_info);
     Ok(())
 }
 

@@ -14,7 +14,7 @@ name = "pabi"
 readme = "README.md"
 repository = "https://github.com/kirillbobyrev/pabi"
 rust-version = "1.78"
-version = "0.0.0"
+version = "0.0.1"
 # Reduce the package size by only including things necessary for building it.
 include = [
   "/src/**/*.rs",
@@ -63,8 +63,7 @@ codegen-units = 1
 inherits = "release"
 lto = "fat"
 strip = true
-# TODO: Oh-oh, this is dangerous! So far, it doesn't give any benefits for
-# parsing positions but might be useful in the future.
+# TODO: Oh-oh, this is dangerous! Maybe measure if it gives any benefits.
 # overflow-checks = false
 # TODO: Tweak inline-threshold.
 # TODO: Set profile-generate and profile-use (https://github.com/kirillbobyrev/pabi/issues/9).
