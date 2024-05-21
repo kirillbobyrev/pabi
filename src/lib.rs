@@ -54,10 +54,7 @@ pub mod evaluation;
 pub mod search;
 
 mod interface;
-pub use interface::uci as uci;
-
-
-use sysinfo::System;
+pub use interface::uci;
 
 /// Full version of the engine, including commit hash. Produced by `build.rs`.
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
@@ -66,17 +63,6 @@ pub const BUILD_INFO: &str = include_str!(concat!(env!("OUT_DIR"), "/build_info"
 
 /// Prints information about the host system.
 pub fn print_system_info() {
-    println!(
-        "System: {}",
-        System::long_os_version().unwrap_or_else(|| "UNKNOWN".to_string())
-    );
-    let sys = System::new_all();
-    // Convert returned bytes to GB.
-    println!("RAM: {:.2} GB", sys.total_memory() as f64 / 1e9);
-    match sys.physical_core_count() {
-        Some(cores) => println!("Physical cores: {cores}"),
-        None => println!("Physical cores: UNKNOWN"),
-    }
     if cfg!(target_feature = "bmi2") {
         println!("BMI2 is supported, move generation will use PEXT and PDEP to speed up");
     } else {

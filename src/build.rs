@@ -8,7 +8,7 @@ use std::{env, fs, process};
 // TODO: This can fail at several levels: be more principled about it.
 fn git_revision_hash() -> String {
     let output = process::Command::new("git")
-        .args(["rev-parse", "HEAD"])
+        .args(["rev-parse", "short", "HEAD"])
         .output()
         .unwrap()
         .stdout;
