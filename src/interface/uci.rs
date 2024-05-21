@@ -1,5 +1,6 @@
-//! Implementation of [Universal Chess Interface] (UCI) protocol for communication
-//! between the engine and the UCI client (e.g. GUI, tournament runner).
+//! Implementation of [Universal Chess Interface] (UCI) protocol for
+//! communication between the engine and the UCI client (e.g. GUI, tournament
+//! runner).
 //!
 //! The implementation here does not aim to be complete and exhaustive, because
 //! the main goal is to make the engine work in relatively simple setups, making
@@ -14,7 +15,6 @@ use crate::VERSION;
 
 /// Reads UCI commands from the input stream and executes them accordingly while
 /// writing the responses to the output stream.
-///
 // TODO: Document the expected behavior.
 // > The engine must always be able to process input from stdin, even while
 // > thinking.
@@ -128,7 +128,7 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
                 // This is practically no-op for now, maybe always. Not sure
                 // what should change when the new game is started.
             },
-            // position [fen <fenstring> | startpos ]  moves <move1> .... <movei>
+            // position [fen <fenstring> | startpos ]  moves <move1> .... <move_i>
             //
             // Set up the position described in `fenstring` on the internal board and
             // play the moves on the internal chess board.

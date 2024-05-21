@@ -1,7 +1,7 @@
 # Pabi
 
 [![Codecov](https://codecov.io/gh/kirillbobyrev/pabi/branch/main/graph/badge.svg)](https://codecov.io/gh/kirillbobyrev/pabi)
-[![Lines of Code](https://tokei.rs/b1/github/kirillbobyrev/pabi)](https://github.com/kirillbobyrev/pabi/tree/main/src)
+[![Lines of Code](https://tokei.rs/b1/github/kirillbobyrev/pabi?type=Rust)](https://github.com/kirillbobyrev/pabi/tree/main/src)
 
 [![Build](https://github.com/kirillbobyrev/pabi/actions/workflows/build.yml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/build.yml)
 [![Test Suite](https://github.com/kirillbobyrev/pabi/actions/workflows/test.yml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/test.yml)
@@ -14,6 +14,9 @@ Pabi is a modern chess engine that is currently under development. The engine
 itself is implemented in this repository, training and development of the Neural
 Network for position evaluation is in
 [kirillbobyrev/pabi-brain](https://github.com/kirillbobyrev/pabi-brain).
+
+For architecture, design and development process overview, please see
+[CONTRIBUTING.md](/CONTRIBUTING.md).
 
 ## Goals
 

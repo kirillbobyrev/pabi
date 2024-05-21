@@ -52,9 +52,7 @@ impl Move {
 }
 
 impl fmt::Display for Move {
-    /// Serializes a move in [UCI format].
-    ///
-    /// [UCI format]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
+    /// Serializes a move in UCI format (used by [`pabi::uci`]).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.from, self.to)?;
         if let Some(promotion) = self.promotion {

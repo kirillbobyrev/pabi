@@ -3,13 +3,28 @@ use std::fs;
 use itertools::Itertools;
 use pabi::chess::core::{Move, Promotion, Square};
 use pabi::chess::position::{perft, Position};
-use pabi::util;
 use pretty_assertions::assert_eq;
 use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
 
+#[must_use]
+pub fn sanitize_fen(position: &str) -> String {
+    let mut position = position.trim();
+    for prefix in ["fen ", "epd "] {
+        if let Some(stripped) = position.strip_prefix(prefix) {
+            position = stripped;
+        }
+    }
+    match position.split_ascii_whitespace().count() {
+        6 => position.to_string(),
+        // Patch EPD to validate produced FEN.
+        4 => position.to_string() + " 0 1",
+        _ => unreachable!(),
+    }
+}
+
 fn expect_legal_position(input: &str) {
     let position = Position::from_fen(input).expect("we are parsing valid position: {input}");
-    assert_eq!(position.fen(), util::sanitize_fen(input));
+    assert_eq!(position.fen(), sanitize_fen(input));
 }
 
 // TODO: Validate the precise contents of the bitboard directly.
@@ -172,7 +187,7 @@ fn arbitrary_positions() {
             .lines()
     {
         let position = Position::try_from(serialized_position).unwrap();
-        assert_eq!(position.fen(), util::sanitize_fen(serialized_position));
+        assert_eq!(position.fen(), sanitize_fen(serialized_position));
     }
 }
 

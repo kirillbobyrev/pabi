@@ -51,9 +51,11 @@
 pub mod chess;
 pub mod engine;
 pub mod evaluation;
-pub mod uci;
+pub mod search;
 
-pub mod util;
+mod interface;
+pub use interface::uci as uci;
+
 
 use sysinfo::System;
 

@@ -31,20 +31,7 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
           override: true
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-      # Using -- --ignored is not possible with actions-rs/cargo, run plain
-      # cargo instead.
-      - name: Run expensive testts
+      - name: Run basic tests
+        run: cargo test --release
+      - name: Run expensive tests
         run: cargo test --release -- --ignored

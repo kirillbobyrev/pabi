@@ -46,7 +46,7 @@ use crate::chess::core::{
 // TODO: Store Zobrist hash, possibly other info.
 #[derive(Clone)]
 pub struct Position {
-    board: Board,
+    pub(crate) board: Board,
     castling: CastleRights,
     side_to_move: Player,
     /// [Halfmove Clock][^ply] keeps track of the number of (half-)moves

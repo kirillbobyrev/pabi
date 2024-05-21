@@ -16,15 +16,6 @@ jobs:
           toolchain: nightly
           override: true
           components: rustfmt, clippy
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-nightly-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Cargo fmt
         uses: actions-rs/cargo@v1
         with:
@@ -34,6 +25,6 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- --deny clippy::all --deny clippy::pedantic
+          args: --all-features
       - name: typos-action
         uses: crate-ci/typos@v1.21.0

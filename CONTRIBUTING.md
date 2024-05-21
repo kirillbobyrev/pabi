@@ -4,15 +4,59 @@ This document describes high-level architecture of Pabi. If you want to get
 familiar with the code and understand the project structure, this is a great
 starting point.
 
-## Design considerations
+## Scope
+
+Implementing a *general-purpose* chess engine that would truly excel in
+different domains, such as playing with humans, being able to adjust the
+strength, providing the best possible analysis for a position when given a lot
+of time and, finally, playing well against other engines is an enormous task,
+especially for one person. Therefore, it's crucial to choose the right scope and
+design the engine with chosen limitations in mind.
+
+Pabi chooses to be the best possible version of an engine that does well against
+other chess engines in online tournaments. That means that it will prioritize
+performance under the constraints put by the rules and environments of such
+tournaments. Most important tournament organizers are
+[TCEC](https://tcec-chess.com/) and
+[CCCC](https://www.chess.com/computer-chess-championship), and the most
+prominent rating to date is [CCRL](https://computerchess.org.uk/ccrl/). The
+first goal is reaching 3000 ELO on the rating lists that are accepted by the
+organizers of these tournaments.
+
+Most of the competitions are in relatively fast time controls (Blitz, Bullet,
+Rapid) with some exceptions in relatively short classical formats. These are the
+[CCRL rules](https://computerchess.org.uk/ccrl/404/about.html) and [TCEC
+rules](https://wiki.chessdom.org/Rules). In both rule sets the engines are given
+opening books selected by the organizers and unknown to the participants, and
+the engines start the game in pre-determined positions which creates space for
+unbalance leading to decisive results.
+
+In all cases, the testing environment's CPU is of x86_64 architecture, which is
+very important because of PEXT and PDEP instructions that significantly increase
+the performance of move generators. Also, the processors have multiple cores,
+sometimes there as many as 256 cores as in CCC22:
+
+```
+CPUs | 2 x AMD EPYC 7H12
+GPU | 2x A100 (40 GB GPU memory)
+Cores | 256 cores (128 physical)
+RAM | 512GB DIMM DDR4 2933 MHz (0.3 ns)
+SSD | 2x Micron 5210 MTFD (2TB) in RAID1
+OS | CentOS 8
+```
+
+This requires the engine to be very good at utilizing multi-threading.
+
+Other design choices are deliberate focus on performance over most things
+(except simplicity and clarity), such as error recovery (there should be minimal
+one: if the error happened and the engine can reject the input, it will reject
+the input and continue working) and support for arcane environments.
 
 ## Recipes
 
-### Building
-
-### Testing
-
-### Fuzzing
+Most commands for development, building the engine, testing, checking for errors
+and fuzzing it are supported as [just](https://github.com/casey/just) recipes.
+See [justfile](/justfile) for a complete list of frequently used commands.
 
 ## Code map
 

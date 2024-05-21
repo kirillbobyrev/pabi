@@ -1,12 +1,11 @@
 {
   "recommendations": [
-    "bungcip.better-toml",
+    "tamasfe.even-better-toml",
     "davidanson.vscode-markdownlint",
     "matklad.rust-analyzer",
     "redhat.vscode-yaml",
     "serayuzgur.crates",
     "streetsidesoftware.code-spell-checker",
     "yzhang.markdown-all-in-one",
-    "editorconfig.editorconfig"
   ]
 }
