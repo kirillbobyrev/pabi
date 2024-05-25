@@ -18,6 +18,7 @@ use crate::VERSION;
 // TODO: Document the expected behavior.
 // > The engine must always be able to process input from stdin, even while
 // > thinking.
+// TODO: Document supported commands.
 pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
     loop {
         let mut line = String::new();
@@ -53,58 +54,58 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
             },
             // debug [ on | off ]
             //
-            // 	Switch the debug mode of the engine on and off.
+            // Switch the debug mode of the engine on and off.
             //
-            //  In debug mode the engine should send additional infos to the
-            //  GUI, e.g. with the "info string" command, to help debugging,
-            //  e.g. the commands that the engine has received etc. This mode
-            //  should be switched off by default and this command can be sent
-            //  any time, also when the engine is thinking.
+            // In debug mode the engine should send additional infos to the
+            // GUI, e.g. with the "info string" command, to help debugging,
+            // e.g. the commands that the engine has received etc. This mode
+            // should be switched off by default and this command can be sent
+            // any time, also when the engine is thinking.
             Some(&"debug") => {
                 todo!();
             },
             // isready
             //
-            //  This is used to synchronize the engine with the GUI. When the
-            //  GUI has sent a command or multiple commands that can take some
-            //  time to complete, this command can be used to wait for the
-            //  engine to be ready again or to ping the engine to find out if it
-            //  is still alive.
+            // This is used to synchronize the engine with the GUI. When the
+            // GUI has sent a command or multiple commands that can take some
+            // time to complete, this command can be used to wait for the
+            // engine to be ready again or to ping the engine to find out if it
+            // is still alive.
             //
-            //  E.g. this should be sent after setting the path to the
-            //  tablebases as this can take some time.  This command is also
-            //  required once before the engine is asked to do any search to
-            //  wait for the engine to finish initializing.
+            // E.g. this should be sent after setting the path to the
+            // tablebases as this can take some time.  This command is also
+            // required once before the engine is asked to do any search to
+            // wait for the engine to finish initializing.
             //
-            //  This command must always be answered with "readyok" and can be
-            //  sent also when the engine is calculating in which case the
-            //  engine should also immediately answer with "readyok" without
-            //  stopping the search.
+            // This command must always be answered with "readyok" and can be
+            // sent also when the engine is calculating in which case the
+            // engine should also immediately answer with "readyok" without
+            // stopping the search.
             Some(&"isready") => {
                 println!("readyok");
             },
             // setoption name <id> [value <x>]
             //
-            //  This is sent to the engine when the user wants to change the
-            //  internal parameters of the engine. For the "button" type no
-            //  value is needed.
+            // This is sent to the engine when the user wants to change the
+            // internal parameters of the engine. For the "button" type no
+            // value is needed.
             //
-            //  One string will be sent for each parameter and this will only be
-            //  sent when the engine is waiting.
+            // One string will be sent for each parameter and this will only be
+            // sent when the engine is waiting.
             //
-            //  The name and value of the option in <id> should not be case
-            //  sensitive and can include spaces.
+            // The name and value of the option in <id> should not be case
+            // sensitive and can include spaces.
             //
-            //  The substrings "value" and "name" should be avoided in <id> and
-            //  <x> to allow unambiguous parsing,
+            // The substrings "value" and "name" should be avoided in <id> and
+            // <x> to allow unambiguous parsing,
             //
-            // 	for example do not use <name> = "draw value".
+            // for example do not use <name> = "draw value".
             //
-            // 	Here are some strings for the example below:
-            // 	    - "setoption name Nullmove value true\n"
-            //      - "setoption name Selectivity value 3\n"
-            // 	    - "setoption name Style value Risky\n"
-            // 	    - "setoption name Clear Hash\n"
+            // Here are some strings for the example below:
+            //   - "setoption name Nullmove value true\n"
+            //   - "setoption name Selectivity value 3\n"
+            // 	 - "setoption name Style value Risky\n"
+            // 	 - "setoption name Clear Hash\n"
             Some(&"setoption") => {
                 todo!();
             },
@@ -125,10 +126,10 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
             // "isready" after "ucinewgame" to wait for the engine to finish its
             // operation.
             Some(&"ucinewgame") => {
-                // This is practically no-op for now, maybe always. Not sure
-                // what should change when the new game is started.
+                // TODO: Stop search, reset the board, etc.
+                todo!();
             },
-            // position [fen <fenstring> | startpos ]  moves <move1> .... <move_i>
+            // position [fen <fenstring> | startpos ] moves <move1> ... <move_i>
             //
             // Set up the position described in `fenstring` on the internal board and
             // play the moves on the internal chess board.
@@ -140,7 +141,30 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
             // position sent to the engine, the GUI should have sent a
             // "ucinewgame" inbetween.
             Some(&"position") => {
+                if tokens.len() < 2 {
+                    writeln!(output, "Missing position: {}", line).unwrap();
+                    continue;
+                }
                 // Handle position setup
+                match tokens[1] {
+                    "startpos" => {
+                        // Handle starting position
+                        todo!();
+                    },
+                    "fen" => {
+                        // Handle FEN position
+                        todo!();
+                    },
+                    _ => {
+                        writeln!(
+                            output,
+                            "Expected position [fen <fenstring> | startpos] moves
+                            <move1> ... <move_i>, got: {}",
+                            line
+                        )
+                        .unwrap();
+                    },
+                }
                 if tokens[1] == "startpos" {
                     // Handle starting position
                     todo!();
@@ -174,6 +198,46 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
             Some(&"ponderhit") => {
                 todo!();
             },
+            // * go
+            // 	start calculating on the current position set up with the "position" command.
+            // 	There are a number of commands that can follow this command, all will be sent in the
+            // same string. 	If one command is not sent its value should be interpreted
+            // as it would not influence the search.
+            // 	* searchmoves <move1> .... <movei>
+            // 		restrict search to this moves only
+            // 		Example: After "position startpos" and "go infinite searchmoves e2e4 d2d4"
+            // 		the engine should only search the two moves e2e4 and d2d4 in the initial position.
+            // 	* ponder
+            // 		start searching in pondering mode.
+            // 		Do not exit the search in ponder mode, even if it's mate!
+            // 		This means that the last move sent in in the position string is the ponder move.
+            // 		The engine can do what it wants to do, but after a "ponderhit" command
+            // 		it should execute the suggested move to ponder on. This means that the ponder
+            //      move sent by the GUI can be interpreted as a recommendation about which move
+            //      to ponder. However, if the engine decides to ponder on a different move,
+            //      it should not display any mainlines as they are likely to be misinterpreted by
+            //      the GUI because the GUI expects the engine to ponder on the suggested move.
+            // 	* wtime <x>
+            // 		white has x msec left on the clock
+            // 	* btime <x>
+            // 		black has x msec left on the clock
+            // 	* winc <x>
+            // 		white increment per move in mseconds if x > 0
+            // 	* binc <x>
+            // 		black increment per move in mseconds if x > 0
+            // 	* movestogo <x> there are x moves to the next time control,
+            // 		this will only be sent if x > 0,
+            // 		if you don't get this and get the wtime and btime it's sudden death
+            // 	* depth <x>
+            // 		search x plies only.
+            // 	* nodes <x> search x nodes only,
+            // 	* mate <x>
+            // 		search for a mate in x moves
+            // 	* movetime <x>
+            // 		search exactly x mseconds
+            // 	* infinite
+            // 		search until the "stop" command. Do not exit the search without being told so in
+            //      this mode!
             Some(&"go") => {
                 todo!();
             },
@@ -186,3 +250,5 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
         }
     }
 }
+
+// TODO: Add extensive test suite for the UCI protocol implementation.

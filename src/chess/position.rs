@@ -64,6 +64,10 @@ pub struct Position {
 }
 
 impl Position {
+    pub(crate) fn board(&self) -> &Board {
+        &self.board
+    }
+
     /// Creates the starting position of the standard chess.
     ///
     /// ```
@@ -95,15 +99,15 @@ impl Position {
         }
     }
 
-    pub(super) const fn us(&self) -> Player {
+    pub(crate) const fn us(&self) -> Player {
         self.side_to_move
     }
 
-    pub(super) fn they(&self) -> Player {
+    pub(crate) fn they(&self) -> Player {
         self.us().opponent()
     }
 
-    pub(super) fn pieces(&self, player: Player) -> &Pieces {
+    pub(crate) fn pieces(&self, player: Player) -> &Pieces {
         self.board.player_pieces(player)
     }
 
@@ -182,7 +186,7 @@ impl Position {
                             Player::Black => &mut result.board.black_pieces,
                         };
                         let square = Square::new(file.try_into()?, rank);
-                        *owner.bitboard_for(piece.kind) |= Bitboard::from(square);
+                        *owner.bitboard_mut(piece.kind) |= Bitboard::from(square);
                     },
                     Err(e) => return Err(e),
                 }
@@ -525,6 +529,9 @@ impl Position {
             }
         }
     }
+
+    // TODO: in_check
+    // TODO: is_checkmate
 }
 
 impl TryFrom<&str> for Position {

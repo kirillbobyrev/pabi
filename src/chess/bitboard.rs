@@ -100,7 +100,7 @@ impl Bitboard {
     }
 
     #[must_use]
-    pub(super) fn count(self) -> u32 {
+    pub(crate) fn count(self) -> u32 {
         self.bits.count_ones()
     }
 
@@ -302,7 +302,7 @@ impl TryInto<Square> for Bitboard {
 /// is [`crate::chess::position::Position`], [Bitboard] is not very useful on
 /// its own.
 #[derive(Clone, PartialEq, Eq)]
-pub(super) struct Pieces {
+pub(crate) struct Pieces {
     pub(super) king: Bitboard,
     pub(super) queens: Bitboard,
     pub(super) rooks: Bitboard,
@@ -370,7 +370,7 @@ impl Pieces {
         self.king | self.queens | self.rooks | self.bishops | self.knights | self.pawns
     }
 
-    pub(super) fn bitboard_for(&mut self, piece: PieceKind) -> &mut Bitboard {
+    pub(super) fn bitboard_mut(&mut self, piece: PieceKind) -> &mut Bitboard {
         match piece {
             PieceKind::King => &mut self.king,
             PieceKind::Queen => &mut self.queens,
@@ -378,6 +378,17 @@ impl Pieces {
             PieceKind::Bishop => &mut self.bishops,
             PieceKind::Knight => &mut self.knights,
             PieceKind::Pawn => &mut self.pawns,
+        }
+    }
+
+    pub(crate) fn bitboard(&self, piece: PieceKind) -> Bitboard {
+        match piece {
+            PieceKind::King => self.king,
+            PieceKind::Queen => self.queens,
+            PieceKind::Rook => self.rooks,
+            PieceKind::Bishop => self.bishops,
+            PieceKind::Knight => self.knights,
+            PieceKind::Pawn => self.pawns,
         }
     }
 
@@ -420,7 +431,7 @@ impl Pieces {
 /// likely that the best overall performance can be achieved by keeping both to
 /// complement each other.
 #[derive(Clone, PartialEq, Eq)]
-pub(super) struct Board {
+pub(crate) struct Board {
     pub(super) white_pieces: Pieces,
     pub(super) black_pieces: Pieces,
 }
@@ -444,7 +455,7 @@ impl Board {
     }
 
     #[must_use]
-    pub(super) fn player_pieces(&self, player: Player) -> &Pieces {
+    pub(crate) fn player_pieces(&self, player: Player) -> &Pieces {
         match player {
             Player::White => &self.white_pieces,
             Player::Black => &self.black_pieces,

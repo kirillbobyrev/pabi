@@ -1,1 +1,1 @@
-pub(crate) mod mcts;
+pub(crate) mod minimax;

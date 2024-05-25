@@ -36,7 +36,7 @@ very important because of PEXT and PDEP instructions that significantly increase
 the performance of move generators. Also, the processors have multiple cores,
 sometimes there as many as 256 cores as in CCC22:
 
-```
+```txt
 CPUs | 2 x AMD EPYC 7H12
 GPU | 2x A100 (40 GB GPU memory)
 Cores | 256 cores (128 physical)
@@ -59,6 +59,9 @@ and fuzzing it are supported as [just](https://github.com/casey/just) recipes.
 See [justfile](/justfile) for a complete list of frequently used commands.
 
 ## Code map
+
+Rustdoc developer documentation is pushed at each commit to
+<https://kirillbobyrev.github.io/pabi/docs/pabi/>.
 
 ### [`src/`](/src/)
 
@@ -84,12 +87,7 @@ Rust code only runs inference of an already trained model.
 
 #### [`src/search/`](/src/search/)
 
-[Monte-Carlo Tree Search]-based best move [search]. This is "dynamic" position
-evaluation that considers possible continuations from a given root position,
-evaluates these continuations and computes the final position evaluation, based
-on the most prominent lines that can be played out of it. MCTS generates a large
-number of playouts following the tree policy and adjusts the score returned by
-static evaluation.
+<!-- TODO -->
 
 #### [`src/interface/`](/src/interface/)
 
@@ -134,7 +132,6 @@ Hence, these values are calculated once and checked into the source tree as Rust
 arrays. These constants shouldn't change over time.
 
 [Bitboard]: https://www.chessprogramming.org/Bitboards
-[Monte-Carlo Tree Search]: https://www.chessprogramming.org/Monte-Carlo_Tree_Search
 [search]: https://www.chessprogramming.org/Search
 [position evaluation]: https://www.chessprogramming.org/Evaluation
 [Fuzzers]: https://en.wikipedia.org/wiki/Fuzzing
