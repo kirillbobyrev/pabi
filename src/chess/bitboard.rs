@@ -180,7 +180,7 @@ impl BitAnd for Bitboard {
 
 impl BitAndAssign for Bitboard {
     fn bitand_assign(&mut self, rhs: Self) {
-        self.bits.bitand_assign(rhs.bits)
+        self.bits.bitand_assign(rhs.bits);
     }
 }
 
@@ -205,7 +205,7 @@ impl Sub for Bitboard {
 
 impl SubAssign for Bitboard {
     fn sub_assign(&mut self, rhs: Self) {
-        self.bitand_assign(!rhs)
+        self.bitand_assign(!rhs);
     }
 }
 
@@ -497,7 +497,7 @@ impl fmt::Display for Board {
                         write!(f, "{empty_squares}")?;
                         empty_squares = 0;
                     }
-                    write!(f, "{}", piece)?;
+                    write!(f, "{piece}")?;
                 } else {
                     empty_squares += 1;
                 }
@@ -527,11 +527,11 @@ impl fmt::Debug for Board {
                     None => f.write_char('.'),
                 }?;
                 if file != File::H {
-                    write!(f, "{}", SQUARE_SEPARATOR)?;
+                    write!(f, "{SQUARE_SEPARATOR}")?;
                 }
             }
             if rank != Rank::One {
-                write!(f, "{}", LINE_SEPARATOR)?;
+                write!(f, "{LINE_SEPARATOR}")?;
             }
         }
         Ok(())

@@ -142,7 +142,7 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
             // "ucinewgame" inbetween.
             Some(&"position") => {
                 if tokens.len() < 2 {
-                    writeln!(output, "Missing position: {}", line).unwrap();
+                    writeln!(output, "Missing position: {line}").unwrap();
                     continue;
                 }
                 // Handle position setup
@@ -159,8 +159,7 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
                         writeln!(
                             output,
                             "Expected position [fen <fenstring> | startpos] moves
-                            <move1> ... <move_i>, got: {}",
-                            line
+                            <move1> ... <move_i>, got: {line}"
                         )
                         .unwrap();
                     },
@@ -245,7 +244,7 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
                 break;
             },
             _ => {
-                writeln!(output, "Unknown command: {}", line).unwrap();
+                writeln!(output, "Unknown command: {line}").unwrap();
             },
         }
     }

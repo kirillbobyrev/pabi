@@ -380,7 +380,7 @@ impl fmt::Display for Player {
 ///
 /// [chess pieces]: https://en.wikipedia.org/wiki/Chess_piece
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub enum PieceKind {
     King = 1,
     Queen,
@@ -629,7 +629,7 @@ impl fmt::Display for CastleRights {
 
 /// A pawn can be promoted to a queen, rook, bishop or a knight.
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub enum Promotion {
     Queen,
     Rook,
