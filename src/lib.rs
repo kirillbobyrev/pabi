@@ -1,10 +1,10 @@
 //! Modern and high-quality chess engine. For more information, see
 //!
 //! - [README] explaining about design and implementation goals
-//! - [CONTRIBUTING] for introduction into the codebase and design choices.
+//! - [ARCHITECTURE] for introduction into the codebase and design choices.
 //!
 //! [README]: https://github.com/kirillbobyrev/pabi/blob/main/README.md
-//! [CONTRIBUTING]: https://github.com/kirillbobyrev/pabi/wiki/Resources
+//! [ARCHITECTURE]: https://github.com/kirillbobyrev/pabi/wiki/ARCHITECTURE.md
 
 // TODO: Gradually move most of warnings to deny.
 #![warn(missing_docs, variant_size_differences)]

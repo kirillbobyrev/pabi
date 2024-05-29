@@ -1,4 +1,4 @@
-# Contributing guide
+# Pabi project architecture
 
 This document describes high-level architecture of Pabi. If you want to get
 familiar with the code and understand the project structure, this is a great

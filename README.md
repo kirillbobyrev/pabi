@@ -16,7 +16,7 @@ Network for position evaluation is in
 [kirillbobyrev/pabi-brain](https://github.com/kirillbobyrev/pabi-brain).
 
 For architecture, design and development process overview, please see
-[CONTRIBUTING.md](/CONTRIBUTING.md).
+[ARCHITECTURE.md](/ARCHITECTURE.md).
 
 ## Goals
 
