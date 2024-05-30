@@ -1,14 +1,14 @@
 use anyhow::bail;
 use clap::Parser;
 use flate2::read::GzDecoder;
-use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, BufRead, BufWriter, Read, Write};
 use std::path::Path;
 use std::path::PathBuf;
 use tar::Archive;
 
 const BOARD_SIZE: usize = 64;
 const NUM_PLANES: usize = 12;
+const TABLEBASE_MIN_PIECES: u32 = 6;
 const STRUCT_SIZE: usize = 8356;
 
 // Latest Leela Chess Zero training data format:
@@ -63,30 +63,30 @@ fn decompress_gzip_data(data: &[u8]) -> io::Result<Vec<u8>> {
     Ok(decompressed_data)
 }
 
-fn extract_training_samples(archive_path: &Path) -> io::Result<Vec<V6TrainingData>> {
-    let file = File::open(archive_path).unwrap();
-    let mut archive = Archive::new(file);
+fn extract_training_samples(archive: impl BufRead) -> io::Result<Vec<V6TrainingData>> {
+    let mut archive = Archive::new(archive);
 
     let mut samples = Vec::new();
 
     for entry in archive.entries()? {
         let mut entry = entry?;
-        let mut data = Vec::new();
-        if entry.header().entry_type().is_dir() {
+        if !entry.header().entry_type().is_file()
+            || !entry.header().path()?.extension().is_some()
+            || entry.header().path()?.extension().unwrap() != "gz"
+        {
             continue;
         }
+        let mut data = Vec::new();
         entry.read_to_end(&mut data)?;
-
         let decompressed_data = decompress_gzip_data(&data)?;
 
         assert!(
             decompressed_data.len() % STRUCT_SIZE == 0,
             "Invalid archive size"
         );
-        let num_structs = decompressed_data.len() / STRUCT_SIZE;
-        for i in 0..num_structs {
-            let start = i * STRUCT_SIZE;
-            let end = start + STRUCT_SIZE;
+        let num_samples = decompressed_data.len() / STRUCT_SIZE;
+        for i in 0..num_samples {
+            let (start, end) = (i * STRUCT_SIZE, (i + 1) * STRUCT_SIZE);
             let sample = V6TrainingData::from_bytes(&decompressed_data[start..end]);
             samples.push(sample);
         }
@@ -95,29 +95,122 @@ fn extract_training_samples(archive_path: &Path) -> io::Result<Vec<V6TrainingDat
     Ok(samples)
 }
 
-fn process_archive(archive_path: &Path, output_path: &Path) -> io::Result<usize> {
-    println!("Processing {:?}", archive_path);
+fn extract_planes(sample: &V6TrainingData) -> Vec<u64> {
+    vec![
+        // Our pieces.
+        sample.planes[0],
+        sample.planes[1],
+        sample.planes[2],
+        sample.planes[3],
+        sample.planes[4],
+        sample.planes[5],
+        // Opponent pieces.
+        sample.planes[6],
+        sample.planes[7],
+        sample.planes[8],
+        sample.planes[9],
+        sample.planes[10],
+        sample.planes[11],
+    ]
+}
 
-    let samples = extract_training_samples(archive_path)?;
+fn is_good_sample(sample: &V6TrainingData, q_threshold: f32, filter_captures: bool) -> bool {
+    if sample.version != 6 || sample.input_format != 1 {
+        return false;
+    }
+    if sample.invariance_info & (1 << 6) != 0 {
+        return false;
+    }
+    if sample.side_to_move_or_en_passant > 1 {
+        println!("Found side_to_move_or_en_passant > 1");
+        return false;
+    }
+    if sample.best_q.abs() > q_threshold {
+        return false;
+    }
 
-    // let (features, targets): (Vec<_>, Vec<_>) = samples.into_par_iter()
-    //     .filter(|sample| !should_filter(sample))
-    //     .map(|sample| (extract_features(&sample), sample.best_q))
-    //     .unzip();
+    let planes = extract_planes(sample);
+    if planes.iter().map(|plane| plane.count_ones()).sum::<u32>() <= TABLEBASE_MIN_PIECES {
+        return false;
+    }
 
-    // let features: HashSet<_> = features.into_iter().collect();
-    // let targets: Vec<f32> = targets.into_iter().collect();
+    // TODO: Filter the capturing moves, positions in check and stalemates.
 
-    // let num_samples = features.len();
+    let mut board = pabi::chess::position::Position::empty();
+    let best_move =
+        pabi::chess::core::Move::from_uci(pabi_tools::IDX_TO_MOVE[sample.best_idx as usize]);
+    // TODO: Set the bitboards...
 
-    // let features: Vec<_> = features.into_iter().collect();
-    // save_to_file(features_path, &features)?;
+    /*
+    for &color in &[Color::White, Color::Black] {
+        for &piece in &[
+            Piece::Pawn,
+            Piece::Knight,
+            Piece::Bishop,
+            Piece::Rook,
+            Piece::Queen,
+            Piece::King,
+        ] {
+            let plane = features[plane_id];
+            for square in 0..BOARD_SIZE {
+                if (plane & (1 << square)) != 0 {
+                    let corrected_square = (square & !7) + (7 - (square % 8));
+                    board.set_piece_at(
+                        Square::new(corrected_square as u8),
+                        Some(Piece::new(piece, color)),
+                    );
+                }
+            }
+            plane_id += 1;
+        }
+    }
 
-    // println!("Extracted {:} samples", num_samples);
+    if board.is_check() || board.is_stalemate() {
+        return true;
+    }
 
-    // Ok(num_samples)
+    let best_move = Move::new(sample.best_idx as u8, sample.best_idx as u8, None);
+    if board.is_capture(best_move) || board.gives_check(best_move) || board.is_castling(best_move) {
+        return true;
+    }
+    */
 
-    Ok(samples.len())
+    true
+}
+
+fn serialize_sample<W: Write>(sample: &V6TrainingData, out: &mut BufWriter<W>) -> io::Result<()> {
+    // TODO: Correct the planes.
+    let planes = extract_planes(sample);
+
+    let bytes = unsafe {
+        std::slice::from_raw_parts(
+            planes.as_ptr() as *const u8,
+            planes.len() * std::mem::size_of::<u64>(),
+        )
+    };
+    out.write_all(bytes)?;
+
+    let target = sample.best_q;
+    out.write_all(&target.to_le_bytes())
+}
+
+fn process_archive<W: Write>(
+    archive: impl BufRead,
+    output: &mut BufWriter<W>,
+    q_threshold: f32,
+    filter_captures: bool,
+) -> io::Result<usize> {
+    let mut num_samples = 0;
+
+    for sample in extract_training_samples(archive)?
+        .into_iter()
+        .filter(|sample| is_good_sample(sample, q_threshold, filter_captures))
+    {
+        serialize_sample(&sample, output)?;
+        num_samples += 1
+    }
+
+    Ok(num_samples)
 }
 
 /// The data should be downloaded from <https://storage.lczero.org/files/training_data/test80/>
@@ -129,7 +222,7 @@ struct Args {
     /// Path to the directory where the extracted data will be stored.
     output_dir: PathBuf,
     #[arg(long, default_value_t = 0.05)]
-    threshold: f32,
+    q_threshold: f32,
     /// Filter positions where the best move is capturing a piece.
     #[arg(long, default_value_t = true)]
     filter_captures: bool,
@@ -137,34 +230,41 @@ struct Args {
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+
     if !std::fs::metadata(&args.archive_path)?.is_file() {
         bail!("{:?} is not a file", &args.archive_path);
     }
+    let archive = std::fs::File::open(Path::new(&args.archive_path))?;
+
     if !std::fs::metadata(&args.output_dir)?.is_dir() {
         bail!("{:?} is not a directory", &args.output_dir);
     }
-
     let output_filename = Path::new(&args.archive_path)
         .with_extension("bin")
         .file_name()
         .unwrap()
         .to_owned();
     let output_path = args.output_dir.join(output_filename);
-
     if output_path.exists() {
         bail!("{:?} already exists", &output_path);
     }
+    let out_file = std::fs::File::create_new(&output_path)?;
 
     println!(
         "Extracting data from {:?} to {:?}",
         &args.archive_path, &output_path
     );
     println!(
-        "Filtering |q| <= {:.2}, captures: {}",
-        args.threshold, args.filter_captures
+        "Filtering |q| <= {:.2}, filtering out captures: {}",
+        args.q_threshold, args.filter_captures
     );
 
-    let total_samples = process_archive(Path::new(&args.archive_path), &output_path)?;
+    let total_samples = process_archive(
+        io::BufReader::new(archive),
+        &mut io::BufWriter::new(out_file),
+        args.q_threshold,
+        args.filter_captures,
+    )?;
     println!("Extracted {:} samples", total_samples);
 
     Ok(())

@@ -13,7 +13,7 @@
 Pabi is a modern chess engine that is currently under development.
 
 For architecture, design and development process overview, please see
-[ARCHITECTURE.md](/ARCHITECTURE.md).
+[CONTRIBUTING.md](/CONTRIBUTING.md).
 
 ## Goals
 
@@ -49,9 +49,9 @@ time-management are crucial for doing well under time pressure.
 The project is in pre-0.1.0 stage, the plan is vague and subject to change.
 
 - [0.1.0] should be the skeleton of a chess engine. Most important features are
-  implemented or drafted, the performance testing is in-place. There is a
-  Command-Line Interface for interacting with the engine, debugging it and
-  trying it out.
+  implemented or drafted, the performance testing is in-place. UCI is
+  implemented enough for the engine to play against other engines via tournament
+  manager and on Lichess.
 - [1.0.0]: Pabi is a conventional and fairly strong chess engine. It can be
   played locally or online against other engines or human players, although
   its strength is not State-of-The-Art strength yet.

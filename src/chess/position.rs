@@ -54,6 +54,7 @@ pub struct Position {
     en_passant_square: Option<Square>,
 }
 
+// TODO: Mark more functions as const.
 impl Position {
     pub(crate) fn board(&self) -> &Board {
         &self.board
@@ -79,7 +80,7 @@ impl Position {
         }
     }
 
-    fn empty() -> Self {
+    pub fn empty() -> Self {
         Self {
             board: Board::empty(),
             castling: CastleRights::NONE,
@@ -522,10 +523,12 @@ impl Position {
     }
 
     /// Returns true if the player to move is in check.
-    fn in_check(&self) -> bool {
+    #[must_use]
+    pub fn in_check(&self) -> bool {
         self.attack_info().checkers.has_any()
     }
 
+    #[must_use]
     fn is_checkmate(&self) -> bool {
         self.in_check() && self.generate_moves().is_empty()
     }
