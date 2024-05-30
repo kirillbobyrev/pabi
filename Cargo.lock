@@ -680,11 +680,13 @@ dependencies = [
 name = "pabi-tools"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bincode",
  "byteorder",
  "clap",
  "flate2",
  "pabi",
+ "rayon",
  "tar",
 ]
 
