@@ -58,6 +58,8 @@ Most commands for development, building the engine, testing, checking for errors
 and fuzzing it are supported as [just](https://github.com/casey/just) recipes.
 See [justfile](/justfile) for a complete list of frequently used commands.
 
+<!-- TODO: Describe building and optimizing the binary (flags, LTO, BOLT). -->
+
 ## Code map
 
 Rustdoc developer documentation is pushed at each commit to

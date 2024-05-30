@@ -11,8 +11,6 @@
 use core::panic;
 use std::io::{BufRead, Write};
 
-use crate::VERSION;
-
 /// Reads UCI commands from the input stream and executes them accordingly while
 /// writing the responses to the output stream.
 // TODO: Document the expected behavior.
@@ -46,7 +44,13 @@ pub fn run_loop(input: &mut impl BufRead, output: &mut impl Write) {
             // mode. If no "uciok" is sent within a certain time period, the
             // engine task will be killed by the GUI.
             Some(&"uci") => {
-                writeln!(output, "id name {} {}", env!("CARGO_PKG_NAME"), VERSION).unwrap();
+                writeln!(
+                    output,
+                    "id name {} {}",
+                    env!("CARGO_PKG_NAME"),
+                    crate::get_version()
+                )
+                .unwrap();
                 writeln!(output, "id author {}", env!("CARGO_PKG_AUTHORS")).unwrap();
                 writeln!(output, "uciok").unwrap();
                 // Potentially send "option"? Should the engine have any

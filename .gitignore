@@ -1,5 +1,6 @@
 # Rust
 /target
+/tools/target
 
 # Visual Studio Code
 .vscode/*
@@ -8,9 +9,6 @@
 !.vscode/launch.json
 !.vscode/extensions.json
 *.code-workspace
-
-# Local History for Visual Studio Code
-.history/
 
 # tarpaulin test coverage reports
 cobertura.xml

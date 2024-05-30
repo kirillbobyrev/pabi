@@ -370,7 +370,7 @@ impl Pieces {
         self.king | self.queens | self.rooks | self.bishops | self.knights | self.pawns
     }
 
-    pub(super) fn bitboard_mut(&mut self, piece: PieceKind) -> &mut Bitboard {
+    pub(super) fn bitboard_for_mut(&mut self, piece: PieceKind) -> &mut Bitboard {
         match piece {
             PieceKind::King => &mut self.king,
             PieceKind::Queen => &mut self.queens,
@@ -381,7 +381,7 @@ impl Pieces {
         }
     }
 
-    pub(crate) fn bitboard(&self, piece: PieceKind) -> Bitboard {
+    pub(crate) const fn bitboard_for(&self, piece: PieceKind) -> Bitboard {
         match piece {
             PieceKind::King => self.king,
             PieceKind::Queen => self.queens,
@@ -447,7 +447,7 @@ impl Board {
 
     // Constructs an empty Board to be filled by the board and position builder.
     #[must_use]
-    pub(super) fn empty() -> Self {
+    pub(super) const fn empty() -> Self {
         Self {
             white_pieces: Pieces::empty(),
             black_pieces: Pieces::empty(),
@@ -455,7 +455,7 @@ impl Board {
     }
 
     #[must_use]
-    pub(crate) fn player_pieces(&self, player: Player) -> &Pieces {
+    pub(crate) const fn player_pieces(&self, player: Player) -> &Pieces {
         match player {
             Player::White => &self.white_pieces,
             Player::Black => &self.black_pieces,

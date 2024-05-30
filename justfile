@@ -27,7 +27,7 @@ test_basic:
 
 # Run tests that are slow and are not run by default.
 test_slow:
-  cargo test -- --ignored
+  {{ compile_flags }} cargo test --profile=fast -- --ignored
 
 # Run all tests.
 test: test_basic test_slow

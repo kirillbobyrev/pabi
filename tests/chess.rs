@@ -4,7 +4,6 @@ use itertools::Itertools;
 use pabi::chess::core::{Move, Promotion, Square};
 use pabi::chess::position::{perft, Position};
 use pretty_assertions::assert_eq;
-use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
 
 #[must_use]
 pub fn sanitize_fen(position: &str) -> String {
@@ -27,8 +26,6 @@ fn expect_legal_position(input: &str) {
     assert_eq!(position.fen(), sanitize_fen(input));
 }
 
-// TODO: Validate the precise contents of the bitboard directly.
-// TODO: Add incorrect ones and validate parsing errors.
 #[test]
 #[allow(unused_results)]
 fn basic_positions() {
@@ -406,7 +403,6 @@ fn castle() {
 
 #[test]
 fn chess_programming_wiki_perft_positions() {
-    // Positions from https://www.chessprogramming.org/Perft_Results with
     // depth=1.
     // Position 1 is the starting position: handled in detail before.
     // Position 2.
@@ -476,8 +472,8 @@ fn random_positions() {
     {
         let position = Position::from_fen(serialized_position).unwrap();
         let shakmaty_setup: shakmaty::fen::Fen = serialized_position.parse().unwrap();
-        let shakmaty_position: Chess = shakmaty_setup
-            .into_position(CastlingMode::Standard)
+        let shakmaty_position: shakmaty::Chess = shakmaty_setup
+            .into_position(shakmaty::CastlingMode::Standard)
             .unwrap();
         let moves = position.generate_moves();
         assert_eq!(
@@ -486,10 +482,9 @@ fn random_positions() {
                 .map(|m| m.to_string())
                 .sorted()
                 .collect::<Vec<_>>(),
-            shakmaty_position
-                .legal_moves()
+            shakmaty::Position::legal_moves(&shakmaty_position)
                 .iter()
-                .map(|m| m.to_uci(CastlingMode::Standard).to_string())
+                .map(|m| m.to_uci(shakmaty::CastlingMode::Standard).to_string())
                 .sorted()
                 .collect::<Vec<_>>(),
             "position: {serialized_position}"
@@ -555,8 +550,10 @@ fn perft_expensive_starting() {
     let position = Position::starting();
     assert_eq!(perft(&position, 4), 197281);
     assert_eq!(perft(&position, 5), 4865609);
-    // assert_eq!(perft(&position, 6), 119060324);
+    assert_eq!(perft(&position, 6), 119060324);
 }
+
+// Positions from https://www.chessprogramming.org/Perft_Results
 
 // Position 2.
 #[test]
@@ -574,7 +571,6 @@ fn perft_kiwipete_expensive() {
     let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
     assert_eq!(perft(&position, 4), 4085603);
     assert_eq!(perft(&position, 5), 193690690);
-    // assert_eq!(perft(&position, 6), 8031647685);
 }
 
 // Position 3.
@@ -592,7 +588,6 @@ fn perft_endgame_expensive() {
     let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
     assert_eq!(perft(&position, 4), 4085603);
     assert_eq!(perft(&position, 5), 193690690);
-    // assert_eq!(perft(&position, 6), 8031647685);
 }
 
 // Position 4.
@@ -610,7 +605,6 @@ fn perft_complex_expensive() {
     let position = setup("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1");
     assert_eq!(perft(&position, 4), 422333);
     assert_eq!(perft(&position, 5), 15833292);
-    // assert_eq!(perft(&position, 6), 706045033);
 }
 
 // Position 5.
@@ -647,4 +641,92 @@ fn perft_sixth_expensive() {
         setup("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
     assert_eq!(perft(&position, 4), 3894594);
     assert_eq!(perft(&position, 5), 164075551);
+}
+
+// Other positions.
+
+#[test]
+#[ignore]
+fn perft_complex_middlegame() {
+    let position = setup("rnbq1r1k/pppp1ppp/5n2/4p3/2B1P3/2P2N2/PP3PPP/RNBQK2R w KQ - 1 7");
+    assert_eq!(perft(&position, 1), 46);
+    assert_eq!(perft(&position, 2), 1149);
+    assert_eq!(perft(&position, 3), 51032);
+    assert_eq!(perft(&position, 4), 1352097);
+}
+
+#[test]
+fn perft_endgame_promotions() {
+    let position = setup("8/Pk6/8/8/8/8/6KP/8 w - - 0 1");
+    assert_eq!(perft(&position, 1), 13);
+    assert_eq!(perft(&position, 2), 83);
+    assert_eq!(perft(&position, 3), 949);
+    assert_eq!(perft(&position, 4), 4848);
+    assert_eq!(perft(&position, 5), 67834);
+    assert_eq!(perft(&position, 6), 390018);
+}
+
+#[test]
+fn perft_pawn_endgame() {
+    let position = setup("8/8/1p4k1/1P6/8/8/6K1/8 w - - 0 1");
+    assert_eq!(perft(&position, 1), 8);
+    assert_eq!(perft(&position, 2), 64);
+    assert_eq!(perft(&position, 3), 358);
+    assert_eq!(perft(&position, 4), 2362);
+    assert_eq!(perft(&position, 5), 15118);
+    assert_eq!(perft(&position, 6), 99412);
+}
+
+#[test]
+fn perft_queen_endgame() {
+    let position = setup("8/8/8/8/8/4k3/6Q1/6K1 w - - 0 1");
+    assert_eq!(perft(&position, 1), 25);
+    assert_eq!(perft(&position, 2), 97);
+    assert_eq!(perft(&position, 3), 2422);
+    assert_eq!(perft(&position, 4), 11436);
+    assert_eq!(perft(&position, 5), 291937);
+}
+
+#[test]
+fn perft_tactical_opening() {
+    let position = setup("r1bqkb1r/pppppppp/2n5/8/8/4PN2/PPPPBPPP/RNBQK2R w KQkq - 0 1");
+    assert_eq!(perft(&position, 1), 29);
+    assert_eq!(perft(&position, 2), 605);
+    assert_eq!(perft(&position, 3), 18210);
+    assert_eq!(perft(&position, 4), 413607);
+}
+
+#[test]
+fn perft_advanced_pawn_race() {
+    let position = setup("8/5k2/6p1/8/8/8/1p3P2/5K2 w - - 0 1");
+    assert_eq!(perft(&position, 1), 6);
+    assert_eq!(perft(&position, 2), 72);
+    assert_eq!(perft(&position, 3), 461);
+    assert_eq!(perft(&position, 4), 5919);
+    assert_eq!(perft(&position, 5), 38616);
+    assert_eq!(perft(&position, 6), 565553);
+}
+
+#[test]
+fn perft_queen_vs_pawns() {
+    let position = setup("8/5k2/6p1/8/8/8/1p3P2/5K2 w - - 0 1");
+    assert_eq!(perft(&position, 1), 6);
+    assert_eq!(perft(&position, 2), 72);
+    assert_eq!(perft(&position, 3), 461);
+    assert_eq!(perft(&position, 4), 5919);
+    assert_eq!(perft(&position, 5), 38616);
+    assert_eq!(perft(&position, 6), 565553);
+}
+
+#[test]
+fn perft_promotion_options() {
+    let position = setup("8/8/2P5/3k4/8/2K5/8/8 w - - 0 1");
+    assert_eq!(perft(&position, 5), 23744);
+}
+
+#[ignore]
+#[test]
+fn perft_cpw_challenge() {
+    let position = setup("rnb1kbnr/pp1pp1pp/1qp2p2/8/Q1P5/N7/PP1PPPPP/1RB1KBNR b Kkq - 2 4");
+    assert_eq!(perft(&position, 7), 14794751816);
 }

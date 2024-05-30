@@ -54,17 +54,30 @@ pub mod search;
 
 mod interface;
 pub use interface::uci;
+use shadow_rs::shadow;
 
-/// Full version of the engine, including commit hash. Produced by `build.rs`.
-pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version"));
+shadow!(build);
+
 /// Build type and target. Produced by `build.rs`.
-pub const BUILD_INFO: &str = include_str!(concat!(env!("OUT_DIR"), "/build_info"));
+pub const FEATURES: &str = include_str!(concat!(env!("OUT_DIR"), "/features"));
 
-/// Prints information about the host system.
-pub fn print_system_info() {
-    if cfg!(target_feature = "bmi2") {
-        println!("BMI2 is supported, move generation will use PEXT and PDEP to speed up");
-    } else {
-        println!("WARNING: BMI2 is not supported, move generation will be significantly slower");
+pub(crate) fn get_version() -> String {
+    format!(
+        "{} (commit {}, branch {})",
+        build::PKG_VERSION,
+        build::SHORT_COMMIT,
+        build::BRANCH
+    )
+}
+
+/// Prints information about the binary to the standard output. This includes
+/// the version, build type and what features are enabled.
+pub fn print_binary_info() {
+    println!("Version {}", get_version());
+    println!("Debug: {}", shadow_rs::is_debug());
+    println!("Features: {}", FEATURES);
+    if !shadow_rs::git_clean() {
+        println!("Warning: uncommitted changes in the working directory");
     }
+    println!();
 }

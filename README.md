@@ -10,10 +10,7 @@
 [![Lint](https://github.com/kirillbobyrev/pabi/actions/workflows/lint.yml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/lint.yml)
 [![Security audit](https://github.com/kirillbobyrev/pabi/actions/workflows/audit.yml/badge.svg)](https://github.com/kirillbobyrev/pabi/actions/workflows/audit.yml)
 
-Pabi is a modern chess engine that is currently under development. The engine
-itself is implemented in this repository, training and development of the Neural
-Network for position evaluation is in
-[kirillbobyrev/pabi-brain](https://github.com/kirillbobyrev/pabi-brain).
+Pabi is a modern chess engine that is currently under development.
 
 For architecture, design and development process overview, please see
 [ARCHITECTURE.md](/ARCHITECTURE.md).

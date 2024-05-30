@@ -16,8 +16,6 @@ jobs:
           toolchain: nightly
           override: true
           components: rustfmt, clippy
-      - name: typos-action
-        uses: crate-ci/typos@v1.21.0
       - uses: taiki-e/install-action@v2
         with:
           tool: just

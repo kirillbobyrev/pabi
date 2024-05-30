@@ -7,7 +7,6 @@ use anyhow::bail;
 use itertools::Itertools;
 
 use crate::chess::bitboard::Bitboard;
-use crate::chess::position::Position;
 
 #[allow(missing_docs)]
 pub const BOARD_WIDTH: u8 = 8;
@@ -21,14 +20,9 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 /// representation. The moves can also be indexed and fed as an input to the
 /// Neural Network evaluators that would be able assess their potential without
 /// evaluating post-states.
-///
-/// For a move to be serialized in Standard Algebraic Notation (SAN), it also
-/// also requires the [`crate::chess::position::Position`] it will be applied
-/// in, because SAN requires additional flags (e.g. indicating
-/// "check"/"checkmate" or moving piece disambiguation).
 // TODO: Implement bijection for a move and a numeric index.
-// TODO: Switch this to an enum representation (regular, en passant, castling).
-#[derive(Copy, Clone, Debug)]
+// TODO: Switch this to an enum representation (regular, en passant, castling)?
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Move {
     pub(super) from: Square,
     pub(super) to: Square,
@@ -46,8 +40,33 @@ impl Move {
     }
 
     #[must_use]
-    pub fn from_san(_position: &Position) -> Self {
-        todo!()
+    pub fn from_uci(uci: &str) -> anyhow::Result<Self> {
+        Self::try_from(uci)
+    }
+}
+
+impl TryFrom<&str> for Move {
+    type Error = anyhow::Error;
+
+    #[must_use]
+    fn try_from(uci: &str) -> anyhow::Result<Self> {
+        if uci.len() < 4 || uci.len() > 5 {
+            bail!("UCI move should be 4 or 5 characters long, got {uci}");
+        }
+        let from = Square::try_from(&uci[..2])?;
+        let to = Square::try_from(&uci[2..4])?;
+        // TODO: Debug assert that promotions only occur on the last rank.
+        let promotion = match uci.len() {
+            5 => Some(match &uci[4..5] {
+                "q" => Promotion::Queen,
+                "r" => Promotion::Rook,
+                "b" => Promotion::Bishop,
+                "n" => Promotion::Knight,
+                _ => bail!("unknown promotion piece, has to be in 'qrbn': {uci}"),
+            }),
+            _ => None,
+        };
+        Ok(Self::new(from, to, promotion))
     }
 }
 
@@ -821,5 +840,17 @@ mod test {
         assert_eq!(Square::B5.shift(Direction::Down), Some(Square::B4));
         assert_eq!(Square::C1.shift(Direction::Down), None);
         assert_eq!(Square::G8.shift(Direction::Up), None);
+    }
+
+    #[test]
+    fn move_from_uci() {
+        assert_eq!(
+            Move::from_uci("e2e4").unwrap(),
+            Move::new(Square::E2, Square::E4, None)
+        );
+        assert_eq!(
+            Move::from_uci("e7e8").unwrap(),
+            Move::new(Square::E7, Square::E8, None)
+        );
     }
 }

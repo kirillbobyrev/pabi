@@ -1,9 +1,6 @@
 [package]
 authors = ["Kirill Bobyrev <kbobyrev.opensource@gmail.com>"]
-build = "src/build.rs"
-categories = [
-  "command-line-interface",
-]
+categories = ["command-line-interface"]
 description = "Chess engine"
 documentation = "https://docs.rs/pabi"
 edition = "2021"
@@ -25,15 +22,25 @@ include = [
   "README.md",
 ]
 
+[workspace]
+members = ["tools"]
+
 [dependencies]
-arrayvec = "0.7.2"
-# TODO: Get rid of error handling? Just panic on errors for performance?
 anyhow = "1.0.83"
+arrayvec = "0.7.2"
 bitflags = "2.2.1"
 itertools = "0.13.0"
+shadow-rs = "0.28.0"
+
+[build-dependencies]
+shadow-rs = "0.28.0"
 
 [dev-dependencies]
-criterion = {version = "0.5.1", features = ["html_reports", "cargo_bench_support", "csv_output"]}
+criterion = { version = "0.5.1", features = [
+  "cargo_bench_support",
+  "csv_output",
+  "html_reports",
+] }
 iai = "0.1.1"
 pretty_assertions = "1.1.0"
 shakmaty = "0.27.0"

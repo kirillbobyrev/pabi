@@ -20,11 +20,11 @@ const QUEEN_VALUE: u32 = 9;
 
 fn value(pieces: &crate::chess::bitboard::Pieces) -> u32 {
     let mut value = 0;
-    value += PAWN_VALUE * pieces.bitboard(Pawn).count();
-    value += KNIGHT_VALUE * pieces.bitboard(Knight).count();
-    value += BISHOP_VALUE * pieces.bitboard(Bishop).count();
-    value += ROOK_VALUE * pieces.bitboard(Rook).count();
-    value += QUEEN_VALUE * pieces.bitboard(Queen).count();
+    value += PAWN_VALUE * pieces.bitboard_for(Pawn).count();
+    value += KNIGHT_VALUE * pieces.bitboard_for(Knight).count();
+    value += BISHOP_VALUE * pieces.bitboard_for(Bishop).count();
+    value += ROOK_VALUE * pieces.bitboard_for(Rook).count();
+    value += QUEEN_VALUE * pieces.bitboard_for(Queen).count();
     value
 }
 

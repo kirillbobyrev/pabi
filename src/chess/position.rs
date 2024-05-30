@@ -14,16 +14,7 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    File,
-    Move,
-    MoveList,
-    Piece,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -186,7 +177,7 @@ impl Position {
                             Player::Black => &mut result.board.black_pieces,
                         };
                         let square = Square::new(file.try_into()?, rank);
-                        *owner.bitboard_mut(piece.kind) |= Bitboard::from(square);
+                        *owner.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
                     },
                     Err(e) => return Err(e),
                 }
@@ -530,8 +521,18 @@ impl Position {
         }
     }
 
-    // TODO: in_check
-    // TODO: is_checkmate
+    /// Returns true if the player to move is in check.
+    fn in_check(&self) -> bool {
+        self.attack_info().checkers.has_any()
+    }
+
+    fn is_checkmate(&self) -> bool {
+        self.in_check() && self.generate_moves().is_empty()
+    }
+
+    fn is_stalemate(&self) -> bool {
+        !self.in_check() && self.generate_moves().is_empty()
+    }
 }
 
 impl TryFrom<&str> for Position {
@@ -583,6 +584,8 @@ impl fmt::Debug for Position {
 /// [Perft] (**per**formance **t**esting) is a technique for checking
 /// correctness of move generation by traversing the tree of possible positions
 /// (nodes) and calculating all the leaf nodes at certain depth.
+///
+/// Here is a useful perft exploration web tool: <https://analog-hors.github.io/webperft/>
 ///
 /// [Perft]: https://www.chessprogramming.org/Perft
 #[must_use]
