@@ -1,15 +1,34 @@
+use std::io::{self, BufRead, BufWriter, Read, Write};
+use std::path::{Path, PathBuf};
+
 use anyhow::bail;
 use clap::Parser;
 use flate2::read::GzDecoder;
-use std::io::{self, BufRead, BufWriter, Read, Write};
-use std::path::Path;
-use std::path::PathBuf;
 use tar::Archive;
 
 const BOARD_SIZE: usize = 64;
 const NUM_PLANES: usize = 12;
 const TABLEBASE_MIN_PIECES: u32 = 6;
 const STRUCT_SIZE: usize = 8356;
+
+/// The data should be downloaded from <https://storage.lczero.org/files/training_data/test80/>
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Path to .tar archive with the raw lc0 training data.
+    archive_path: PathBuf,
+    /// Path to the directory where the extracted data will be stored.
+    output_dir: PathBuf,
+    /// Only positions with |eval| <= q_threshold will be kept. For Q-value to
+    /// CP conversion, use the following formula:
+    /// cp = 660.6 * q / (1 - 0.9751875 * q^10).
+    /// q = 0.9 corresponds to cp = 900 or +9.0 in conventional pawn scale.
+    #[arg(long, default_value_t = 0.9)]
+    q_threshold: f32,
+    /// Filter positions where the best move is capturing a piece.
+    #[arg(long, default_value_t = true)]
+    filter_captures: bool,
+}
 
 // Latest Leela Chess Zero training data format:
 // https://lczero.org/dev/wiki/training-data-format-versions/
@@ -71,7 +90,7 @@ fn extract_training_samples(archive: impl BufRead) -> io::Result<Vec<V6TrainingD
     for entry in archive.entries()? {
         let mut entry = entry?;
         if !entry.header().entry_type().is_file()
-            || !entry.header().path()?.extension().is_some()
+            || entry.header().path()?.extension().is_none()
             || entry.header().path()?.extension().unwrap() != "gz"
         {
             continue;
@@ -136,9 +155,10 @@ fn is_good_sample(sample: &V6TrainingData, q_threshold: f32, filter_captures: bo
 
     // TODO: Filter the capturing moves, positions in check and stalemates.
 
-    let mut board = pabi::chess::position::Position::empty();
+    let board = pabi::chess::position::Position::empty();
     let best_move =
         pabi::chess::core::Move::from_uci(pabi_tools::IDX_TO_MOVE[sample.best_idx as usize]);
+    // TODO: Just check the target square manually?
     // TODO: Set the bitboards...
 
     /*
@@ -211,21 +231,6 @@ fn process_archive<W: Write>(
     }
 
     Ok(num_samples)
-}
-
-/// The data should be downloaded from <https://storage.lczero.org/files/training_data/test80/>
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// Path to .tar archive with the raw lc0 training data.
-    archive_path: PathBuf,
-    /// Path to the directory where the extracted data will be stored.
-    output_dir: PathBuf,
-    #[arg(long, default_value_t = 0.05)]
-    q_threshold: f32,
-    /// Filter positions where the best move is capturing a piece.
-    #[arg(long, default_value_t = true)]
-    filter_captures: bool,
 }
 
 fn main() -> anyhow::Result<()> {

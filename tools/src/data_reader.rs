@@ -1,3 +1,1 @@
-struct Dataset {
-
-}
+struct Dataset {}
