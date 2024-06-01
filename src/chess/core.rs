@@ -86,9 +86,10 @@ impl fmt::Display for Move {
 /// performance through optimal memory alignment.
 const MAX_MOVES: usize = 256;
 
-/// Moves are stored on stack to avoid memory allocations. This is important for
-/// performance reasons and also prevents unnecessary copying that would occur
-/// if the moves would be stored in `std::Vec` with unknown capacity.
+/// Moves are stored on stack to avoid memory allocations and improve
+/// performance. This is important for performance reasons and also prevents
+/// unnecessary copying that would occur if the moves would be stored in
+/// `std::Vec` with unknown capacity.
 pub type MoveList = arrayvec::ArrayVec<Move, { MAX_MOVES }>;
 
 /// Board squares: from left to right, from bottom to the top ([Little-Endian Rank-File Mapping]):
@@ -107,9 +108,9 @@ pub type MoveList = arrayvec::ArrayVec<Move, { MAX_MOVES }>;
 ///
 /// ```
 /// use pabi::chess::core::Square;
-/// use std::mem;
+/// use std::mem::size_of;
 ///
-/// assert_eq!(std::mem::size_of::<Square>(), 1);
+/// assert_eq!(size_of::<Square>(), 1);
 /// ```
 ///
 /// [Little-Endian Rank-File Mapping]: https://www.chessprogramming.org/Square_Mapping_Considerations#LittleEndianRankFileMapping
@@ -153,7 +154,6 @@ impl Square {
             Direction::Up => BOARD_WIDTH as i8,
             Direction::Down => -(BOARD_WIDTH as i8),
         };
-        // TODO: Should this be TryFrom<i8> instead?
         match Self::try_from(self as i8 + shift) {
             Ok(square) => Some(square),
             Err(_) => None,
@@ -362,7 +362,7 @@ impl Player {
         }
     }
 
-    pub(super) const fn push_direction(self) -> Direction {
+    pub(super) const fn pawn_push_direction(self) -> Direction {
         match self {
             Self::White => Direction::Up,
             Self::Black => Direction::Down,
@@ -398,6 +398,7 @@ impl fmt::Display for Player {
 /// Standard [chess pieces].
 ///
 /// [chess pieces]: https://en.wikipedia.org/wiki/Chess_piece
+// TODO: Assert that both PieceKind and Option(PieceKind) take 1 byte.
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub enum PieceKind {
@@ -843,7 +844,7 @@ mod test {
     }
 
     #[test]
-    fn move_from_uci() {
+    fn correct_moves_from_uci() {
         assert_eq!(
             Move::from_uci("e2e4").unwrap(),
             Move::new(Square::E2, Square::E4, None)
@@ -852,5 +853,15 @@ mod test {
             Move::from_uci("e7e8").unwrap(),
             Move::new(Square::E7, Square::E8, None)
         );
+        assert_eq!(
+            Move::from_uci("e7e8q").unwrap(),
+            Move::new(Square::E7, Square::E8, Some(Promotion::Queen))
+        );
     }
+
+    // #[test]
+    // #[should_panic(expected = "square index should be in 0..BOARD_SIZE, got
+    // 64")] fn square_from_incorrect_index() {
+    // let _ = Square::try_from(BOARD_SIZE).unwrap();
+    // }
 }

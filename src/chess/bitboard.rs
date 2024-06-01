@@ -94,18 +94,18 @@ impl Bitboard {
     }
 
     #[must_use]
-    pub(super) fn as_square(self) -> Square {
+    pub(super) const fn as_square(self) -> Square {
         debug_assert!(self.bits.count_ones() == 1);
         unsafe { mem::transmute(self.bits.trailing_zeros() as u8) }
     }
 
     #[must_use]
-    pub(crate) fn count(self) -> u32 {
+    pub(crate) const fn count(self) -> u32 {
         self.bits.count_ones()
     }
 
     #[must_use]
-    pub(super) fn is_empty(self) -> bool {
+    pub(super) const fn is_empty(self) -> bool {
         self.bits == 0
     }
 
@@ -124,7 +124,7 @@ impl Bitboard {
 
     /// An efficient way to iterate over the set squares.
     #[must_use]
-    pub(super) fn iter(self) -> BitboardIterator {
+    pub(super) const fn iter(self) -> BitboardIterator {
         BitboardIterator { bits: self.bits }
     }
 }
@@ -366,10 +366,12 @@ impl Pieces {
         }
     }
 
+    #[must_use]
     pub(super) fn all(&self) -> Bitboard {
         self.king | self.queens | self.rooks | self.bishops | self.knights | self.pawns
     }
 
+    #[must_use]
     pub(super) fn bitboard_for_mut(&mut self, piece: PieceKind) -> &mut Bitboard {
         match piece {
             PieceKind::King => &mut self.king,
@@ -381,19 +383,21 @@ impl Pieces {
         }
     }
 
-    pub(crate) const fn bitboard_for(&self, piece: PieceKind) -> Bitboard {
+    #[must_use]
+    pub(crate) fn bitboard_for(&self, piece: PieceKind) -> &Bitboard {
         match piece {
-            PieceKind::King => self.king,
-            PieceKind::Queen => self.queens,
-            PieceKind::Rook => self.rooks,
-            PieceKind::Bishop => self.bishops,
-            PieceKind::Knight => self.knights,
-            PieceKind::Pawn => self.pawns,
+            PieceKind::King => &self.king,
+            PieceKind::Queen => &self.queens,
+            PieceKind::Rook => &self.rooks,
+            PieceKind::Bishop => &self.bishops,
+            PieceKind::Knight => &self.knights,
+            PieceKind::Pawn => &self.pawns,
         }
     }
 
     // TODO: Maybe completely disallow this? If we have the Square ->
     // Option<Piece> mapping, this is potentially obsolete.
+    #[must_use]
     pub(super) fn at(&self, square: Square) -> Option<PieceKind> {
         if self.all().contains(square) {
             let kind = if self.king.contains(square) {
@@ -515,8 +519,10 @@ impl fmt::Display for Board {
 }
 
 impl fmt::Debug for Board {
-    /// Dumps the board in a simple format ('.' for empty square, FEN algebraic
-    /// symbol for piece) a-la Stockfish "debug" command in UCI mode.
+    /// Dumps the board in a human readable format ('.' for empty square, FEN
+    /// algebraic symbol for piece).
+    ///
+    /// Useful for debugging purposes.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for rank_idx in (0..BOARD_WIDTH).rev() {
             let rank: Rank = unsafe { mem::transmute(rank_idx) };

@@ -48,12 +48,11 @@
 
 // TODO: Re-export types for convenience.
 pub mod chess;
-pub mod engine;
 pub mod evaluation;
 pub mod search;
 
-mod interface;
-pub use interface::uci;
+mod engine;
+pub use engine::Engine;
 use shadow_rs::shadow;
 
 shadow!(build);
@@ -75,7 +74,7 @@ pub(crate) fn get_version() -> String {
 pub fn print_binary_info() {
     println!("Version {}", get_version());
     println!("Debug: {}", shadow_rs::is_debug());
-    println!("Features: {}", FEATURES);
+    println!("Features: {FEATURES}");
     if !shadow_rs::git_clean() {
         println!("Warning: uncommitted changes in the working directory");
     }

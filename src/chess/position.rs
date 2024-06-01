@@ -89,7 +89,7 @@ impl Position {
         }
     }
 
-    pub fn empty() -> Self {
+    #[must_use] pub fn empty() -> Self {
         Self {
             board: Board::empty(),
             castling: CastleRights::NONE,
@@ -479,7 +479,7 @@ impl Position {
                 return;
             }
             our_pieces.pawns.extend(next_move.to);
-            let single_push_square = next_move.from.shift(us.push_direction()).unwrap();
+            let single_push_square = next_move.from.shift(us.pawn_push_direction()).unwrap();
             if next_move.from.rank() == Rank::pawns_starting(us)
                 && next_move.from.file() == next_move.to.file()
                 && single_push_square != next_move.to
@@ -680,7 +680,7 @@ fn validate(position: &Position) -> anyhow::Result<()> {
         // A pawn that was just pushed by our opponent should be in front of
         // en_passant_square.
         let pushed_pawn = en_passant_square
-            .shift(position.they().push_direction())
+            .shift(position.they().pawn_push_direction())
             .unwrap();
         if !position.pieces(position.they()).pawns.contains(pushed_pawn) {
             bail!("en passant square is not beyond pushed pawn")
@@ -696,7 +696,7 @@ fn validate(position: &Position) -> anyhow::Result<()> {
             if attack_info.checkers != Bitboard::from(pushed_pawn) {
                 let checker = attack_info.checkers.as_square();
                 let original_square = en_passant_square
-                    .shift(position.us().push_direction())
+                    .shift(position.us().pawn_push_direction())
                     .unwrap();
                 if !(attacks::ray(checker, king).contains(original_square)) {
                     bail!(
@@ -834,7 +834,7 @@ fn generate_pawn_moves(
     }
     // Generate en passant moves.
     if let Some(en_passant_square) = en_passant_square {
-        let en_passant_pawn = en_passant_square.shift(they.push_direction()).unwrap();
+        let en_passant_pawn = en_passant_square.shift(they.pawn_push_direction()).unwrap();
         // Check if capturing en passant resolves the check.
         let candidate_pawns = attacks::pawn_attacks(en_passant_square, they) & pawns;
         if checkers.contains(en_passant_pawn) {
@@ -869,7 +869,7 @@ fn generate_pawn_moves(
         }
     }
     // Regular pawn pushes.
-    let push_direction = us.push_direction();
+    let push_direction = us.pawn_push_direction();
     let pawn_pushes = pawns.shift(push_direction) - occupied_squares;
     let original_squares = pawn_pushes.shift(push_direction.opposite());
     let add_pawn_moves = |moves: &mut MoveList, from, to: Square| {

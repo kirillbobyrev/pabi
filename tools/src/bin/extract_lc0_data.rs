@@ -106,14 +106,19 @@ fn extract_training_samples(archive: impl BufRead) -> io::Result<Vec<V6TrainingD
         let num_samples = decompressed_data.len() / STRUCT_SIZE;
         for i in 0..num_samples {
             let (start, end) = (i * STRUCT_SIZE, (i + 1) * STRUCT_SIZE);
-            let sample = V6TrainingData::from_bytes(&decompressed_data[start..end]);
-            samples.push(sample);
+            let num_samples = decompressed_data.len() / STRUCT_SIZE;
+            for i in 0..num_samples {
+                let (start, end) = (i * STRUCT_SIZE, (i + 1) * STRUCT_SIZE);
+                let sample = V6TrainingData::from_bytes(&decompressed_data[start..end]);
+                samples.push(sample);
+            }
         }
     }
 
     Ok(samples)
 }
 
+// TODO: Flip the planes.
 fn extract_planes(sample: &V6TrainingData) -> Vec<u64> {
     vec![
         // Our pieces.
@@ -161,39 +166,37 @@ fn is_good_sample(sample: &V6TrainingData, q_threshold: f32, filter_captures: bo
     // TODO: Just check the target square manually?
     // TODO: Set the bitboards...
 
-    /*
-    for &color in &[Color::White, Color::Black] {
-        for &piece in &[
-            Piece::Pawn,
-            Piece::Knight,
-            Piece::Bishop,
-            Piece::Rook,
-            Piece::Queen,
-            Piece::King,
-        ] {
-            let plane = features[plane_id];
-            for square in 0..BOARD_SIZE {
-                if (plane & (1 << square)) != 0 {
-                    let corrected_square = (square & !7) + (7 - (square % 8));
-                    board.set_piece_at(
-                        Square::new(corrected_square as u8),
-                        Some(Piece::new(piece, color)),
-                    );
-                }
-            }
-            plane_id += 1;
-        }
-    }
-
-    if board.is_check() || board.is_stalemate() {
-        return true;
-    }
-
-    let best_move = Move::new(sample.best_idx as u8, sample.best_idx as u8, None);
-    if board.is_capture(best_move) || board.gives_check(best_move) || board.is_castling(best_move) {
-        return true;
-    }
-    */
+    // for &color in &[Color::White, Color::Black] {
+    // for &piece in &[
+    // Piece::Pawn,
+    // Piece::Knight,
+    // Piece::Bishop,
+    // Piece::Rook,
+    // Piece::Queen,
+    // Piece::King,
+    // ] {
+    // let plane = features[plane_id];
+    // for square in 0..BOARD_SIZE {
+    // if (plane & (1 << square)) != 0 {
+    // let corrected_square = (square & !7) + (7 - (square % 8));
+    // board.set_piece_at(
+    // Square::new(corrected_square as u8),
+    // Some(Piece::new(piece, color)),
+    // );
+    // }
+    // }
+    // plane_id += 1;
+    // }
+    // }
+    //
+    // if board.is_check() || board.is_stalemate() {
+    // return true;
+    // }
+    //
+    // let best_move = Move::new(sample.best_idx as u8, sample.best_idx as u8,
+    // None); if board.is_capture(best_move) || board.gives_check(best_move) ||
+    // board.is_castling(best_move) { return true;
+    // }
 
     true
 }
@@ -239,6 +242,8 @@ fn main() -> anyhow::Result<()> {
     if !std::fs::metadata(&args.archive_path)?.is_file() {
         bail!("{:?} is not a file", &args.archive_path);
     }
+    let archive = std::fs::File::open(Path::new(&args.archive_path))?;
+
     let archive = std::fs::File::open(Path::new(&args.archive_path))?;
 
     if !std::fs::metadata(&args.output_dir)?.is_dir() {
