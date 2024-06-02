@@ -69,14 +69,14 @@ pub(crate) fn get_version() -> String {
     )
 }
 
+/// Prints main information about the engine to standard output.
 pub fn print_engine_info() {
     println!("Pabi Chess Engine");
     println!("Version {}", get_version());
     println!("https://github.com/kirillbobyrev/pabi");
 }
 
-/// Prints information about the binary to the standard output. This includes
-/// the version, build type and what features are enabled.
+/// Prints information about how the binary was built to the standard output.
 pub fn print_binary_info() {
     println!("Debug: {}", shadow_rs::is_debug());
     println!("Features: {FEATURES}");

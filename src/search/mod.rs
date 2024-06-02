@@ -8,24 +8,24 @@
 
 use arrayvec::ArrayVec;
 
+use crate::chess::core::Move;
 use crate::chess::position::Position;
 use crate::evaluation::Value;
-use std::num::NonZeroI16;
 use std::ops::Neg;
 
 pub(crate) mod minimax;
 
 /// An evaluation result can be either relative numerical value ([Score]) or a
 /// "checkmate in x (moves)" if one is found.
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq, Debug)]
 pub(crate) enum Score {
     /// Relative evaluation in centipawn units (see [Score]). Positive value
     /// means an advantage, negative - the opponent has higher chances of
     /// winning.
     Relative(Value),
     /// Represents "checkmate in X" (full moves). Positive value means winning
-    /// in X moves, negative - losing.
-    Checkmate(NonZeroI16),
+    /// in X moves, otherwise the engine is losing.
+    Checkmate(i16),
 }
 
 impl PartialOrd for Score {
@@ -45,10 +45,10 @@ impl PartialOrd for Score {
             },
             // Losing is worse than any score, winning is better than any score.
             (Self::Relative(_), Self::Checkmate(checkmate_in_x)) => {
-                if checkmate_in_x.is_negative() {
-                    Some(std::cmp::Ordering::Greater)
-                } else {
+                if checkmate_in_x.is_positive() {
                     Some(std::cmp::Ordering::Less)
+                } else {
+                    Some(std::cmp::Ordering::Greater)
                 }
             },
             (Self::Checkmate(checkmate_in_x), Self::Relative(_)) => {
@@ -93,6 +93,12 @@ pub(crate) struct SearchState {
     stack: ArrayVec<Position, MAX_SEARCH_DEPTH>,
 }
 
+#[derive(PartialEq, Eq, Debug)]
+pub(crate) struct SearchResult {
+    pub(crate) score: Score,
+    pub(crate) best_move: Option<Move>,
+}
+
 impl SearchState {
     pub(crate) fn new() -> Self {
         Self {
@@ -100,9 +106,9 @@ impl SearchState {
         }
     }
 
-    pub(crate) fn reset(&mut self, starting_position: Position) {
+    pub(crate) fn reset(&mut self, starting_position: &Position) {
         self.stack.clear();
-        self.stack.push(starting_position)
+        self.stack.push(starting_position.clone())
     }
 }
 
@@ -112,42 +118,29 @@ mod test {
 
     #[test]
     fn score_ordering() {
-        assert!(
-            Score::Checkmate(NonZeroI16::new(1).unwrap())
-                > Score::Checkmate(NonZeroI16::new(2).unwrap())
-        );
-        assert!(
-            Score::Checkmate(NonZeroI16::new(10).unwrap())
-                < Score::Checkmate(NonZeroI16::new(5).unwrap())
-        );
-        assert!(
-            Score::Checkmate(NonZeroI16::new(5).unwrap())
-                == Score::Checkmate(NonZeroI16::new(5).unwrap())
-        );
+        assert!(Score::Checkmate(1) > Score::Checkmate(2));
+        assert!(Score::Checkmate(10) < Score::Checkmate(5));
+        assert!(Score::Checkmate(5) == Score::Checkmate(5));
 
-        assert!(
-            Score::Checkmate(NonZeroI16::new(-1).unwrap())
-                < Score::Checkmate(NonZeroI16::new(-2).unwrap())
-        );
-        assert!(
-            Score::Checkmate(NonZeroI16::new(-2).unwrap())
-                > Score::Checkmate(NonZeroI16::new(-1).unwrap())
-        );
-        assert!(
-            Score::Checkmate(NonZeroI16::new(-1).unwrap())
-                == Score::Checkmate(NonZeroI16::new(-1).unwrap())
-        );
+        assert!(Score::Checkmate(-1) < Score::Checkmate(-2));
+        assert!(Score::Checkmate(-2) > Score::Checkmate(-1));
+        assert!(Score::Checkmate(-1) == Score::Checkmate(-1));
 
         assert!(Score::Relative(100) > Score::Relative(50));
         assert!(Score::Relative(1) > Score::Relative(-40));
         assert!(Score::Relative(-1) < Score::Relative(0));
         assert!(Score::Relative(-1) < Score::Relative(20));
 
-        assert!(Score::Checkmate(NonZeroI16::new(1).unwrap()) > Score::Relative(20));
-        assert!(Score::Checkmate(NonZeroI16::new(1).unwrap()) > Score::Relative(-20));
+        assert!(Score::Checkmate(1) > Score::Relative(20));
+        assert!(Score::Checkmate(1) > Score::Relative(-20));
 
-        assert!(Score::Checkmate(NonZeroI16::new(1).unwrap()) > Score::Relative(-20));
-        assert!(Score::Checkmate(NonZeroI16::new(1).unwrap()) > Score::Relative(20));
-        assert!(Score::Checkmate(NonZeroI16::new(-1).unwrap()) < Score::Relative(20));
+        assert!(Score::Checkmate(1) > Score::Relative(-20));
+        assert!(Score::Checkmate(1) > Score::Relative(20));
+        assert!(Score::Checkmate(-1) < Score::Relative(20));
+
+        assert!(Score::Checkmate(0) < Score::Checkmate(-1));
+        assert!(Score::Checkmate(0) < Score::Checkmate(1));
+        assert!(Score::Checkmate(0) < Score::Relative(20));
+        assert!(Score::Checkmate(0) < Score::Relative(-20));
     }
 }

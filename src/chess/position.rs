@@ -410,7 +410,8 @@ impl Position {
     // most usecases (e.g. for search) would clone the position and then mutate
     // it anyway. This would prevent (im)mutability reference problems.
     pub fn make_move(&mut self, next_move: &Move) {
-        // debug_assert!(self.is_legal());
+        debug_assert!(self.is_legal());
+        // TODO: debug_assert!(self.is_legal_move(move));
         let (us, they) = (self.us(), self.they());
         let our_backrank = Rank::backrank(us);
         let (our_pieces, their_pieces) = match self.us() {

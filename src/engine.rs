@@ -8,25 +8,26 @@
 use core::panic;
 use std::io::{BufRead, Write};
 
-use crate::chess::position::Position;
+use crate::{
+    chess::{core::Move, position::Position},
+    search::SearchState,
+};
 
-pub struct Engine {
+/// The Engine manages all resources, keeps track of the time and handles
+/// commands sent by UCI server.
+pub struct Engine<'a, R: BufRead, W: Write> {
     position: Position,
-    search_state: crate::search::SearchState,
+    input: &'a mut R,
+    output: &'a mut W,
 }
 
-impl Default for Engine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Engine {
+impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(input: &'a mut R, output: &'a mut W) -> Self {
         Self {
             position: Position::starting(),
-            search_state: crate::search::SearchState::new(),
+            input,
+            output,
         }
     }
 
@@ -41,26 +42,31 @@ impl Engine {
     /// Reads UCI commands from the input stream and executes them accordingly
     /// while writing the responses to the output stream.
     ///
-    /// The minimal set of supported commands is:
+    /// The minimal set of supported commands should be:
+    ///
     ///     - uci
     ///     - isready
     ///     - go
-    ///     - go wtime btime winc binc
+    ///     - go wtime btime winc binc movetime infinite
     ///     - quit
     ///     - ucinewgame
     ///     - setoption
-    // TODO: Document the expected behavior.
+    ///     - stop (?)
+    ///
+    /// NOTE: The assumption is that the UCI input stream is **correct**. It is
+    /// tournament manager's responsibility to send uncorrupted input and make
+    /// sure that the commands are in valid format. The engine won't spend too
+    /// much time and effort on error recovery. If a command is not valid or
+    /// unsupported yet, it will just be skipped.
+    ///
+    /// For example, if the UCI server sends a corrupted position or illegal
+    /// moves to the engine, the behavior is undefined.
     // > The engine must always be able to process input from stdin, even while
     // > thinking.
-    pub fn uci_loop(
-        &mut self,
-        input: &mut impl BufRead,
-        output: &mut impl Write,
-    ) -> anyhow::Result<()> {
+    pub fn uci_loop(&mut self) -> anyhow::Result<()> {
         loop {
             let mut line = String::new();
-
-            match input.read_line(&mut line) {
+            match self.input.read_line(&mut line) {
                 // EOF reached.
                 Ok(0) => break,
                 Ok(_) => {},
@@ -68,39 +74,43 @@ impl Engine {
             }
 
             let tokens: Vec<&str> = line.split_whitespace().collect();
+            let mut stream = tokens.iter();
 
-            match tokens.first() {
+            match stream.next() {
                 // `uci` is the first command sent to the engine. The response
                 // should be `id` and `uciok` followed by all supported options.
                 Some(&"uci") => {
                     writeln!(
-                        output,
+                        self.output,
                         "id name {} {}",
                         env!("CARGO_PKG_NAME"),
                         crate::get_version()
                     )?;
-                    writeln!(output, "id author {}", env!("CARGO_PKG_AUTHORS"))?;
-                    writeln!(output, "uciok")?;
+                    writeln!(self.output, "id author {}", env!("CARGO_PKG_AUTHORS"))?;
+                    writeln!(self.output, "uciok")?;
 
                     // These options don't mean anything for now.
                     writeln!(
-                        output,
+                        self.output,
                         "option name Threads type spin default 1 min 1 max 1"
                     )?;
-                    writeln!(output, "option name Hash type spin default 1 min 1 max 1")?;
+                    writeln!(
+                        self.output,
+                        "option name Hash type spin default 1 min 1 max 1"
+                    )?;
                 },
                 // This is a "health check" command. It is usually used to wait
                 // for the engine to load necessary files (tablebase, eval
                 // weights) or to check that the engine is responsive.
                 Some(&"isready") => {
-                    println!("readyok");
+                    writeln!(self.output, "readyok")?;
                 },
                 // Sets the engine parameter.
                 // TODO: Add support for threads, hash size, Syzygy tablebase
                 // path.
                 Some(&"setoption") => {
-                    writeln!(
-                        output,
+                    write!(
+                        self.output,
                         "info string `setoption` is no-op for now: received command {line}"
                     )?;
                 },
@@ -109,59 +119,67 @@ impl Engine {
                 // same as `stop`.
                 Some(&"ucinewgame") => {
                     // TODO: Stop search, reset the board, etc.
-                    todo!();
                 },
                 // Sets up the position search will start from.
                 Some(&"position") => {
-                    if tokens.len() < 2 {
-                        writeln!(output, "info string Missing position specification")?;
-                        continue;
-                    }
                     // Set the position.
-                    match tokens[1] {
-                        "startpos" => {
+                    match stream.next() {
+                        Some(&"startpos") => {
                             self.position = Position::starting();
                         },
-                        "fen" => {
+                        Some(&"fen") => {
                             const FEN_SIZE: usize = 6;
                             if tokens.len() < 2 + FEN_SIZE {
                                 writeln!(
-                                    output,
+                                    self.output,
                                     "info string FEN consists of 6 pieces, got {}",
                                     tokens.len() - 2
                                 )?;
                             }
                         },
                         _ => {
-                            writeln!(
-                                output,
-                                "info string Expected position [fen <fenstring> | startpos] moves
-                                <move1> ... <move_i>, got: {line}"
+                            write!(
+                                self.output,
+                                "info string Expected `position [fen <fenstring> | startpos] moves
+                                 <move1> ... <move_i>`, got: {line}"
                             )?;
                         },
                     }
-                    if tokens.len() > 2 && tokens[2] == "moves" {
-                        // Handle moves
-                        for token in tokens.iter().skip(3) {
-                            // Process the move
-                            todo!();
-                        }
+                    match stream.next() {
+                        Some(&"moves") => {
+                            for next_move in stream {
+                                match Move::from_uci(next_move) {
+                                    Ok(next_move) => self.position.make_move(&next_move),
+                                    Err(e) => writeln!(
+                                        self.output,
+                                        "info string Unexpected UCI move: {e}"
+                                    )?,
+                                }
+                            }
+                        },
+                        _ => continue,
                     }
                 },
-                //
                 Some(&"go") => {
-                    todo!();
+                    // TODO: Handle the time and at least save it for now.
+                    let mut state = SearchState::new();
+                    let MAX_DEPTH = 3;
+                    state.reset(&self.position);
+                    let search_result = crate::search::minimax::negamax(
+                        &mut state,
+                        MAX_DEPTH,
+                        &crate::evaluation::material::material_advantage,
+                    );
+                    writeln!(self.output, "bestmove {}", search_result.best_move.unwrap())?;
                 },
                 // TODO: Stop calculating as soon as possible.
-                Some(&"stop") => {
-                    todo!();
-                },
+                Some(&"stop") => {},
                 Some(&"quit") => {
                     // TODO: Stop the search.
                     break;
                 },
                 Some(&command) => {
-                    writeln!(output, "info string Unsupported command: {command}")?;
+                    writeln!(self.output, "info string Unsupported command: {command}")?;
                 },
                 None => {},
             }
