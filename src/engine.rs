@@ -43,11 +43,10 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     /// while writing the responses to the output stream.
     ///
     /// The minimal set of supported commands should be:
-    ///
     ///     - uci
     ///     - isready
     ///     - go
-    ///     - go wtime btime winc binc movetime infinite
+    ///     - go wtime btime winc binc movetime
     ///     - quit
     ///     - ucinewgame
     ///     - setoption
@@ -90,14 +89,14 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                     writeln!(self.output, "uciok")?;
 
                     // These options don't mean anything for now.
-                    writeln!(
-                        self.output,
-                        "option name Threads type spin default 1 min 1 max 1"
-                    )?;
-                    writeln!(
-                        self.output,
-                        "option name Hash type spin default 1 min 1 max 1"
-                    )?;
+                    // writeln!(
+                    //     self.output,
+                    //     "option name Threads type spin default 1 min 1 max 1"
+                    // )?;
+                    // writeln!(
+                    //     self.output,
+                    //     "option name Hash type spin default 1 min 1 max 1"
+                    // )?;
                 },
                 // This is a "health check" command. It is usually used to wait
                 // for the engine to load necessary files (tablebase, eval

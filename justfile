@@ -43,3 +43,8 @@ list_fuzz_targets:
 fuzz target:
   cd fuzz
   {{ compile_flags }} cargo +nightly fuzz run {{ target }}
+
+# Play a single game between two engine versions in 2'+1'' format and save the
+# game PGN.
+play engine1_cmd engine2_cmd outfile:
+  cutechess-cli -engine cmd={{ engine1_cmd }} -engine cmd={{ engine2_cmd }} -each proto=uci tc=120+1 -pgnout file min
