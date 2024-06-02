@@ -8,70 +8,49 @@
 // TODO: Implement alpha-beta pruning.
 // TODO: Implement move ordering.
 
-use std::ops::Neg;
+use std::num::NonZeroI16;
 
-use crate::evaluation::material::material_advantage;
-
-#[derive(PartialEq)]
-enum Evaluation {
-    Value(f32),
-    Checkmate(i16),
-}
-
-impl PartialOrd for Evaluation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Self::Value(a), Self::Value(b)) => a.partial_cmp(b),
-            (Self::Checkmate(a), Self::Checkmate(b)) => a.partial_cmp(b),
-            (Self::Value(_), Self::Checkmate(checkmate_in_n)) => {
-                if checkmate_in_n.is_negative() {
-                    Some(std::cmp::Ordering::Greater)
-                } else {
-                    Some(std::cmp::Ordering::Less)
-                }
-            },
-            (Self::Checkmate(checkmate_in_n), Self::Value(_)) => {
-                if checkmate_in_n.is_positive() {
-                    Some(std::cmp::Ordering::Greater)
-                } else {
-                    Some(std::cmp::Ordering::Less)
-                }
-            },
-        }
-    }
-}
-
-impl Neg for Evaluation {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        match self {
-            Self::Value(value) => Self::Value(-value),
-            Self::Checkmate(checkmate_in_n) => Self::Checkmate(-checkmate_in_n),
-        }
-    }
-}
+use crate::chess::position::Position;
+use crate::evaluation::Value;
+use crate::search::Score;
 
 // TODO: Document.
-fn negamax(state: &mut crate::search::SearchState, depth: u8) -> Evaluation {
+pub(crate) fn negamax(
+    state: &mut crate::search::SearchState,
+    depth: u8,
+    static_evaluator: &dyn Fn(&Position) -> Value,
+) -> Score {
     assert!(!state.stack.is_empty());
     let position = state.stack.last_mut().unwrap();
     if depth == 0 {
-        let value = material_advantage(position) as f32;
+        let value = static_evaluator(position);
         let _ = state.stack.pop();
-        return Evaluation::Value(value);
+        return Score::Relative(value);
+    }
+    if position.is_checkmate() {
+        //
+        let moves = NonZeroI16::new(depth as i16 / 2 + 1).unwrap();
+        // Players alternate turns every ply and the root node is player's turn.
+        let win = depth % 2 == 1;
+        let value = if win {
+            Score::Checkmate(moves)
+        } else {
+            Score::Checkmate(-moves)
+        };
+        let _ = state.stack.pop();
+        return value;
     }
     // TODO: Check if the position is terminal (checkmate or stalemate).
     // TODO: Check transposition table for existing evaluation.
     // TODO: Check tablebase for existing evaluation.
-    let mut best_value = Evaluation::Value(f32::NEG_INFINITY);
+    let mut best_value = Score::Relative(Value::MIN);
     // TODO: Do not copy here, figure out how to beat the borrow checker.
     let current_position = state.stack.last().unwrap().clone();
     for next_move in current_position.generate_moves() {
         let mut new_position = current_position.clone();
         new_position.make_move(&next_move);
         state.stack.push(new_position);
-        let value = -negamax(state, depth - 1);
+        let value = -negamax(state, depth - 1, static_evaluator);
         if value > best_value {
             best_value = value;
         }

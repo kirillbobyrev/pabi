@@ -22,7 +22,8 @@ impl Default for Engine {
 }
 
 impl Engine {
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             position: Position::starting(),
             search_state: crate::search::SearchState::new(),
@@ -39,11 +40,23 @@ impl Engine {
     ///
     /// Reads UCI commands from the input stream and executes them accordingly
     /// while writing the responses to the output stream.
+    ///
+    /// The minimal set of supported commands is:
+    ///     - uci
+    ///     - isready
+    ///     - go
+    ///     - go wtime btime winc binc
+    ///     - quit
+    ///     - ucinewgame
+    ///     - setoption
     // TODO: Document the expected behavior.
     // > The engine must always be able to process input from stdin, even while
     // > thinking.
-    // TODO: Document supported commands.
-    pub fn uci_loop(&mut self, input: &mut impl BufRead, output: &mut impl Write) {
+    pub fn uci_loop(
+        &mut self,
+        input: &mut impl BufRead,
+        output: &mut impl Write,
+    ) -> anyhow::Result<()> {
         loop {
             let mut line = String::new();
 
@@ -57,149 +70,75 @@ impl Engine {
             let tokens: Vec<&str> = line.split_whitespace().collect();
 
             match tokens.first() {
-                // uci
-                //
-                // Tell engine to use the uci (universal chess interface), this will
-                // be sent once as a first command after program boot to tell the
-                // engine to switch to uci mode.
-                //
-                // After receiving the uci command the engine must identify itself
-                // with the "id" command and send the "option" commands to tell the
-                // GUI which engine settings the engine supports if any.
-                // After that the engine should send "uciok" to acknowledge the uci
-                // mode. If no "uciok" is sent within a certain time period, the
-                // engine task will be killed by the GUI.
+                // `uci` is the first command sent to the engine. The response
+                // should be `id` and `uciok` followed by all supported options.
                 Some(&"uci") => {
                     writeln!(
                         output,
                         "id name {} {}",
                         env!("CARGO_PKG_NAME"),
                         crate::get_version()
-                    )
-                    .unwrap();
-                    writeln!(output, "id author {}", env!("CARGO_PKG_AUTHORS")).unwrap();
-                    writeln!(output, "uciok").unwrap();
-                    // Potentially send "option"? Should the engine have any
-                    // configurable options at all?
+                    )?;
+                    writeln!(output, "id author {}", env!("CARGO_PKG_AUTHORS"))?;
+                    writeln!(output, "uciok")?;
+
+                    // These options don't mean anything for now.
+                    writeln!(
+                        output,
+                        "option name Threads type spin default 1 min 1 max 1"
+                    )?;
+                    writeln!(output, "option name Hash type spin default 1 min 1 max 1")?;
                 },
-                // debug [ on | off ]
-                //
-                // Switch the debug mode of the engine on and off.
-                //
-                // In debug mode the engine should send additional infos to the
-                // GUI, e.g. with the "info string" command, to help debugging,
-                // e.g. the commands that the engine has received etc. This mode
-                // should be switched off by default and this command can be sent
-                // any time, also when the engine is thinking.
-                Some(&"debug") => {
-                    todo!();
-                },
-                // isready
-                //
-                // This is used to synchronize the engine with the GUI. When the
-                // GUI has sent a command or multiple commands that can take some
-                // time to complete, this command can be used to wait for the
-                // engine to be ready again or to ping the engine to find out if it
-                // is still alive.
-                //
-                // E.g. this should be sent after setting the path to the
-                // tablebases as this can take some time.  This command is also
-                // required once before the engine is asked to do any search to
-                // wait for the engine to finish initializing.
-                //
-                // This command must always be answered with "readyok" and can be
-                // sent also when the engine is calculating in which case the
-                // engine should also immediately answer with "readyok" without
-                // stopping the search.
+                // This is a "health check" command. It is usually used to wait
+                // for the engine to load necessary files (tablebase, eval
+                // weights) or to check that the engine is responsive.
                 Some(&"isready") => {
                     println!("readyok");
                 },
-                // setoption name <id> [value <x>]
-                //
-                // This is sent to the engine when the user wants to change the
-                // internal parameters of the engine. For the "button" type no
-                // value is needed.
-                //
-                // One string will be sent for each parameter and this will only be
-                // sent when the engine is waiting.
-                //
-                // The name and value of the option in <id> should not be case
-                // sensitive and can include spaces.
-                //
-                // The substrings "value" and "name" should be avoided in <id> and
-                // <x> to allow unambiguous parsing,
-                //
-                // for example do not use <name> = "draw value".
-                //
-                // Here are some strings for the example below:
-                //   - "setoption name Nullmove value true\n"
-                //   - "setoption name Selectivity value 3\n"
-                // 	 - "setoption name Style value Risky\n"
-                // 	 - "setoption name Clear Hash\n"
+                // Sets the engine parameter.
+                // TODO: Add support for threads, hash size, Syzygy tablebase
+                // path.
                 Some(&"setoption") => {
-                    todo!();
+                    writeln!(
+                        output,
+                        "info string `setoption` is no-op for now: received command {line}"
+                    )?;
                 },
-                // ucinewgame
-                //
-                // This is sent to the engine when the next search (started with
-                // "position" and "go") will be from a different game. This can
-                // be a new game the engine should play or a new game it should
-                // analyze but also the next position from a testsuite with
-                // positions only.
-                //
-                // If the GUI hasn't sent a "ucinewgame" before the first "position"
-                // command, the engine shouldn't expect any further ucinewgame
-                // commands as the GUI is probably not supporting the ucinewgame
-                // command. So the engine should not rely on this command even
-                // though all new GUIs should support it. As the engine's reaction
-                // to "ucinewgame" can take some time the GUI should always send
-                // "isready" after "ucinewgame" to wait for the engine to finish its
-                // operation.
+                // Notifies the engine that the next search will be in a new
+                // game. For now, it is no-op, in the future it should be the
+                // same as `stop`.
                 Some(&"ucinewgame") => {
                     // TODO: Stop search, reset the board, etc.
                     todo!();
                 },
-                // position [fen <fenstring> | startpos ] moves <move1> ... <move_i>
-                //
-                // Set up the position described in `fenstring` on the internal board and
-                // play the moves on the internal chess board.
-                //
-                // If the game was played  from the start position the string
-                // "startpos" will be sent Note: no "new" command is needed.
-                //
-                // However, if this position is from a different game than the last
-                // position sent to the engine, the GUI should have sent a
-                // "ucinewgame" inbetween.
+                // Sets up the position search will start from.
                 Some(&"position") => {
                     if tokens.len() < 2 {
-                        writeln!(output, "Missing position: {line}").unwrap();
+                        writeln!(output, "info string Missing position specification")?;
                         continue;
                     }
-                    // Handle position setup
+                    // Set the position.
                     match tokens[1] {
                         "startpos" => {
-                            // Handle starting position
-                            todo!();
+                            self.position = Position::starting();
                         },
                         "fen" => {
-                            // Handle FEN position
-                            todo!();
+                            const FEN_SIZE: usize = 6;
+                            if tokens.len() < 2 + FEN_SIZE {
+                                writeln!(
+                                    output,
+                                    "info string FEN consists of 6 pieces, got {}",
+                                    tokens.len() - 2
+                                )?;
+                            }
                         },
                         _ => {
                             writeln!(
                                 output,
-                                "Expected position [fen <fenstring> | startpos] moves
-                            <move1> ... <move_i>, got: {line}"
-                            )
-                            .unwrap();
+                                "info string Expected position [fen <fenstring> | startpos] moves
+                                <move1> ... <move_i>, got: {line}"
+                            )?;
                         },
-                    }
-                    if tokens[1] == "startpos" {
-                        // Handle starting position
-                        todo!();
-                    } else {
-                        // Handle FEN position
-                        todo!();
                     }
                     if tokens.len() > 2 && tokens[2] == "moves" {
                         // Handle moves
@@ -209,77 +148,25 @@ impl Engine {
                         }
                     }
                 },
-                // stop
                 //
-                // Stop calculating as soon as possible,
-                //
-                // Don't forget the "bestmove" and possibly the "ponder" token when
-                // finishing the search
-                Some(&"stop") => {
-                    todo!();
-                },
-                // ponderhit
-                //
-                // The user has played the expected move. This will be sent if the
-                // engine was told to ponder on the same move The user has played.
-                // The engine should continue searching but switch from pondering to
-                // normal search.
-                Some(&"ponderhit") => {
-                    todo!();
-                },
-                // * go
-                // 	start calculating on the current position set up with the "position" command.
-                // 	There are a number of commands that can follow this command, all will be sent in
-                // the same string. 	If one command is not sent its value should be
-                // interpreted as it would not influence the search.
-                // 	* searchmoves <move1> .... <movei>
-                // 		restrict search to this moves only
-                // 		Example: After "position startpos" and "go infinite searchmoves e2e4 d2d4"
-                // 		the engine should only search the two moves e2e4 and d2d4 in the initial
-                // position.
-                // 	* ponder
-                // 		start searching in pondering mode.
-                // 		Do not exit the search in ponder mode, even if it's mate!
-                // 		This means that the last move sent in in the position string is the ponder move.
-                // 		The engine can do what it wants to do, but after a "ponderhit" command
-                // 		it should execute the suggested move to ponder on. This means that the ponder
-                //      move sent by the GUI can be interpreted as a recommendation about which move
-                //      to ponder. However, if the engine decides to ponder on a different move,
-                //      it should not display any mainlines as they are likely to be misinterpreted
-                // by      the GUI because the GUI expects the engine to ponder on
-                // the suggested move.
-                // 	* wtime <x>
-                // 		white has x msec left on the clock
-                // 	* btime <x>
-                // 		black has x msec left on the clock
-                // 	* winc <x>
-                // 		white increment per move in mseconds if x > 0
-                // 	* binc <x>
-                // 		black increment per move in mseconds if x > 0
-                // 	* movestogo <x> there are x moves to the next time control,
-                // 		this will only be sent if x > 0,
-                // 		if you don't get this and get the wtime and btime it's sudden death
-                // 	* depth <x>
-                // 		search x plies only.
-                // 	* nodes <x> search x nodes only,
-                // 	* mate <x>
-                // 		search for a mate in x moves
-                // 	* movetime <x>
-                // 		search exactly x mseconds
-                // 	* infinite
-                // 		search until the "stop" command. Do not exit the search without being told so in
-                //      this mode!
                 Some(&"go") => {
                     todo!();
                 },
+                // TODO: Stop calculating as soon as possible.
+                Some(&"stop") => {
+                    todo!();
+                },
                 Some(&"quit") => {
+                    // TODO: Stop the search.
                     break;
                 },
-                _ => {
-                    writeln!(output, "Unknown command: {line}").unwrap();
+                Some(&command) => {
+                    writeln!(output, "info string Unsupported command: {command}")?;
                 },
+                None => {},
             }
         }
+        Ok(())
     }
 }
 

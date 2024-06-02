@@ -9,7 +9,14 @@
 //! that can be used together bitboard-based approach to compensate its
 //! shortcomings).
 //!
+//! The implementation is based on [PEXT Bitboards] idea, which is an
+//! improvement over Fancy Magic Bitboards.
+//!
+//! For visualizing and debugging the bitboards, there is a [BitboardCalculator] tool.
+//!
 //! [Bitboards]: https://www.chessprogramming.org/Bitboards
+//! [BitboardCalculator]: https://gekomad.github.io/Cinnamon/BitboardCalculator/
+//! [PEXT Bitboards]: https://www.chessprogramming.org/BMI2#PEXTBitboards
 
 use std::fmt::Write;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, Not, Shl, Shr, Sub, SubAssign};
@@ -18,15 +25,7 @@ use std::{fmt, mem};
 use itertools::Itertools;
 
 use crate::chess::core::{
-    Direction,
-    File,
-    Piece,
-    PieceKind,
-    Player,
-    Rank,
-    Square,
-    BOARD_SIZE,
-    BOARD_WIDTH,
+    Direction, File, Piece, PieceKind, Player, Rank, Square, BOARD_SIZE, BOARD_WIDTH,
 };
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,

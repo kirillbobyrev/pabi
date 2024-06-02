@@ -69,14 +69,19 @@ pub(crate) fn get_version() -> String {
     )
 }
 
+pub fn print_engine_info() {
+    println!("Pabi Chess Engine");
+    println!("Version {}", get_version());
+    println!("https://github.com/kirillbobyrev/pabi");
+}
+
 /// Prints information about the binary to the standard output. This includes
 /// the version, build type and what features are enabled.
 pub fn print_binary_info() {
-    println!("Version {}", get_version());
     println!("Debug: {}", shadow_rs::is_debug());
     println!("Features: {FEATURES}");
     if !shadow_rs::git_clean() {
-        println!("Warning: uncommitted changes in the working directory");
+        println!("Warning: built with uncommitted changes");
     }
     println!();
 }

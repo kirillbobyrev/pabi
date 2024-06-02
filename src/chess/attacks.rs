@@ -1,6 +1,13 @@
 //! Mappings of occupied squares to the attacked squares for each piece. The
 //! mappings are pre-calculated where possible to provide an efficient way of
 //! generating moves.
+//!
+//! The implementation uses BMI2 (if available) for performance ([reference]),
+//! specifically the PEXT instruction for [PEXT Bitboards].
+//!
+//! [reference]: https://www.chessprogramming.org/BMI2
+//! [PEXT Bitboards]: https://www.chessprogramming.org/BMI2#PEXTBitboards
+
 // TODO: This code is probably by far the least appealing in the project.
 // Refactor it and make it nicer.
 

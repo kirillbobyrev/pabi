@@ -11,26 +11,27 @@
 use crate::chess::core::PieceKind::{Bishop, Knight, Pawn, Queen, Rook};
 use crate::chess::core::Player::{Black, White};
 use crate::chess::position::Position;
+use crate::evaluation::Value;
 
-const PAWN_VALUE: u32 = 1;
-const KNIGHT_VALUE: u32 = 3;
-const BISHOP_VALUE: u32 = 3;
-const ROOK_VALUE: u32 = 5;
-const QUEEN_VALUE: u32 = 9;
+const PAWN_VALUE: Value = 100;
+const KNIGHT_VALUE: Value = 300;
+const BISHOP_VALUE: Value = 300;
+const ROOK_VALUE: Value = 500;
+const QUEEN_VALUE: Value = 900;
 
-fn value(pieces: &crate::chess::bitboard::Pieces) -> u32 {
+fn piece_value(pieces: &crate::chess::bitboard::Pieces) -> Value {
     let mut value = 0;
-    value += PAWN_VALUE * pieces.bitboard_for(Pawn).count();
-    value += KNIGHT_VALUE * pieces.bitboard_for(Knight).count();
-    value += BISHOP_VALUE * pieces.bitboard_for(Bishop).count();
-    value += ROOK_VALUE * pieces.bitboard_for(Rook).count();
-    value += QUEEN_VALUE * pieces.bitboard_for(Queen).count();
+    value += PAWN_VALUE * pieces.bitboard_for(Pawn).count() as Value;
+    value += KNIGHT_VALUE * pieces.bitboard_for(Knight).count() as Value;
+    value += BISHOP_VALUE * pieces.bitboard_for(Bishop).count() as Value;
+    value += ROOK_VALUE * pieces.bitboard_for(Rook).count() as Value;
+    value += QUEEN_VALUE * pieces.bitboard_for(Queen).count() as Value;
     value
 }
 
-pub(crate) fn material_advantage(position: &Position) -> i32 {
-    value(position.board().player_pieces(White)) as i32
-        - value(position.board().player_pieces(Black)) as i32
+pub(crate) fn material_advantage(position: &Position) -> Value {
+    piece_value(position.board().player_pieces(White))
+        - piece_value(position.board().player_pieces(Black))
 }
 
 // TODO: Test.
@@ -52,7 +53,7 @@ mod test {
                 )
                 .unwrap()
             ),
-            10
+            1000
         );
     }
 
@@ -63,7 +64,7 @@ mod test {
                 &Position::from_fen("rn1qkbnr/ppp1pppp/8/8/2BP4/4P3/PP3PPP/RbBQK1NR w KQkq - 0 5")
                     .unwrap()
             ),
-            -3
+            -300
         );
     }
 }

@@ -14,16 +14,7 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    File,
-    Move,
-    MoveList,
-    Piece,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -89,7 +80,8 @@ impl Position {
         }
     }
 
-    #[must_use] pub fn empty() -> Self {
+    #[must_use]
+    pub fn empty() -> Self {
         Self {
             board: Board::empty(),
             castling: CastleRights::NONE,
@@ -534,15 +526,18 @@ impl Position {
     /// Returns true if the player to move is in check.
     #[must_use]
     pub fn in_check(&self) -> bool {
+        // TODO: This is very expensive and is likely to be a bottleneck.
+        // Cache the attack info and/or whether the king is in check.
         self.attack_info().checkers.has_any()
     }
 
+    /// Returns true if the game is over.
     #[must_use]
-    fn is_checkmate(&self) -> bool {
+    pub fn is_checkmate(&self) -> bool {
         self.in_check() && self.generate_moves().is_empty()
     }
 
-    fn is_stalemate(&self) -> bool {
+    pub fn is_stalemate(&self) -> bool {
         !self.in_check() && self.generate_moves().is_empty()
     }
 }
