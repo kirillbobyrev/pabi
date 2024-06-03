@@ -66,124 +66,110 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
         loop {
             let mut line = String::new();
             match self.input.read_line(&mut line) {
-                // EOF reached.
                 Ok(0) => break,
                 Ok(_) => {},
-                Err(e) => panic!("Error reading from input: {}", e),
+                Err(e) => {
+                    panic!("Error reading from input: {}", e);
+                },
             }
-
             let tokens: Vec<&str> = line.split_whitespace().collect();
             let mut stream = tokens.iter();
-
             match stream.next() {
-                // `uci` is the first command sent to the engine. The response
-                // should be `id` and `uciok` followed by all supported options.
-                Some(&"uci") => {
-                    writeln!(
-                        self.output,
-                        "id name {} {}",
-                        env!("CARGO_PKG_NAME"),
-                        crate::get_version()
-                    )?;
-                    writeln!(self.output, "id author {}", env!("CARGO_PKG_AUTHORS"))?;
-                    writeln!(self.output, "uciok")?;
-
-                    // These options don't mean anything for now.
-                    // writeln!(
-                    //     self.output,
-                    //     "option name Threads type spin default 1 min 1 max 1"
-                    // )?;
-                    // writeln!(
-                    //     self.output,
-                    //     "option name Hash type spin default 1 min 1 max 1"
-                    // )?;
-                },
-                // This is a "health check" command. It is usually used to wait
-                // for the engine to load necessary files (tablebase, eval
-                // weights) or to check that the engine is responsive.
-                Some(&"isready") => {
-                    writeln!(self.output, "readyok")?;
-                },
-                // Sets the engine parameter.
-                // TODO: Add support for threads, hash size, Syzygy tablebase
-                // path.
-                Some(&"setoption") => {
-                    write!(
-                        self.output,
-                        "info string `setoption` is no-op for now: received command {line}"
-                    )?;
-                },
-                // Notifies the engine that the next search will be in a new
-                // game. For now, it is no-op, in the future it should be the
-                // same as `stop`.
-                Some(&"ucinewgame") => {
-                    // TODO: Stop search, reset the board, etc.
-                },
-                // Sets up the position search will start from.
-                Some(&"position") => {
-                    // Set the position.
-                    match stream.next() {
-                        Some(&"startpos") => {
-                            self.position = Position::starting();
-                        },
-                        Some(&"fen") => {
-                            const FEN_SIZE: usize = 6;
-                            if tokens.len() < 2 + FEN_SIZE {
-                                writeln!(
-                                    self.output,
-                                    "info string FEN consists of 6 pieces, got {}",
-                                    tokens.len() - 2
-                                )?;
-                            }
-                        },
-                        _ => {
-                            write!(
-                                self.output,
-                                "info string Expected `position [fen <fenstring> | startpos] moves
-                                 <move1> ... <move_i>`, got: {line}"
-                            )?;
-                        },
-                    }
-                    match stream.next() {
-                        Some(&"moves") => {
-                            for next_move in stream {
-                                match Move::from_uci(next_move) {
-                                    Ok(next_move) => self.position.make_move(&next_move),
-                                    Err(e) => writeln!(
-                                        self.output,
-                                        "info string Unexpected UCI move: {e}"
-                                    )?,
-                                }
-                            }
-                        },
-                        _ => continue,
-                    }
-                },
-                Some(&"go") => {
-                    // TODO: Handle the time and at least save it for now.
-                    let mut state = SearchState::new();
-                    let MAX_DEPTH = 3;
-                    state.reset(&self.position);
-                    let search_result = crate::search::minimax::negamax(
-                        &mut state,
-                        MAX_DEPTH,
-                        &crate::evaluation::material::material_advantage,
-                    );
-                    writeln!(self.output, "bestmove {}", search_result.best_move.unwrap())?;
-                },
-                // TODO: Stop calculating as soon as possible.
-                Some(&"stop") => {},
-                Some(&"quit") => {
-                    // TODO: Stop the search.
-                    break;
-                },
+                Some(&"uci") => self.handle_uci()?,
+                Some(&"isready") => self.handle_isready()?,
+                Some(&"setoption") => self.handle_setoption(line)?,
+                Some(&"ucinewgame") => self.handle_ucinewgame()?,
+                Some(&"position") => self.handle_position(&mut stream, &tokens)?,
+                Some(&"go") => self.handle_go()?,
+                Some(&"stop") => self.handle_stop()?,
+                Some(&"quit") => break,
                 Some(&command) => {
-                    writeln!(self.output, "info string Unsupported command: {command}")?;
+                    writeln!(self.output, "info string Unsupported command: {command}")?
                 },
                 None => {},
             }
         }
         Ok(())
+    }
+
+    fn handle_uci(&mut self) -> anyhow::Result<()> {
+        writeln!(
+            self.output,
+            "id name {} {}",
+            env!("CARGO_PKG_NAME"),
+            crate::get_version()
+        )?;
+        writeln!(self.output, "id author {}", env!("CARGO_PKG_AUTHORS"))?;
+        writeln!(self.output, "uciok")?;
+        Ok(())
+    }
+
+    fn handle_isready(&mut self) -> anyhow::Result<()> {
+        writeln!(self.output, "readyok")?;
+        Ok(())
+    }
+
+    fn handle_setoption(&mut self, line: String) -> anyhow::Result<()> {
+        writeln!(
+            self.output,
+            "info string `setoption` is no-op for now: received command {line}"
+        )?;
+        Ok(())
+    }
+
+    fn handle_ucinewgame(&mut self) -> anyhow::Result<()> {
+        // TODO: Implement this method.
+        Ok(())
+    }
+
+    fn handle_position(
+        &mut self,
+        stream: &mut std::slice::Iter<&str>,
+        tokens: &[&str],
+    ) -> anyhow::Result<()> {
+        match stream.next() {
+            Some(&"startpos") => self.position = Position::starting(),
+            Some(&"fen") => {
+                const FEN_SIZE: usize = 6;
+                const COMMAND_START_SIZE: usize = 2;
+                if tokens.len() < COMMAND_START_SIZE + FEN_SIZE {
+                    writeln!(self.output, "info string FEN consists of 6 pieces, got {}", tokens.len() - 2)?;
+                }
+                todo!();
+            },
+            _ => writeln!(self.output, "info string Expected `position [fen <fenstring> | startpos] moves <move1> ... <move_i>`, got: {:?}", tokens)?,
+        }
+        if let Some(&"moves") = stream.next() {
+            for next_move in stream {
+                match Move::from_uci(next_move) {
+                    Ok(next_move) => self.position.make_move(&next_move),
+                    Err(e) => writeln!(self.output, "info string Unexpected UCI move: {e}")?,
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_go(&mut self) -> anyhow::Result<()> {
+        let mut state = SearchState::new();
+        let MAX_DEPTH = 3;
+        state.reset(&self.position);
+        let search_result = crate::search::minimax::negamax(
+            &mut state,
+            MAX_DEPTH,
+            &crate::evaluation::material::material_advantage,
+        );
+        writeln!(self.output, "bestmove {}", search_result.best_move.unwrap())?;
+        Ok(())
+    }
+
+    fn handle_stop(&mut self) -> anyhow::Result<()> {
+        // TODO: Implement this method.
+        Ok(())
+    }
+
+    fn print_state(&mut self, info: &str) -> anyhow::Result<()> {
+        todo!();
     }
 }
 
