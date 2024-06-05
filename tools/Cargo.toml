@@ -11,4 +11,4 @@ clap = { version = "4.5.4", features = ["derive"] }
 flate2 = "1.0.30"
 pabi = { path = ".." }
 rayon = "1.10"
-tar = "0.4.40"
+tar = "0.4.41"
