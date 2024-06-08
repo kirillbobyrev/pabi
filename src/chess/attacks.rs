@@ -250,7 +250,6 @@ const BLACK_PAWN_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
     "/generated/black_pawn_attacks.rs"
 ));
 
-// TODO: Abstract it out and support Chess960.
 pub(super) const WHITE_SHORT_CASTLE_KING_WALK: Bitboard =
     Bitboard::from_bits(0x0000_0000_0000_0060);
 pub(super) const WHITE_SHORT_CASTLE_ROOK_WALK: Bitboard =

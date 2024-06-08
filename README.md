@@ -22,9 +22,9 @@ tooling, Chess Programming and Machine Learning.
 
 **High-quality**: Pabi will take full advantage of
 
-- Unit testing and integration testing: the majority of the codebase is
-  well-tested and the HEAD is in the functional state. Pabi also uses advanced
-  testing techniques such as [Fuzzing].
+- Unit testing and integration testing: the majority of the codebase should be
+  well-tested and validated. Pabi also uses advanced testing techniques such as
+  [Fuzzing].
 - Performance testing and benchmarking: Pabi should be **fast**. Continuous
   integration runs benchmarks and tests after every change.
 - Continuous quality assurance: [GitHub Actions] make it possible to lint, test,
@@ -39,6 +39,8 @@ Championship] and [TCEC]. As such, it should be tested in appropriate time
 formats (mainly Blitz and Rapid) that are popular in these rating lists and
 designed to perform well against other engines. Performance and good
 time-management are crucial for doing well under time pressure.
+
+<!-- TODO: User interface: supported commands + UCI options -->
 
 ## Project architecture
 
@@ -66,28 +68,14 @@ first goal is reaching 3000 ELO on the rating lists that are accepted by the
 organizers of these tournaments.
 
 Most of the competitions are in relatively fast time controls (Blitz, Bullet,
-Rapid) with some exceptions in relatively short classical formats. These are the
-[CCRL rules](https://computerchess.org.uk/ccrl/404/about.html) and [TCEC
-rules](https://wiki.chessdom.org/Rules). In both rule sets the engines are given
-opening books selected by the organizers and unknown to the participants, and
-the engines start the game in pre-determined positions which creates space for
-unbalance leading to decisive results.
+Rapid) with some exceptions in relatively short classical formats. In both [CCRL
+rules] and [TCEC rules], as well as in CCCC the engines are usually starting
+from pre-determined positions to make the games interesting and unbalanced.
 
 In all cases, the testing environment's CPU is of x86_64 architecture, which is
 very important because of PEXT and PDEP instructions that significantly increase
-the performance of move generators. Also, the processors have multiple cores,
-sometimes there as many as 256 cores as in CCC22:
-
-```txt
-CPUs | 2 x AMD EPYC 7H12
-GPU | 2x A100 (40 GB GPU memory)
-Cores | 256 cores (128 physical)
-RAM | 512GB DIMM DDR4 2933 MHz (0.3 ns)
-SSD | 2x Micron 5210 MTFD (2TB) in RAID1
-OS | CentOS 8
-```
-
-This requires the engine to be very good at utilizing multi-threading.
+the performance of move generators. Also, usually, many CPUs are available (8
+cores on CCRL, 52 on TCEC and as many as 256 on CCCC).
 
 Other design choices are deliberate focus on performance over most things
 (except simplicity and clarity), such as error recovery (there should be minimal
@@ -131,16 +119,15 @@ Rust code only runs inference of an already trained model.
 
 ##### [`src/search/`](/src/search/)
 
-<!-- TODO -->
+Implements Minimax [search] with a number of extensions for efficiently reducing
+the search space.
 
-##### [`src/interface/`](/src/interface/)
+##### [`src/engine/`](/src/engine/)
 
-Provides a way for the engine to [communicate with a front-end] (for human play)
-or a tournament manager (for playing against other engines). Implements
-[Universal Chess Interface] (UCI) protocol. UCI is not targeting human users but
-it is not hard to learn and can be an easy way to debug some parts of the engine
-manually, so it is also extended with several useful commands (for example, `go
-perft`).
+Assembles all pieces together and manages resources to search effieciently under
+given time constraints. It also communicates back and forth with the tournament
+manager/server through [Universal Chess Interface] (UCI) protocol
+implementation.
 
 #### [`tests/`](/tests/)
 
@@ -155,11 +142,15 @@ performance regression tests that should be frequently run to ensure that the
 engine is not becoming slower. Patches affecting performance should have
 benchmark result deltas in the description.
 
+<!-- Use `just bench`? -->
+
 #### [`fuzz/`](/fuzz/)
 
 [Fuzzers] complement the existing tests by generating random inputs and trying
 to increase the coverage. Plenty of bugs can be caught by even relatively simply
 fuzzers: writing and running them is highly encouraged.
+
+<!-- Use `just fuzz <target>` -->
 
 #### [`generated/`](/generated/)
 
@@ -201,8 +192,8 @@ arrays. These constants shouldn't change over time.
 [search]: https://www.chessprogramming.org/Search
 [position evaluation]: https://www.chessprogramming.org/Evaluation
 [Fuzzers]: https://en.wikipedia.org/wiki/Fuzzing
-[communicate with a front-end]: https://www.chessprogramming.org/User_Interface
 [Universal Chess Interface]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
 [Magic Bitboards]: https://www.chessprogramming.org/Magic_Bitboards
 [vector attacks]: https://www.chessprogramming.org/Vector_Attacks
 [Zobrist hashing]: https://www.chessprogramming.org/Zobrist_Hashing
+[CCRL rules]: https://computerchess.org.uk/ccrl/404/about.html

@@ -12,7 +12,8 @@
 //! The implementation is based on [PEXT Bitboards] idea, which is an
 //! improvement over Fancy Magic Bitboards.
 //!
-//! For visualizing and debugging the bitboards, there is a [BitboardCalculator] tool.
+//! For visualizing and debugging the bitboards, there is a [BitboardCalculator]
+//! tool.
 //!
 //! [Bitboards]: https://www.chessprogramming.org/Bitboards
 //! [BitboardCalculator]: https://gekomad.github.io/Cinnamon/BitboardCalculator/
@@ -25,7 +26,15 @@ use std::{fmt, mem};
 use itertools::Itertools;
 
 use crate::chess::core::{
-    Direction, File, Piece, PieceKind, Player, Rank, Square, BOARD_SIZE, BOARD_WIDTH,
+    Direction,
+    File,
+    Piece,
+    PieceKind,
+    Player,
+    Rank,
+    Square,
+    BOARD_SIZE,
+    BOARD_WIDTH,
 };
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
@@ -81,7 +90,7 @@ impl Bitboard {
         *self |= Self::from(square);
     }
 
-    /// Adds given square to the set.
+    /// Clears given square from the set.
     pub(super) fn clear(&mut self, square: Square) {
         *self &= !Self::from(square);
     }
@@ -110,7 +119,7 @@ impl Bitboard {
 
     #[must_use]
     pub(super) fn has_any(self) -> bool {
-        !self.is_empty()
+        self.bits != 0
     }
 
     #[must_use]

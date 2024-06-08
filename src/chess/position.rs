@@ -14,7 +14,16 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    File,
+    Move,
+    MoveList,
+    Piece,
+    Player,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 
 /// State of the chess game: board, half-move counters and castling rights,
@@ -40,10 +49,9 @@ pub struct Position {
     pub(crate) board: Board,
     castling: CastleRights,
     side_to_move: Player,
-    /// [Halfmove Clock][^ply] keeps track of the number of (half-)moves
-    /// since the last capture or pawn move and is used to enforce
-    /// fifty[^fifty]-move draw rule.
-    ///
+    /// [Halfmove Clock][^ply] keeps track of the number of halfmoves since the
+    /// last capture or pawn move and is used to enforce fifty[^fifty]-move draw
+    /// rule.
     ///
     /// [Halfmove Clock]: https://www.chessprogramming.org/Halfmove_Clock
     /// [^ply]: Half-move or [ply](https://www.chessprogramming.org/Ply) means a move of only
@@ -538,8 +546,18 @@ impl Position {
         self.in_check() && self.generate_moves().is_empty()
     }
 
-    pub fn is_stalemate(&self) -> bool {
+    #[must_use] pub fn is_stalemate(&self) -> bool {
         !self.in_check() && self.generate_moves().is_empty()
+    }
+
+    #[must_use]
+    pub fn is_capture(&self, next_move: &Move) -> bool {
+        todo!()
+    }
+
+    #[must_use]
+    pub fn gives_check(&self, next_move: &Move) -> bool {
+        todo!()
     }
 }
 

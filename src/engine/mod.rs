@@ -2,19 +2,21 @@
 //! implements the [Universal Chess Interface] (UCI) for communication with the
 //! client (e.g. tournament runner with other engines or GUI/Lichess endpoint).
 //!
-//! [`Engine::uci_loop`] is the "main loop" of the engine which communicates with
-//! the environment and executes commands from the input stream.
+//! [`Engine::uci_loop`] is the "main loop" of the engine which communicates
+//! with the environment and executes commands from the input stream.
 /// [Universal Chess Interface]: https://www.chessprogramming.org/UCI
 use core::panic;
 use std::io::{BufRead, Write};
+use std::time::Duration;
 
-use crate::{
-    chess::{core::Move, position::Position},
-    search::SearchState,
-};
+use itertools::Itertools;
 
-/// The Engine manages all resources, keeps track of the time and handles
-/// commands sent by UCI server.
+use crate::chess::core::{Move, Player};
+use crate::chess::position::Position;
+use crate::search::go;
+
+/// The Engine connects everything together handles commands sent by UCI server,
+/// including I/O.
 pub struct Engine<'a, R: BufRead, W: Write> {
     position: Position,
     input: &'a mut R,
@@ -25,7 +27,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     #[must_use]
     pub fn new(input: &'a mut R, output: &'a mut W) -> Self {
         Self {
-            position: Position::starting(),
+            position: Position::empty(),
             input,
             output,
         }
@@ -46,7 +48,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     ///     - uci
     ///     - isready
     ///     - go
-    ///     - go wtime btime winc binc movetime
+    ///     - go wtime btime winc binc
     ///     - quit
     ///     - ucinewgame
     ///     - setoption
@@ -80,11 +82,11 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                 Some(&"setoption") => self.handle_setoption(line)?,
                 Some(&"ucinewgame") => self.handle_ucinewgame()?,
                 Some(&"position") => self.handle_position(&mut stream, &tokens)?,
-                Some(&"go") => self.handle_go()?,
+                Some(&"go") => self.handle_go(&mut stream)?,
                 Some(&"stop") => self.handle_stop()?,
                 Some(&"quit") => break,
                 Some(&command) => {
-                    writeln!(self.output, "info string Unsupported command: {command}")?
+                    writeln!(self.output, "info string Unsupported command: {command}")?;
                 },
                 None => {},
             }
@@ -118,7 +120,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     }
 
     fn handle_ucinewgame(&mut self) -> anyhow::Result<()> {
-        // TODO: Implement this method.
+        // TODO: Implement this method - reset search state.
         Ok(())
     }
 
@@ -133,13 +135,22 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                 const FEN_SIZE: usize = 6;
                 const COMMAND_START_SIZE: usize = 2;
                 if tokens.len() < COMMAND_START_SIZE + FEN_SIZE {
-                    writeln!(self.output, "info string FEN consists of 6 pieces, got {}", tokens.len() - 2)?;
+                    writeln!(
+                        self.output,
+                        "info string FEN consists of 6 pieces, got {}",
+                        tokens.len() - 2
+                    )?;
                 }
-                todo!();
+                self.position = Position::from_fen(&stream.take(FEN_SIZE).join(" "))?;
             },
-            _ => writeln!(self.output, "info string Expected `position [fen <fenstring> | startpos] moves <move1> ... <move_i>`, got: {:?}", tokens)?,
+            _ => writeln!(
+                self.output,
+                "info string Expected `position [fen <fenstring> | startpos]
+                moves <move1> ... <move_i>`, got: {:?}",
+                tokens.join(" ")
+            )?,
         }
-        if let Some(&"moves") = stream.next() {
+        if stream.next() == Some(&"moves") {
             for next_move in stream {
                 match Move::from_uci(next_move) {
                     Ok(next_move) => self.position.make_move(&next_move),
@@ -150,26 +161,49 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
         Ok(())
     }
 
-    fn handle_go(&mut self) -> anyhow::Result<()> {
-        let mut state = SearchState::new();
-        let MAX_DEPTH = 3;
-        state.reset(&self.position);
-        let search_result = crate::search::minimax::negamax(
-            &mut state,
-            MAX_DEPTH,
-            &crate::evaluation::material::material_advantage,
+    // TODO: Handle: wtime btime winc binc
+    fn handle_go(&mut self, stream: &mut std::slice::Iter<&str>) -> anyhow::Result<()> {
+        let mut time = None;
+        let mut increment = None;
+        while let Some(token) = stream.next() {
+            match *token {
+                "wtime" => {
+                    if self.position.us() == Player::White {
+                        time = Some(stream.next().unwrap().parse::<u64>()?);
+                    }
+                },
+                "btime" => {
+                    if self.position.us() == Player::Black {
+                        time = Some(stream.next().unwrap().parse::<u64>()?);
+                    }
+                },
+                "winc" => {
+                    if self.position.us() == Player::White {
+                        increment = Some(stream.next().unwrap().parse::<u64>()?);
+                    }
+                },
+                "binc" => {
+                    if self.position.us() == Player::Black {
+                        increment = Some(stream.next().unwrap().parse::<u64>()?);
+                    }
+                },
+                _ => continue,
+            }
+        }
+        // TODO: Correctly figure out how much time there should be spent.
+        let best_move = go(
+            &self.position,
+            Duration::from_millis(time.unwrap()),
+            &mut self.output,
         );
-        writeln!(self.output, "bestmove {}", search_result.best_move.unwrap())?;
+        writeln!(self.output, "bestmove {best_move}")?;
+
         Ok(())
     }
 
     fn handle_stop(&mut self) -> anyhow::Result<()> {
         // TODO: Implement this method.
         Ok(())
-    }
-
-    fn print_state(&mut self, info: &str) -> anyhow::Result<()> {
-        todo!();
     }
 }
 

@@ -6,141 +6,112 @@
 //!
 //! [Search]: https://www.chessprogramming.org/Search
 
+use std::io::Write;
+use std::time::{Duration, Instant};
+
 use arrayvec::ArrayVec;
 
 use crate::chess::core::Move;
 use crate::chess::position::Position;
-use crate::evaluation::Value;
-use std::ops::Neg;
+use crate::evaluation::Score;
 
 pub(crate) mod minimax;
 
-/// An evaluation result can be either relative numerical value ([Score]) or a
-/// "checkmate in x (moves)" if one is found.
-#[derive(PartialEq, Eq, Debug)]
-pub(crate) enum Score {
-    /// Relative evaluation in centipawn units (see [Score]). Positive value
-    /// means an advantage, negative - the opponent has higher chances of
-    /// winning.
-    Relative(Value),
-    /// Represents "checkmate in X" (full moves). Positive value means winning
-    /// in X moves, otherwise the engine is losing.
-    Checkmate(i16),
-}
-
-impl PartialOrd for Score {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            // Both results are scores: compare the scores directly.
-            (Self::Relative(a), Self::Relative(b)) => a.partial_cmp(b),
-            // Both results are checkmates.
-            (Self::Checkmate(a), Self::Checkmate(b)) => {
-                if a.is_positive() == b.is_positive() {
-                    // Reverse: checkmating faster is better, losing slower is better.
-                    b.partial_cmp(a)
-                } else {
-                    // Different signs: whichever is positive is the checkmating side.
-                    a.partial_cmp(b)
-                }
-            },
-            // Losing is worse than any score, winning is better than any score.
-            (Self::Relative(_), Self::Checkmate(checkmate_in_x)) => {
-                if checkmate_in_x.is_positive() {
-                    Some(std::cmp::Ordering::Less)
-                } else {
-                    Some(std::cmp::Ordering::Greater)
-                }
-            },
-            (Self::Checkmate(checkmate_in_x), Self::Relative(_)) => {
-                if checkmate_in_x.is_positive() {
-                    Some(std::cmp::Ordering::Greater)
-                } else {
-                    Some(std::cmp::Ordering::Less)
-                }
-            },
-        }
-    }
-}
-
-impl Neg for Score {
-    type Output = Self;
-
-    /// Flips perspective.
-    fn neg(self) -> Self::Output {
-        match self {
-            Self::Relative(value) => Self::Relative(-value),
-            Self::Checkmate(checkmate_in_n) => Self::Checkmate(-checkmate_in_n),
-        }
-    }
-}
-
-impl Score {
-    pub(crate) fn to_uci(&self) -> String {
-        match self {
-            Self::Relative(score) => format!("cp {score}"),
-            Self::Checkmate(x) => format!("mate {x}"),
-        }
-    }
-}
-
-/// Maximum depth of the search. Realistically, it is probably way lower
-/// than 256, but it should not affect performance too much.
+/// The search depth does not grow fast and an upper limit is set for improving
+/// performance.
+///
+/// Realistically, it is probably way lower than 256, but it should not affect
+/// performance too much.
 const MAX_SEARCH_DEPTH: usize = 256;
 
-pub(crate) struct SearchState {
-    /// The stack is quite shallow and is kept on stack rather than heap for
-    /// performance.
-    stack: ArrayVec<Position, MAX_SEARCH_DEPTH>,
+struct Context {
+    position_history: ArrayVec<Position, MAX_SEARCH_DEPTH>,
+    num_nodes: u64,
+    // TODO: num_pruned: u64,
 }
 
-#[derive(PartialEq, Eq, Debug)]
-pub(crate) struct SearchResult {
-    pub(crate) score: Score,
-    pub(crate) best_move: Option<Move>,
-}
-
-impl SearchState {
-    pub(crate) fn new() -> Self {
+impl Context {
+    fn new(position: &Position) -> Self {
+        let mut position_history = ArrayVec::new();
+        position_history.push(position.clone());
         Self {
-            stack: ArrayVec::<Position, MAX_SEARCH_DEPTH>::new(),
+            position_history,
+            num_nodes: 1,
+        }
+    }
+}
+
+const RESERVE: Duration = Duration::from_millis(500);
+
+/// Runs the search algorithm to find the best move under given time
+/// constraints.
+pub fn go(position: &Position, limit: Duration, output: &mut impl Write) -> Move {
+    let timer = Instant::now();
+
+    let mut context = Context::new(position);
+
+    let mut best_move = None;
+
+    const MAX_DEPTH: u8 = 8;
+
+    for depth in 1..MAX_DEPTH {
+        let (next_move, score) = find_best_move_and_score(position, depth, &mut context);
+
+        best_move = Some(next_move);
+        writeln!(
+            output,
+            "info depth {} score {} pv {} nodes {} time {}",
+            depth,
+            score,
+            &best_move.unwrap().to_string(),
+            context.num_nodes,
+            timer.elapsed().as_millis(),
+        )
+        .unwrap();
+
+        if timer.elapsed() + RESERVE >= limit {
+            break;
         }
     }
 
-    pub(crate) fn reset(&mut self, starting_position: &Position) {
-        self.stack.clear();
-        self.stack.push(starting_position.clone())
-    }
+    writeln!(
+        output,
+        "info nodes {} nps {}",
+        context.num_nodes,
+        (context.num_nodes as f64 / timer.elapsed().as_secs_f64()) as u64,
+    )
+    .unwrap();
+    best_move.unwrap()
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
+fn find_best_move_and_score(
+    position: &Position,
+    depth: u8,
+    context: &mut Context,
+) -> (Move, Score) {
+    context.num_nodes += 1;
 
-    #[test]
-    fn score_ordering() {
-        assert!(Score::Checkmate(1) > Score::Checkmate(2));
-        assert!(Score::Checkmate(10) < Score::Checkmate(5));
-        assert!(Score::Checkmate(5) == Score::Checkmate(5));
+    let mut best_move = None;
+    let mut best_score = Score::MIN;
 
-        assert!(Score::Checkmate(-1) < Score::Checkmate(-2));
-        assert!(Score::Checkmate(-2) > Score::Checkmate(-1));
-        assert!(Score::Checkmate(-1) == Score::Checkmate(-1));
+    let alpha = Score::MIN;
+    let beta = Score::MAX;
 
-        assert!(Score::Relative(100) > Score::Relative(50));
-        assert!(Score::Relative(1) > Score::Relative(-40));
-        assert!(Score::Relative(-1) < Score::Relative(0));
-        assert!(Score::Relative(-1) < Score::Relative(20));
+    for next_move in position.generate_moves() {
+        let mut next_position = position.clone();
+        next_position.make_move(&next_move);
 
-        assert!(Score::Checkmate(1) > Score::Relative(20));
-        assert!(Score::Checkmate(1) > Score::Relative(-20));
+        context.position_history.push(next_position);
 
-        assert!(Score::Checkmate(1) > Score::Relative(-20));
-        assert!(Score::Checkmate(1) > Score::Relative(20));
-        assert!(Score::Checkmate(-1) < Score::Relative(20));
+        let score = -minimax::negamax(context, depth - 1, -beta, -alpha);
 
-        assert!(Score::Checkmate(0) < Score::Checkmate(-1));
-        assert!(Score::Checkmate(0) < Score::Checkmate(1));
-        assert!(Score::Checkmate(0) < Score::Relative(20));
-        assert!(Score::Checkmate(0) < Score::Relative(-20));
+        let _ = context.position_history.pop();
+
+        if score >= best_score {
+            best_score = score;
+            best_move = Some(next_move);
+        }
     }
+
+    (best_move.unwrap(), best_score)
 }

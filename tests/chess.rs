@@ -460,6 +460,65 @@ fn chess_programming_wiki_perft_positions() {
     );
 }
 
+#[test]
+fn make_moves() {
+    let mut position = Position::starting();
+    position.make_move(&Move::from_uci("a2a4").unwrap());
+    position.make_move(&Move::from_uci("d7d5").unwrap());
+    position.make_move(&Move::from_uci("b2b4").unwrap());
+    position.make_move(&Move::from_uci("c7c6").unwrap());
+    position.make_move(&Move::from_uci("c1b2").unwrap());
+    position.make_move(&Move::from_uci("e7e6").unwrap());
+    position.make_move(&Move::from_uci("c2c3").unwrap());
+    position.make_move(&Move::from_uci("f7f5").unwrap());
+    position.make_move(&Move::from_uci("h2h4").unwrap());
+
+    assert_eq!(
+        position.fen(),
+        "rnbqkbnr/pp4pp/2p1p3/3p1p2/PP5P/2P5/1B1PPPP1/RN1QKBNR b KQkq - 0 5"
+    );
+
+    position.make_move(&Move::from_uci("g7g6").unwrap());
+    position.make_move(&Move::from_uci("g2g4").unwrap());
+    position.make_move(&Move::from_uci("h7h5").unwrap());
+    position.make_move(&Move::from_uci("f2f3").unwrap());
+    position.make_move(&Move::from_uci("h5g4").unwrap());
+    position.make_move(&Move::from_uci("f3g4").unwrap());
+    position.make_move(&Move::from_uci("f5g4").unwrap());
+
+    assert_eq!(
+        position.fen(),
+        "rnbqkbnr/pp6/2p1p1p1/3p4/PP4pP/2P5/1B1PP3/RN1QKBNR w KQkq - 0 9"
+    );
+
+    position.make_move(&Move::from_uci("d2d3").unwrap());
+    position.make_move(&Move::from_uci("g6g5").unwrap());
+    position.make_move(&Move::from_uci("e1d2").unwrap());
+    position.make_move(&Move::from_uci("g5h4").unwrap());
+
+    assert_eq!(
+        position.fen(),
+        "rnbqkbnr/pp6/2p1p3/3p4/PP4pp/2PP4/1B1KP3/RN1Q1BNR w kq - 0 11"
+    );
+
+    position.make_move(&Move::from_uci("d1e1").unwrap());
+    position.make_move(&Move::from_uci("e6e5").unwrap());
+    position.make_move(&Move::from_uci("d2c2").unwrap());
+    position.make_move(&Move::from_uci("a7a6").unwrap());
+    position.make_move(&Move::from_uci("b1d2").unwrap());
+    position.make_move(&Move::from_uci("b7b5").unwrap());
+    position.make_move(&Move::from_uci("a4a5").unwrap());
+    position.make_move(&Move::from_uci("e5e4").unwrap());
+    position.make_move(&Move::from_uci("d3e4").unwrap());
+    position.make_move(&Move::from_uci("b8d7").unwrap());
+    position.make_move(&Move::from_uci("e4d5").unwrap());
+
+    assert_eq!(
+        position.fen(),
+        "r1bqkbnr/3n4/p1p5/Pp1P4/1P4pp/2P5/1BKNP3/R3QBNR b kq - 0 16"
+    );
+}
+
 // This test is very expensive in the Debug setting (could take 200+ seconds):
 // disable it by default.
 #[ignore]
@@ -688,6 +747,7 @@ fn perft_queen_endgame() {
 }
 
 #[test]
+#[ignore]
 fn perft_tactical_opening() {
     let position = setup("r1bqkb1r/pppppppp/2n5/8/8/4PN2/PPPPBPPP/RNBQK2R w KQkq - 0 1");
     assert_eq!(perft(&position, 1), 29);

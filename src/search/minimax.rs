@@ -8,93 +8,93 @@
 // TODO: Implement alpha-beta pruning.
 // TODO: Implement move ordering.
 
-use crate::chess::position::Position;
-use crate::evaluation::Value;
-use crate::search::Score;
-use crate::search::SearchResult;
+use crate::evaluation::material::material_advantage;
+use crate::evaluation::Score;
+use crate::search::Context;
 
-// TODO: Document.
-pub(crate) fn negamax(
-    state: &mut crate::search::SearchState,
-    depth: u8,
-    static_evaluator: &dyn Fn(&Position) -> Value,
-) -> SearchResult {
-    debug_assert!(!state.stack.is_empty());
-    let position = state.stack.last_mut().unwrap();
+pub(super) fn negamax(context: &mut Context, depth: u8, alpha: Score, beta: Score) -> Score {
+    debug_assert!(!context.position_history.is_empty());
+
+    context.num_nodes += 1;
+
+    let position = context.position_history.last_mut().unwrap();
+
     if position.is_checkmate() {
-        // Players alternate turns every ply and the root node is player's turn.
-        let moves = (depth + 1) as i16 / 2;
-        let win = depth % 2 == 1;
-
-        let _ = state.stack.pop();
-        return SearchResult {
-            score: Score::Checkmate(if win { moves } else { -moves }),
-            best_move: None,
-        };
+        // The player to move is in checkmate.
+        return Score::LOSE;
     }
+
+    // TODO: is_draw: stalemate + 50 move rule + 3 repetitions.
     if position.is_stalemate() {
-        let _ = state.stack.pop();
         // TODO: Maybe handle stalemate differently since it's a "precise"
         // evaluation.
-        return SearchResult {
-            score: Score::Relative(0),
-            best_move: None,
-        };
+        return Score::from(0);
     }
+
     if depth == 0 {
-        let value = static_evaluator(position);
-        let _ = state.stack.pop();
-        return SearchResult {
-            score: Score::Relative(value),
-            best_move: None,
-        };
+        return material_advantage(position);
     }
-    // TODO: Check transposition table for existing evaluation.
-    // TODO: Check tablebase for existing evaluation.
-    let mut best_result = SearchResult {
-        score: Score::Relative(Value::MIN),
-        best_move: None,
-    };
+
+    let mut best_eval = Score::MIN;
+    let mut alpha = alpha;
+
     // TODO: Do not copy here, figure out how to beat the borrow checker.
-    let current_position = state.stack.last().unwrap().clone();
+    let current_position = context.position_history.last().unwrap().clone();
     for next_move in current_position.generate_moves() {
+        // Update the search state.
         let mut new_position = current_position.clone();
         new_position.make_move(&next_move);
-        state.stack.push(new_position);
+        context.position_history.push(new_position);
 
-        let mut search_result = negamax(state, depth - 1, static_evaluator);
-        search_result.score = -search_result.score;
+        let eval = -negamax(context, depth - 1, -beta, -alpha);
+
+        let _ = context.position_history.pop();
 
         // Update the best score and move that achieves it if the explored move
         // leads to the best result so far.
-        if search_result.score > best_result.score {
-            best_result.score = search_result.score;
-            best_result.best_move = Some(next_move);
+        best_eval = std::cmp::max(best_eval, eval);
+        alpha = std::cmp::max(alpha, eval);
+
+        // Beta cut-off.
+        if alpha >= beta {
+            break;
         }
     }
-    let _ = state.stack.pop();
-    best_result
+
+    best_eval
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{evaluation::material::material_advantage, search::SearchState};
-
     use super::*;
+    use crate::chess::position::Position;
+    use crate::evaluation::material::material_advantage;
 
     #[test]
-    fn starting_position() {
-        let mut state = SearchState::new();
-        state.stack.push(Position::starting());
+    fn zero_depth() {
+        let mut state = Context::new(&Position::starting());
         assert_eq!(
-            negamax(&mut state, 0, &material_advantage),
-            SearchResult {
-                score: Score::Relative(0),
-                best_move: None
-            }
+            negamax(&mut state, 0, Score::MIN, Score::MAX),
+            material_advantage(&Position::starting())
         );
     }
 
     #[test]
-    fn losing_position() {}
+    fn starting_position() {
+        let mut state = Context::new(&Position::starting());
+        assert_eq!(
+            negamax(&mut state, 1, Score::MIN, Score::MAX),
+            Score::from(0),
+        );
+    }
+
+    #[test]
+    fn losing_position() {
+        todo!()
+    }
+
+    #[test]
+    fn winning_position() {
+        todo!()
+    }
 }
