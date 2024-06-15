@@ -47,12 +47,11 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     /// The minimal set of supported commands should be:
     ///     - uci
     ///     - isready
-    ///     - go
+    ///     - setoption
+    ///     - ucinewgame
     ///     - go wtime btime winc binc
     ///     - quit
-    ///     - ucinewgame
-    ///     - setoption
-    ///     - stop (?)
+    ///     - stop
     ///
     /// NOTE: The assumption is that the UCI input stream is **correct**. It is
     /// tournament manager's responsibility to send uncorrupted input and make
@@ -62,8 +61,6 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     ///
     /// For example, if the UCI server sends a corrupted position or illegal
     /// moves to the engine, the behavior is undefined.
-    // > The engine must always be able to process input from stdin, even while
-    // > thinking.
     pub fn uci_loop(&mut self) -> anyhow::Result<()> {
         loop {
             let mut line = String::new();

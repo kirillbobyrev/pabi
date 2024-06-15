@@ -29,8 +29,8 @@ fn piece_value(pieces: &crate::chess::bitboard::Pieces) -> i32 {
 }
 
 pub(crate) fn material_advantage(position: &Position) -> Score {
-    let (us, they) = (position.us(), position.they());
-    let (our_pieces, their_pieces) = (position.pieces(us), position.pieces(they));
+    let (us, them) = (position.us(), position.they());
+    let (our_pieces, their_pieces) = (position.pieces(us), position.pieces(them));
     let advantage = piece_value(our_pieces) - piece_value(their_pieces);
     Score::from(advantage)
 }

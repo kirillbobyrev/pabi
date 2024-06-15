@@ -11,23 +11,50 @@ const NUM_PLANES: usize = 12;
 const TABLEBASE_MIN_PIECES: u32 = 6;
 const STRUCT_SIZE: usize = 8356;
 
-/// The data should be downloaded from <https://storage.lczero.org/files/training_data/test80/>
+/// Extract training data from the Leela Chess Zero data archive.
+///
+/// Archives can be found at <https://storage.lczero.org/files/training_data/test80/>
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     /// Path to .tar archive with the raw lc0 training data.
+    // TODO: Make this a directory and iterate over all files.
     archive_path: PathBuf,
     /// Path to the directory where the extracted data will be stored.
     output_dir: PathBuf,
-    /// Only positions with |eval| <= q_threshold will be kept. For Q-value to
-    /// CP conversion, use the following formula:
-    /// cp = 660.6 * q / (1 - 0.9751875 * q^10).
-    /// q = 0.9 corresponds to cp = 900 or +9.0 in conventional pawn scale.
+    /// Maximum number of samples to extract.
+    #[arg(long)]
+    limit: Option<usize>,
+    /// Only positions with |eval| <= q_threshold will be kept. Practically, distinguishing between
+    /// very high evals shouldn't be very important, because if an engine reaches that position, it
+    /// is likely to be winning/losing anyway.
+    ///
+    /// Q-value to CP conversion formula:
+    ///
+    /// cp = 660.6 * q / (1 - 0.9751875 * q^10)
+    ///
+    /// q = 0.9 corresponds to cp = 900
     #[arg(long, default_value_t = 0.9)]
     q_threshold: f32,
-    /// Filter positions where the best move is capturing a piece.
+    /// Remove positions with less than min_pieces pieces on the board. This is useful, because
+    /// most tournaments allow using 6 man tablebases.
+    #[arg(long, default_value_t = 6)]
+    min_pieces: u8,
+    /// Drop positions where the best move is capturing a piece. It is likely to
+    /// be a tactical position and should benefit from search and not from the
+    /// eval.
     #[arg(long, default_value_t = true)]
     filter_captures: bool,
+    /// Drop positions where the best move is giving a check. It is likely to be
+    /// a tactical position/attack.
+    #[arg(long, default_value_t = true)]
+    filter_checks: bool,
+    /// Drop positions where the best move is promotion.
+    #[arg(long, default_value_t = false)]
+    filter_promotions: bool,
+    /// Remove duplicate positions by using Zobrist hashing.
+    #[arg(long, default_value_t = true)]
+    deduplicate: bool,
 }
 
 // Latest Leela Chess Zero training data format:
@@ -138,15 +165,9 @@ fn extract_planes(sample: &V6TrainingData) -> Vec<u64> {
     ]
 }
 
-fn is_good_sample(sample: &V6TrainingData, q_threshold: f32, filter_captures: bool) -> bool {
-    if sample.version != 6 || sample.input_format != 1 {
-        return false;
-    }
+fn keep_sample(sample: &V6TrainingData, q_threshold: f32, filter_captures: bool) -> bool {
+    assert!(sample.version == 6 && sample.input_format == 1);
     if sample.invariance_info & (1 << 6) != 0 {
-        return false;
-    }
-    if sample.side_to_move_or_en_passant > 1 {
-        println!("Found side_to_move_or_en_passant > 1");
         return false;
     }
     if sample.best_q.abs() > q_threshold {
@@ -227,7 +248,7 @@ fn process_archive<W: Write>(
 
     for sample in extract_training_samples(archive)?
         .into_iter()
-        .filter(|sample| is_good_sample(sample, q_threshold, filter_captures))
+        .filter(|sample| keep_sample(sample, q_threshold, filter_captures))
     {
         serialize_sample(&sample, output)?;
         num_samples += 1

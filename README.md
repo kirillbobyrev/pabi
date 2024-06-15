@@ -41,6 +41,7 @@ designed to perform well against other engines. Performance and good
 time-management are crucial for doing well under time pressure.
 
 <!-- TODO: User interface: supported commands + UCI options -->
+<!-- Describe high-level features -->
 
 ## Project architecture
 
@@ -113,10 +114,6 @@ Contains code that extracts features from a given position and runs "static"
 computes the score that determines how good it is for the player that is going
 to make the next move.
 
-The development of the Neural Network model is in another repo:
-[kirillbobyrev/pabi-brain](https://github.com/kirillbobyrev/pabi-brain). The
-Rust code only runs inference of an already trained model.
-
 ##### [`src/search/`](/src/search/)
 
 Implements Minimax [search] with a number of extensions for efficiently reducing
@@ -168,15 +165,13 @@ arrays. These constants shouldn't change over time.
 
 ## [Milestones]
 
-- [ ] [0.1.0]
-- [ ] [0.2.0]
-- [ ] [1.0.0]
-- [ ] [2.0.0]
+- [ ] [Proof of Concept]
+- [ ] [Stable]
+- [ ] [Strong]
 
-[0.1.0]: https://github.com/kirillbobyrev/pabi/milestone/1
-[0.2.0]: https://github.com/kirillbobyrev/pabi/milestone/4
-[1.0.0]: https://github.com/kirillbobyrev/pabi/milestone/2
-[2.0.0]: https://github.com/kirillbobyrev/pabi/milestone/3
+[Proof of Concept]: https://github.com/kirillbobyrev/pabi/milestone/1
+[Stable]: https://github.com/kirillbobyrev/pabi/milestone/2
+[Strong]: https://github.com/kirillbobyrev/pabi/milestone/3
 [Computer Chess Championship]: https://www.chess.com/computer-chess-championship
 [Dependabot]: https://github.com/dependabot
 [Fuzzing]: https://en.wikipedia.org/wiki/Fuzzing

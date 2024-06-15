@@ -14,8 +14,10 @@
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{Player, Square, BOARD_SIZE};
 
+use super::generated;
+
 pub(super) fn king_attacks(from: Square) -> Bitboard {
-    KING_ATTACKS[from as usize]
+    generated::KING_ATTACKS[from as usize]
 }
 
 pub(super) fn queen_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
@@ -23,36 +25,42 @@ pub(super) fn queen_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
 }
 
 pub(super) fn rook_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
-    ROOK_ATTACKS[ROOK_ATTACK_OFFSETS[from as usize]
-        + pext(occupancy.bits(), ROOK_RELEVANT_OCCUPANCIES[from as usize]) as usize]
+    generated::ROOK_ATTACKS[generated::ROOK_ATTACK_OFFSETS[from as usize]
+        + pext(
+            occupancy.bits(),
+            generated::ROOK_RELEVANT_OCCUPANCIES[from as usize],
+        ) as usize]
 }
 
 pub(super) fn bishop_attacks(from: Square, occupancy: Bitboard) -> Bitboard {
-    BISHOP_ATTACKS[BISHOP_ATTACK_OFFSETS[from as usize]
-        + pext(occupancy.bits(), BISHOP_RELEVANT_OCCUPANCIES[from as usize]) as usize]
+    generated::BISHOP_ATTACKS[generated::BISHOP_ATTACK_OFFSETS[from as usize]
+        + pext(
+            occupancy.bits(),
+            generated::BISHOP_RELEVANT_OCCUPANCIES[from as usize],
+        ) as usize]
 }
 
 pub(super) const fn knight_attacks(square: Square) -> Bitboard {
-    KNIGHT_ATTACKS[square as usize]
+    generated::KNIGHT_ATTACKS[square as usize]
 }
 
 pub(super) const fn pawn_attacks(square: Square, player: Player) -> Bitboard {
     match player {
-        Player::White => WHITE_PAWN_ATTACKS[square as usize],
-        Player::Black => BLACK_PAWN_ATTACKS[square as usize],
+        Player::White => generated::WHITE_PAWN_ATTACKS[square as usize],
+        Player::Black => generated::BLACK_PAWN_ATTACKS[square as usize],
     }
 }
 
 pub(super) const fn ray(from: Square, to: Square) -> Bitboard {
-    RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
+    generated::RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
 pub(super) const fn bishop_ray(from: Square, to: Square) -> Bitboard {
-    BISHOP_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
+    generated::BISHOP_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
 const fn rook_ray(from: Square, to: Square) -> Bitboard {
-    ROOK_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
+    generated::ROOK_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
 // TODO: Document.
@@ -192,64 +200,6 @@ impl AttackInfo {
     }
 }
 
-// Generated in build.rs.
-// TODO: Document PEXT bitboards.
-const BISHOP_ATTACKS_COUNT: usize = 5248;
-const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/bishop_attacks.rs"
-));
-const BISHOP_ATTACK_OFFSETS: [usize; BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/bishop_attack_offsets.rs"
-));
-const BISHOP_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/bishop_relevant_occupancies.rs"
-));
-
-const ROOK_ATTACKS_COUNT: usize = 102_400;
-const ROOK_ATTACKS: [Bitboard; ROOK_ATTACKS_COUNT] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/rook_attacks.rs"
-));
-const ROOK_RELEVANT_OCCUPANCIES: [u64; BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/rook_relevant_occupancies.rs"
-));
-const ROOK_ATTACK_OFFSETS: [usize; BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/rook_attack_offsets.rs"
-));
-
-const RAYS: [Bitboard; BOARD_SIZE as usize * BOARD_SIZE as usize] =
-    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/generated/rays.rs"));
-const BISHOP_RAYS: [Bitboard; BOARD_SIZE as usize * BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/bishop_rays.rs"
-));
-const ROOK_RAYS: [Bitboard; BOARD_SIZE as usize * BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/rook_rays.rs"
-));
-
-const KNIGHT_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/knight_attacks.rs"
-));
-const KING_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/king_attacks.rs"
-));
-const WHITE_PAWN_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/white_pawn_attacks.rs"
-));
-const BLACK_PAWN_ATTACKS: [Bitboard; BOARD_SIZE as usize] = include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/generated/black_pawn_attacks.rs"
-));
-
 pub(super) const WHITE_SHORT_CASTLE_KING_WALK: Bitboard =
     Bitboard::from_bits(0x0000_0000_0000_0060);
 pub(super) const WHITE_SHORT_CASTLE_ROOK_WALK: Bitboard =
@@ -298,7 +248,7 @@ mod test {
         assert_eq!(
             format!(
                 "{:?}",
-                Bitboard::from_bits(BISHOP_RELEVANT_OCCUPANCIES[Square::E4 as usize])
+                Bitboard::from_bits(generated::BISHOP_RELEVANT_OCCUPANCIES[Square::E4 as usize])
             ),
             ". . . . . . . .\n\
             . 1 . . . . . .\n\
@@ -325,7 +275,7 @@ mod test {
         assert_eq!(
             format!(
                 "{:?}",
-                Bitboard::from_bits(ROOK_RELEVANT_OCCUPANCIES[Square::E4 as usize])
+                Bitboard::from_bits(generated::ROOK_RELEVANT_OCCUPANCIES[Square::E4 as usize])
             ),
             ". . . . . . . .\n\
             . . . . 1 . . .\n\

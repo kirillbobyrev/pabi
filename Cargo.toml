@@ -12,15 +12,15 @@ readme = "README.md"
 repository = "https://github.com/kirillbobyrev/pabi"
 rust-version = "1.78"
 version = "0.1.0"
-# Reduce the package size by only including things necessary for building it.
 include = [
-  "/src/**/*.rs",
+  "/src/",
+  "/generated/",
   "/Cargo.toml",
   "/Cargo.lock",
-  "/data/positions.fen",
+  "build.rs",
   "LICENSE",
   "README.md",
-]
+] # Reduce the package size by only including things necessary for building it.
 
 [workspace]
 members = ["tools"]
@@ -34,6 +34,7 @@ shadow-rs = "0.28.0"
 
 [build-dependencies]
 shadow-rs = "0.28.0"
+rand = "0.8.5"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = [
