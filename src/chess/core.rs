@@ -21,7 +21,7 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 /// Neural Network evaluators that would be able assess their potential without
 /// evaluating post-states.
 // TODO: Implement bijection for a move and a numeric index.
-// TODO: Switch this to an enum representation (regular, en passant, castling)?
+// TODO: Switch this to an enum representation (regular, en passant, castling) or add flag.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Move {
     pub(super) from: Square,
@@ -395,14 +395,13 @@ impl fmt::Display for Player {
     }
 }
 
-/// Standard [chess pieces].
+/// Standard [chess pieces] types for one player.
 ///
 /// [chess pieces]: https://en.wikipedia.org/wiki/Chess_piece
-// TODO: Assert that both PieceKind and Option(PieceKind) take 1 byte.
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub enum PieceKind {
-    King = 1,
+    King,
     Queen,
     Rook,
     Bishop,

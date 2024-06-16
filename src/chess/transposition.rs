@@ -3,6 +3,7 @@
 //! [Transposition Table](https://www.chessprogramming.org/Transposition_Table
 
 use super::position::Position;
+use core::hash;
 use std::hash::{Hash, Hasher};
 
 pub type Key = u64;

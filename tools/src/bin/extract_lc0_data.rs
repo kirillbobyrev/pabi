@@ -145,7 +145,7 @@ fn extract_training_samples(archive: impl BufRead) -> io::Result<Vec<V6TrainingD
     Ok(samples)
 }
 
-// TODO: Flip the planes.
+// TODO: Flip the planes since lc0 does the bit flipping for whatever reason.
 fn extract_planes(sample: &V6TrainingData) -> Vec<u64> {
     vec![
         // Our pieces.

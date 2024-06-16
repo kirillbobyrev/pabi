@@ -14,17 +14,11 @@ use anyhow::{bail, Context};
 use crate::chess::attacks;
 use crate::chess::bitboard::{Bitboard, Board, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    File,
-    Move,
-    MoveList,
-    Piece,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
+use crate::chess::transposition;
+use crate::chess::zobrist_keys;
+
 
 /// State of the chess game: board, half-move counters and castling rights,
 /// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
@@ -104,7 +98,7 @@ impl Position {
         self.side_to_move
     }
 
-    pub(crate) fn they(&self) -> Player {
+    pub(crate) fn them(&self) -> Player {
         self.us().opponent()
     }
 
@@ -117,7 +111,7 @@ impl Position {
     }
 
     fn occupied_squares(&self) -> Bitboard {
-        self.occupancy(self.us()) | self.occupancy(self.they())
+        self.occupancy(self.us()) | self.occupancy(self.them())
     }
 
     /// Parses board from Forsyth-Edwards Notation and checks its correctness.
@@ -282,12 +276,12 @@ impl Position {
     }
 
     pub(super) fn attack_info(&self) -> attacks::AttackInfo {
-        let (us, they) = (self.us(), self.they());
-        let (our_pieces, their_pieces) = (self.pieces(us), self.pieces(they));
+        let (us, them) = (self.us(), self.them());
+        let (our_pieces, their_pieces) = (self.pieces(us), self.pieces(them));
         let king: Square = our_pieces.king.as_square();
         let (our_occupancy, their_occupancy) = (our_pieces.all(), their_pieces.all());
         let occupancy = our_occupancy | their_occupancy;
-        attacks::AttackInfo::new(they, their_pieces, king, our_occupancy, occupancy)
+        attacks::AttackInfo::new(them, their_pieces, king, our_occupancy, occupancy)
     }
 
     /// Calculates a list of legal moves (i.e. the moves that do not leave our
@@ -323,14 +317,14 @@ impl Position {
         // debug_assert!(validate(&self).is_ok(), "{}", self.fen());
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
-        let (us, they) = (self.us(), self.they());
-        let (our_pieces, their_pieces) = (self.pieces(us), self.pieces(they));
+        let (us, them) = (self.us(), self.them());
+        let (our_pieces, their_pieces) = (self.pieces(us), self.pieces(them));
         let king: Square = our_pieces.king.as_square();
         let (our_occupancy, their_occupancy) = (our_pieces.all(), their_pieces.all());
         let occupied_squares = our_occupancy | their_occupancy;
         let their_or_empty = !our_occupancy;
         let attack_info =
-            attacks::AttackInfo::new(they, their_pieces, king, our_occupancy, occupied_squares);
+            attacks::AttackInfo::new(them, their_pieces, king, our_occupancy, occupied_squares);
         // Moving the king to safety is always a valid move.
         generate_king_moves(king, attack_info.safe_king_squares, &mut moves);
         // If there are checks, the moves are restricted to resolving them.
@@ -388,7 +382,7 @@ impl Position {
         generate_pawn_moves(
             our_pieces.pawns,
             us,
-            they,
+            them,
             their_pieces,
             their_occupancy,
             their_or_empty,
@@ -420,7 +414,7 @@ impl Position {
     pub fn make_move(&mut self, next_move: &Move) {
         debug_assert!(self.is_legal());
         // TODO: debug_assert!(self.is_legal_move(move));
-        let (us, they) = (self.us(), self.they());
+        let (us, them) = (self.us(), self.them());
         let our_backrank = Rank::backrank(us);
         let (our_pieces, their_pieces) = match self.us() {
             Player::White => (&mut self.board.white_pieces, &mut self.board.black_pieces),
@@ -448,7 +442,7 @@ impl Position {
         if their_pieces.all().contains(next_move.to) {
             // Capturing a piece resets the clock.
             self.halfmove_clock = 0;
-            match (they, next_move.to) {
+            match (them, next_move.to) {
                 (Player::White, Square::H1) => self.castling.remove(CastleRights::WHITE_SHORT),
                 (Player::White, Square::A1) => self.castling.remove(CastleRights::WHITE_LONG),
                 (Player::Black, Square::H8) => self.castling.remove(CastleRights::BLACK_SHORT),
@@ -546,7 +540,8 @@ impl Position {
         self.in_check() && self.generate_moves().is_empty()
     }
 
-    #[must_use] pub fn is_stalemate(&self) -> bool {
+    #[must_use]
+    pub fn is_stalemate(&self) -> bool {
         !self.in_check() && self.generate_moves().is_empty()
     }
 
@@ -558,6 +553,15 @@ impl Position {
     #[must_use]
     pub fn gives_check(&self, next_move: &Move) -> bool {
         todo!()
+    }
+
+    pub fn compute_hash(&self) -> transposition::Key {
+        let mut key = 0;
+        if self.side_to_move == Player::Black {
+            key ^= zobrist_keys::BLACK_TO_MOVE;
+        }
+
+        key
     }
 }
 
@@ -694,9 +698,9 @@ fn validate(position: &Position) -> anyhow::Result<()> {
         // A pawn that was just pushed by our opponent should be in front of
         // en_passant_square.
         let pushed_pawn = en_passant_square
-            .shift(position.they().pawn_push_direction())
+            .shift(position.them().pawn_push_direction())
             .unwrap();
-        if !position.pieces(position.they()).pawns.contains(pushed_pawn) {
+        if !position.pieces(position.them()).pawns.contains(pushed_pawn) {
             bail!("en passant square is not beyond pushed pawn")
         }
         // If en-passant was played and there's a check, doubly pushed pawn
@@ -721,8 +725,8 @@ fn validate(position: &Position) -> anyhow::Result<()> {
             }
         }
         // Doubly pushed pawn can not block a diagonal check.
-        for attacker in (position.pieces(position.they()).queens
-            | position.pieces(position.they()).bishops)
+        for attacker in (position.pieces(position.them()).queens
+            | position.pieces(position.them()).bishops)
             .iter()
         {
             let xray = attacks::bishop_ray(attacker, king);
@@ -812,7 +816,7 @@ fn generate_bishop_moves(
 fn generate_pawn_moves(
     pawns: Bitboard,
     us: Player,
-    they: Player,
+    them: Player,
     their_pieces: &Pieces,
     their_occupancy: Bitboard,
     their_or_empty: Bitboard,
@@ -848,9 +852,9 @@ fn generate_pawn_moves(
     }
     // Generate en passant moves.
     if let Some(en_passant_square) = en_passant_square {
-        let en_passant_pawn = en_passant_square.shift(they.pawn_push_direction()).unwrap();
+        let en_passant_pawn = en_passant_square.shift(them.pawn_push_direction()).unwrap();
         // Check if capturing en passant resolves the check.
-        let candidate_pawns = attacks::pawn_attacks(en_passant_square, they) & pawns;
+        let candidate_pawns = attacks::pawn_attacks(en_passant_square, them) & pawns;
         if checkers.contains(en_passant_pawn) {
             for our_pawn in candidate_pawns.iter() {
                 if pins.contains(our_pawn) {
