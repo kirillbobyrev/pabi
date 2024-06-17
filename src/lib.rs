@@ -54,9 +54,11 @@ use shadow_rs::shadow;
 shadow!(build);
 
 /// Build type and target. Produced by `build.rs`.
-pub const FEATURES: &str = include_str!(concat!(env!("OUT_DIR"), "/features"));
+const FEATURES: &str = include_str!(concat!(env!("OUT_DIR"), "/features"));
 
-pub(crate) fn get_version() -> String {
+/// Returns the full engine version that can be used to identify how it was
+/// built in the first place.
+fn engine_version() -> String {
     format!(
         "{} (commit {}, branch {})",
         build::PKG_VERSION,
@@ -65,16 +67,17 @@ pub(crate) fn get_version() -> String {
     )
 }
 
-/// Prints main information about the engine to standard output.
+/// Prints informations about the engine version, author and GitHub repository
+/// on engine startup.
 pub fn print_engine_info() {
-    println!("Pabi Chess Engine");
-    println!("Version {}", get_version());
-    println!("https://github.com/kirillbobyrev/pabi");
+    println!("Pabi chess engine {}", engine_version());
+    println!("<https://github.com/kirillbobyrev/pabi>");
 }
 
-/// Prints information about how the binary was built to the standard output.
+/// Prints information the build type, features and whether the build is clean
+/// on engine startup.
 pub fn print_binary_info() {
-    println!("Debug: {}", shadow_rs::is_debug());
+    println!("Release build: {}", !shadow_rs::is_debug());
     println!("Features: {FEATURES}");
     if !shadow_rs::git_clean() {
         println!("Warning: built with uncommitted changes");

@@ -24,10 +24,12 @@ pub struct Engine<'a, R: BufRead, W: Write> {
 }
 
 impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
+    /// Creates a new instance of the engine with starting position and provided
+    /// I/O.
     #[must_use]
     pub fn new(input: &'a mut R, output: &'a mut W) -> Self {
         Self {
-            position: Position::empty(),
+            position: Position::starting(),
             input,
             output,
         }
@@ -45,13 +47,14 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     /// while writing the responses to the output stream.
     ///
     /// The minimal set of supported commands should be:
-    ///     - uci
-    ///     - isready
-    ///     - setoption
-    ///     - ucinewgame
-    ///     - go wtime btime winc binc
-    ///     - quit
-    ///     - stop
+    ///
+    /// - `uci`
+    /// - `isready`
+    /// - `setoption`
+    /// - `ucinewgame`
+    /// - `go wtime btime winc binc`
+    /// - `quit`
+    /// - `stop`
     ///
     /// NOTE: The assumption is that the UCI input stream is **correct**. It is
     /// tournament manager's responsibility to send uncorrupted input and make
@@ -91,23 +94,28 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
         Ok(())
     }
 
+    /// Responds to the `uci` handshake command by identifying the engine.
     fn handle_uci(&mut self) -> anyhow::Result<()> {
         writeln!(
             self.output,
             "id name {} {}",
             env!("CARGO_PKG_NAME"),
-            crate::get_version()
+            crate::engine_version()
         )?;
         writeln!(self.output, "id author {}", env!("CARGO_PKG_AUTHORS"))?;
         writeln!(self.output, "uciok")?;
         Ok(())
     }
 
+    /// Syncs with the UCI server by responding with `readyok`.
     fn handle_isready(&mut self) -> anyhow::Result<()> {
         writeln!(self.output, "readyok")?;
         Ok(())
     }
 
+    /// Sets the engine options. This is a no-op for now. In the future this
+    /// should at least support setting the transposition table size and search
+    /// thread count.
     fn handle_setoption(&mut self, line: String) -> anyhow::Result<()> {
         writeln!(
             self.output,
@@ -121,6 +129,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
         Ok(())
     }
 
+    /// Changes the position of the board to the one specified in the command.
     fn handle_position(
         &mut self,
         stream: &mut std::slice::Iter<&str>,
@@ -198,6 +207,9 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
         Ok(())
     }
 
+    /// Stops the search immediately.
+    ///
+    /// NOTE: This is a no-op for now.
     fn handle_stop(&mut self) -> anyhow::Result<()> {
         // TODO: Implement this method.
         Ok(())

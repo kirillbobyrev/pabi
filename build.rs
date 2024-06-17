@@ -21,30 +21,23 @@ fn generate_build_info() {
     generate_file("features", &features);
 }
 
-fn generate_zobrist_keys() {
-    let mut rng = rand::thread_rng();
-    for piece in [
-        "white_king",
-        "white_queen",
-        "white_rook",
-        "white_bishop",
-        "white_knight",
-        "white_pawn",
-        "black_king",
-        "black_queen",
-        "black_rook",
-        "black_bishop",
-        "black_knight",
-        "black_pawn",
-    ] {
-        let piece_keys: [u64; 64] = std::array::from_fn(|_| rand::Rng::gen(&mut rng));
-        generate_file(
-            &format!("{piece}_zobrist_keys"),
-            &format!("{:?}", piece_keys),
-        );
-    }
+type ZobristKey = u64;
 
-    let en_passant_keys: [u64; 8] = std::array::from_fn(|_| rand::Rng::gen(&mut rng));
+fn generate_zobrist_keys() {
+    const NUM_COLORS: usize = 2;
+    const NUM_PIECES: usize = 6;
+    const NUM_SQUARES: usize = 64;
+
+    let mut rng = rand::thread_rng();
+
+    let piece_keys: [ZobristKey; NUM_COLORS * NUM_PIECES * NUM_SQUARES] =
+        std::array::from_fn(|_| rand::Rng::gen(&mut rng));
+    generate_file(
+        &format!("pieces_zobrist_keys"),
+        &format!("{:?}", piece_keys),
+    );
+
+    let en_passant_keys: [ZobristKey; 8] = std::array::from_fn(|_| rand::Rng::gen(&mut rng));
     generate_file("en_passant_zobrist_keys", &format!("{:?}", en_passant_keys));
 }
 

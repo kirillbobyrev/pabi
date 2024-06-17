@@ -7,18 +7,142 @@
 //!
 //! [Chess Position]: https://www.chessprogramming.org/Chess_Position
 
-use std::fmt;
+use std::fmt::{self, Write};
 
 use anyhow::{bail, Context};
 
-use crate::chess::attacks;
-use crate::chess::bitboard::{Bitboard, Board, Pieces};
+use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    File,
+    Move,
+    MoveList,
+    Piece,
+    Player,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
-use crate::chess::transposition;
-use crate::chess::zobrist_keys;
+use crate::chess::{attacks, generated, zobrist};
 
+/// Piece-centric implementation of the chess board. This is the "back-end" of
+/// the chess engine, an efficient board representation is crucial for
+/// performance. An alternative implementation would be Square-Piece table but
+/// both have different trade-offs and scenarios where they are efficient. It is
+/// likely that the best overall performance can be achieved by keeping both to
+/// complement each other.
+#[derive(Clone, PartialEq, Eq)]
+struct Board {
+    white_pieces: Pieces,
+    black_pieces: Pieces,
+}
+
+impl Board {
+    #[must_use]
+    fn starting() -> Self {
+        Self {
+            white_pieces: Pieces::new_white(),
+            black_pieces: Pieces::new_black(),
+        }
+    }
+
+    // Constructs an empty Board to be filled by the board and position builder.
+    #[must_use]
+    const fn empty() -> Self {
+        Self {
+            white_pieces: Pieces::empty(),
+            black_pieces: Pieces::empty(),
+        }
+    }
+
+    #[must_use]
+    const fn player_pieces(&self, player: Player) -> &Pieces {
+        match player {
+            Player::White => &self.white_pieces,
+            Player::Black => &self.black_pieces,
+        }
+    }
+
+    // WARNING: This is slow and inefficient for Bitboard-based piece-centric
+    // representation. Use with caution.
+    // TODO: Completely disallow bitboard.at()?
+    #[must_use]
+    fn at(&self, square: Square) -> Option<Piece> {
+        if let Some(kind) = self.white_pieces.at(square) {
+            return Some(Piece {
+                owner: Player::White,
+                kind,
+            });
+        }
+        if let Some(kind) = self.black_pieces.at(square) {
+            return Some(Piece {
+                owner: Player::Black,
+                kind,
+            });
+        }
+        None
+    }
+}
+
+impl fmt::Display for Board {
+    /// Prints board representation in FEN format.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for rank_idx in (0..BOARD_WIDTH).rev() {
+            let rank: Rank = unsafe { std::mem::transmute(rank_idx) };
+            let mut empty_squares = 0i32;
+            for file_idx in 0..BOARD_WIDTH {
+                let file: File = unsafe { std::mem::transmute(file_idx) };
+                let square = Square::new(file, rank);
+                if let Some(piece) = self.at(square) {
+                    if empty_squares != 0 {
+                        write!(f, "{empty_squares}")?;
+                        empty_squares = 0;
+                    }
+                    write!(f, "{piece}")?;
+                } else {
+                    empty_squares += 1;
+                }
+            }
+            if empty_squares != 0 {
+                write!(f, "{empty_squares}")?;
+            }
+            if rank != Rank::One {
+                const RANK_SEPARATOR: char = '/';
+                write!(f, "{RANK_SEPARATOR}")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Board {
+    /// Dumps the board in a human readable format ('.' for empty square, FEN
+    /// algebraic symbol for piece).
+    ///
+    /// Useful for debugging purposes.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        const LINE_SEPARATOR: &str = "\n";
+        const SQUARE_SEPARATOR: &str = " ";
+        for rank_idx in (0..BOARD_WIDTH).rev() {
+            let rank: Rank = unsafe { std::mem::transmute(rank_idx) };
+            for file_idx in 0..BOARD_WIDTH {
+                let file: File = unsafe { std::mem::transmute(file_idx) };
+                match self.at(Square::new(file, rank)) {
+                    Some(piece) => write!(f, "{piece}"),
+                    None => f.write_char('.'),
+                }?;
+                if file != File::H {
+                    write!(f, "{SQUARE_SEPARATOR}")?;
+                }
+            }
+            if rank != Rank::One {
+                write!(f, "{LINE_SEPARATOR}")?;
+            }
+        }
+        Ok(())
+    }
+}
 
 /// State of the chess game: board, half-move counters and castling rights,
 /// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
@@ -37,10 +161,11 @@ use crate::chess::zobrist_keys;
 /// [Extended Position Description]: https://www.chessprogramming.org/Extended_Position_Description
 /// [Operations]: https://www.chessprogramming.org/Extended_Position_Description#Operations
 // TODO: Make the fields private, expose appropriate assessors.
-// TODO: Store Zobrist hash, possibly other info.
+// TODO: Store Zobrist hash, possibly other info such as repetition count,
+// in_check (might be useful for move_gen and other things).
 #[derive(Clone)]
 pub struct Position {
-    pub(crate) board: Board,
+    board: Board,
     castling: CastleRights,
     side_to_move: Player,
     /// [Halfmove Clock][^ply] keeps track of the number of halfmoves since the
@@ -58,10 +183,6 @@ pub struct Position {
 
 // TODO: Mark more functions as const.
 impl Position {
-    pub(crate) fn board(&self) -> &Board {
-        &self.board
-    }
-
     /// Creates the starting position of the standard chess.
     ///
     /// ```
@@ -78,15 +199,6 @@ impl Position {
         Self {
             board: Board::starting(),
             castling: CastleRights::ALL,
-            ..Self::empty()
-        }
-    }
-
-    #[must_use]
-    pub fn empty() -> Self {
-        Self {
-            board: Board::empty(),
-            castling: CastleRights::NONE,
             side_to_move: Player::White,
             halfmove_clock: 0,
             fullmove_counter: 1,
@@ -146,9 +258,10 @@ impl Position {
     /// extra symbols.
     // TODO: Add support for Shredder FEN and Chess960.
     pub fn from_fen(input: &str) -> anyhow::Result<Self> {
+        let mut board = Board::empty();
+
         let mut parts = input.split(' ');
         // Parse Piece Placement.
-        let mut result = Self::empty();
         let pieces_placement = match parts.next() {
             Some(placement) => placement,
             None => bail!("incorrect FEN: missing pieces placement"),
@@ -177,8 +290,8 @@ impl Position {
                 match Piece::try_from(symbol) {
                     Ok(piece) => {
                         let owner = match piece.owner {
-                            Player::White => &mut result.board.white_pieces,
-                            Player::Black => &mut result.board.black_pieces,
+                            Player::White => &mut board.white_pieces,
+                            Player::Black => &mut board.black_pieces,
                         };
                         let square = Square::new(file.try_into()?, rank);
                         *owner.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
@@ -188,90 +301,83 @@ impl Position {
                 file += 1;
             }
             if file != BOARD_WIDTH {
-                bail!("incorrect FEN: rank size should be exactly {BOARD_WIDTH}, got {rank_fen} of length {file}");
+                bail!(
+                    "incorrect FEN: rank size should be exactly {BOARD_WIDTH},
+                     got {rank_fen} of length {file}"
+                );
             }
         }
         if rank_id != 0 {
             bail!("incorrect FEN: there should be 8 ranks, got {pieces_placement}");
         }
-        result.side_to_move = match parts.next() {
+        let side_to_move = match parts.next() {
             Some(value) => value.try_into()?,
             None => bail!("incorrect FEN: missing side to move"),
         };
-        result.castling = match parts.next() {
+        let castling = match parts.next() {
             Some(value) => value.try_into()?,
             None => bail!("incorrect FEN: missing castling rights"),
         };
-        result.en_passant_square = match parts.next() {
+        let en_passant_square = match parts.next() {
             Some("-") => None,
             Some(value) => Some(value.try_into()?),
             None => bail!("incorrect FEN: missing en passant square"),
         };
-        result.halfmove_clock = match parts.next() {
-            Some(value) => {
-                // TODO: Here and below: parse manually just by getting through
-                // ASCII digits since we're already checking them.
-                if !value.bytes().all(|c| c.is_ascii_digit()) {
-                    bail!("halfmove clock can not contain anything other than digits");
-                }
-                match value.parse::<u8>() {
-                    Ok(num) => num,
-                    Err(e) => {
-                        return Err(e).with_context(|| {
-                            format!("incorrect FEN: halfmove clock can not be parsed {value}")
-                        });
-                    },
-                }
+        let halfmove_clock = match parts.next() {
+            Some(value) => match value.parse::<u8>() {
+                Ok(num) => Some(num),
+                Err(e) => {
+                    return Err(e).with_context(|| {
+                        format!("incorrect FEN: halfmove clock can not be parsed {value}")
+                    });
+                },
             },
             // This is a correct EPD: exit early.
-            None => {
-                return match validate(&result) {
-                    Ok(()) => Ok(result),
-                    Err(e) => Err(e.context("illegal position")),
-                }
+            None => None,
+        };
+        let fullmove_counter = match parts.next() {
+            Some(value) => match value.parse::<u16>() {
+                Ok(0) => {
+                    bail!("fullmove counter can not be 0")
+                },
+                Ok(num) => Some(num),
+                Err(e) => {
+                    return Err(e).with_context(|| {
+                        format!("incorrect FEN: fullmove counter can not be parsed {value}")
+                    });
+                },
+            },
+            None => match halfmove_clock {
+                Some(_) => bail!("incorrect FEN: missing halfmove clock"),
+                None => None,
             },
         };
-        result.fullmove_counter = match parts.next() {
-            Some(value) => {
-                if !value.bytes().all(|c| c.is_ascii_digit()) {
-                    bail!("fullmove counter clock can not contain anything other than digits");
-                }
-                match value.parse::<u16>() {
-                    Ok(0) => {
-                        bail!("fullmove counter can not be 0")
-                    },
-                    Ok(num) => num,
-                    Err(e) => {
-                        return Err(e).with_context(|| {
-                            format!("incorrect FEN: fullmove counter can not be parsed {value}")
-                        });
-                    },
-                }
-            },
-            None => bail!("incorrect FEN: missing halfmove clock"),
+
+        if parts.next().is_some() {
+            bail!("trailing symbols are not allowed in FEN");
+        }
+
+        let halfmove_clock = halfmove_clock.unwrap_or(0);
+        let fullmove_counter = fullmove_counter.unwrap_or(1);
+        let result = Self {
+            board,
+            castling,
+            side_to_move,
+            halfmove_clock,
+            fullmove_counter,
+            en_passant_square,
         };
-        match parts.next() {
-            None => match validate(&result) {
-                Ok(()) => Ok(result),
-                Err(e) => Err(e.context("illegal position")),
-            },
-            Some(_) => bail!("trailing symbols are not allowed in FEN"),
+        match validate(&result) {
+            Ok(()) => Ok(result),
+            Err(e) => Err(e.context("illegal position")),
         }
     }
 
-    /// Returns a string representation of the position in FEN format.
+    /// Checks whether a position is pseudo-legal. This is a simple check to
+    /// ensure that the state is not corrupted and is safe to work with. It
+    /// doesn't handle all corner cases and is simply used to as a sanity check.
     #[must_use]
-    pub fn fen(&self) -> String {
-        self.to_string()
-    }
-
-    #[must_use]
-    pub fn has_insufficient_material(&self) -> bool {
-        todo!()
-    }
-
-    #[must_use]
-    pub fn is_legal(&self) -> bool {
+    pub(crate) fn is_legal(&self) -> bool {
         validate(self).is_ok()
     }
 
@@ -352,7 +458,7 @@ impl Position {
             // Double checks can only be evaded by the king moves to safety: no
             // need to consider other moves.
             2 => return moves,
-            _ => unreachable!("more than two pieces can not check the king"),
+            _ => unreachable!("checks can't be given by more than two pieces at once"),
         };
         generate_knight_moves(
             our_pieces.knights,
@@ -540,9 +646,14 @@ impl Position {
         self.in_check() && self.generate_moves().is_empty()
     }
 
+    /// Returns true if the player to move has no legal moves and is not
+    /// checkmated (i.e. the game is a draw) or if 50-move rule is in effect.
+    ///
+    /// Note that because position does not keep track of the 3-fold repetition
+    /// it is not taken into account.
     #[must_use]
     pub fn is_stalemate(&self) -> bool {
-        !self.in_check() && self.generate_moves().is_empty()
+        self.halfmove_clock >= 100 || (!self.in_check() && self.generate_moves().is_empty())
     }
 
     #[must_use]
@@ -555,10 +666,37 @@ impl Position {
         todo!()
     }
 
-    pub fn compute_hash(&self) -> transposition::Key {
+    /// Computes standard Zobrist hash of the using pseudo-random numbers
+    /// generated during the build stage.
+    pub fn compute_hash(&self) -> zobrist::Key {
         let mut key = 0;
+
         if self.side_to_move == Player::Black {
-            key ^= zobrist_keys::BLACK_TO_MOVE;
+            key ^= generated::BLACK_TO_MOVE;
+        }
+
+        if self.castling.contains(CastleRights::WHITE_SHORT) {
+            key ^= generated::WHITE_CAN_CASTLE_SHORT;
+        }
+        if self.castling.contains(CastleRights::WHITE_LONG) {
+            key ^= generated::WHITE_CAN_CASTLE_LONG;
+        }
+        if self.castling.contains(CastleRights::BLACK_SHORT) {
+            key ^= generated::BLACK_CAN_CASTLE_SHORT;
+        }
+        if self.castling.contains(CastleRights::BLACK_LONG) {
+            key ^= generated::BLACK_CAN_CASTLE_LONG;
+        }
+
+        if let Some(square) = self.en_passant_square {
+            let en_passant_file = square.file();
+            key ^= generated::EN_PASSANT_FILES[en_passant_file as usize];
+        }
+
+        let occupied_squares = self.board.white_pieces.all() | self.board.black_pieces.all();
+        for square in occupied_squares.iter() {
+            let piece = self.board.at(square).expect("the square");
+            key ^= generated::get_piece_key(piece, square);
         }
 
         key
@@ -994,5 +1132,54 @@ fn generate_castle_moves(
                 }
             },
         }
+    }
+}
+
+mod test {
+    use crate::chess::core::Rank;
+    use crate::chess::position::Board;
+
+    #[test]
+    fn empty_board() {
+        assert_eq!(
+            format!("{:?}", Board::empty()),
+            ". . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . ."
+        );
+        assert_eq!(Board::empty().to_string(), "8/8/8/8/8/8/8/8");
+    }
+
+    #[test]
+    fn starting_board() {
+        let starting_board = Board::starting();
+        assert_eq!(
+            format!("{:?}", starting_board),
+            "r n b q k b n r\n\
+             p p p p p p p p\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             . . . . . . . .\n\
+             P P P P P P P P\n\
+             R N B Q K B N R"
+        );
+        assert_eq!(
+            starting_board.white_pieces.all() | starting_board.black_pieces.all(),
+            Rank::One.mask() | Rank::Two.mask() | Rank::Seven.mask() | Rank::Eight.mask()
+        );
+        assert_eq!(
+            !(starting_board.white_pieces.all() | starting_board.black_pieces.all()),
+            Rank::Three.mask() | Rank::Four.mask() | Rank::Five.mask() | Rank::Six.mask()
+        );
+        assert_eq!(
+            starting_board.to_string(),
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+        );
     }
 }

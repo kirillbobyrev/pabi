@@ -20,8 +20,9 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 /// representation. The moves can also be indexed and fed as an input to the
 /// Neural Network evaluators that would be able assess their potential without
 /// evaluating post-states.
-// TODO: Implement bijection for a move and a numeric index.
+// TODO: Implement bijection for a move and a numeric index for lc0 purposes.
 // TODO: Switch this to an enum representation (regular, en passant, castling) or add flag.
+// TODO: Switch to a more compact representation so that Transposition Table can grow larger.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Move {
     pub(super) from: Square,
@@ -31,7 +32,7 @@ pub struct Move {
 
 impl Move {
     #[must_use]
-    pub const fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
+    pub(super) const fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
         Self {
             from,
             to,
@@ -39,6 +40,9 @@ impl Move {
         }
     }
 
+    /// Converts the move from UCI format to the internal representation. This
+    /// is important for the communication between the engine and UCI server in
+    /// `position` command.
     #[must_use]
     pub fn from_uci(uci: &str) -> anyhow::Result<Self> {
         Self::try_from(uci)
@@ -119,7 +123,7 @@ pub type MoveList = arrayvec::ArrayVec<Move, { MAX_MOVES }>;
 #[rustfmt::skip]
 #[allow(missing_docs)]
 pub enum Square {
-    A1 = 0, B1, C1, D1, E1, F1, G1, H1,
+    A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
     A3, B3, C3, D3, E3, F3, G3, H3,
     A4, B4, C4, D4, E4, F4, G4, H4,
@@ -227,14 +231,14 @@ impl fmt::Display for Square {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(missing_docs)]
 pub enum File {
-    A = 0,
-    B = 1,
-    C = 2,
-    D = 3,
-    E = 4,
-    F = 5,
-    G = 6,
-    H = 7,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
 }
 
 impl fmt::Display for File {
@@ -274,14 +278,14 @@ impl TryFrom<u8> for File {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(missing_docs)]
 pub enum Rank {
-    One = 0,
-    Two = 1,
-    Three = 2,
-    Four = 3,
-    Five = 4,
-    Six = 5,
-    Seven = 6,
-    Eight = 7,
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
+    Eight,
 }
 
 impl Rank {
@@ -649,7 +653,7 @@ impl fmt::Display for CastleRights {
 /// A pawn can be promoted to a queen, rook, bishop or a knight.
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
-pub enum Promotion {
+pub(crate) enum Promotion {
     Queen,
     Rook,
     Bishop,
@@ -827,8 +831,8 @@ mod test {
         assert_eq!(size_of::<Square>(), 1);
         // Primitives will have small size thanks to the niche optimizations:
         // https://rust-lang.github.io/unsafe-code-guidelines/layout/enums.html#layout-of-a-data-carrying-enums-without-a-repr-annotation
-        assert_eq!(size_of::<PieceKind>(), size_of::<Option<PieceKind>>());
-        // This is going to be very useful for square-centric board implementation.
+        assert_eq!(size_of::<PieceKind>(), 1);
+        assert_eq!(size_of::<Option<PieceKind>>(), 1);
         let square_to_pieces: [Option<PieceKind>; BOARD_SIZE as usize] =
             [None; BOARD_SIZE as usize];
         assert_eq!(size_of_val(&square_to_pieces), BOARD_SIZE as usize);
@@ -857,10 +861,4 @@ mod test {
             Move::new(Square::E7, Square::E8, Some(Promotion::Queen))
         );
     }
-
-    // #[test]
-    // #[should_panic(expected = "square index should be in 0..BOARD_SIZE, got
-    // 64")] fn square_from_incorrect_index() {
-    // let _ = Square::try_from(BOARD_SIZE).unwrap();
-    // }
 }

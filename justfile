@@ -11,6 +11,9 @@ build:
 run:
   {{ compile_flags}} cargo run --profile=fast
 
+fmt:
+  cargo +nightly fmt --all
+
 # Checks the code for bad formatting, errors and warnings.
 lint:
   cargo +nightly fmt --all -- --check

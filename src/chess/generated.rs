@@ -1,8 +1,29 @@
+/// Arrays and values generated at or before build time.
 use crate::chess::bitboard::Bitboard;
-use crate::chess::core::BOARD_SIZE;
+use crate::chess::core::{Piece, Square, BOARD_SIZE};
+use crate::chess::zobrist::Key;
 
-// Generated in build.rs.
-// TODO: Document PEXT bitboards.
+// All keys required for Zobrist hashing of a chess position.
+pub(super) const BLACK_TO_MOVE: Key = 0x9E06BAD39D761293;
+
+pub(super) const WHITE_CAN_CASTLE_SHORT: Key = 0xF05AC573DD61D323;
+pub(super) const WHITE_CAN_CASTLE_LONG: Key = 0x41D8B55BA5FEB78B;
+
+pub(super) const BLACK_CAN_CASTLE_SHORT: Key = 0x680988787A43D289;
+pub(super) const BLACK_CAN_CASTLE_LONG: Key = 0x2F941F8DFD3E3D1F;
+
+pub(super) const EN_PASSANT_FILES: [Key; 8] =
+    include!(concat!(env!("OUT_DIR"), "/en_passant_zobrist_keys"));
+
+const PIECES_ZOBRIST_KEYS: [Key; 768] = include!(concat!(env!("OUT_DIR"), "/pieces_zobrist_keys"));
+
+pub(super) fn get_piece_key(piece: Piece, square: Square) -> Key {
+    const NUM_PIECES: usize = 6;
+    PIECES_ZOBRIST_KEYS[piece.owner as usize * NUM_PIECES * BOARD_SIZE as usize
+        + piece.kind as usize * BOARD_SIZE as usize
+        + square as usize]
+}
+
 const BISHOP_ATTACKS_COUNT: usize = 5248;
 pub(super) const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] = include!(concat!(
     env!("CARGO_MANIFEST_DIR"),

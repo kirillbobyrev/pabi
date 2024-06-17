@@ -19,23 +19,12 @@
 //! [BitboardCalculator]: https://gekomad.github.io/Cinnamon/BitboardCalculator/
 //! [PEXT Bitboards]: https://www.chessprogramming.org/BMI2#PEXTBitboards
 
-use std::fmt::Write;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, Not, Shl, Shr, Sub, SubAssign};
 use std::{fmt, mem};
 
 use itertools::Itertools;
 
-use crate::chess::core::{
-    Direction,
-    File,
-    Piece,
-    PieceKind,
-    Player,
-    Rank,
-    Square,
-    BOARD_SIZE,
-    BOARD_WIDTH,
-};
+use crate::chess::core::{Direction, PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
@@ -118,7 +107,7 @@ impl Bitboard {
     }
 
     #[must_use]
-    pub(super) fn has_any(self) -> bool {
+    pub(super) const fn has_any(self) -> bool {
         self.bits != 0
     }
 
@@ -138,8 +127,12 @@ impl Bitboard {
 }
 
 impl fmt::Debug for Bitboard {
+    /// The board is printed from A1 to H8, starting from bottom left corner to
+    /// the top right corner, just like on the normal chess board from the
+    /// perspective of White.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: This is quite verbose. Refactor or explain what is happening.
+        const LINE_SEPARATOR: &str = "\n";
+        const SQUARE_SEPARATOR: &str = " ";
         write!(
             f,
             "{}",
@@ -315,7 +308,7 @@ pub(crate) struct Pieces {
     pub(super) queens: Bitboard,
     pub(super) rooks: Bitboard,
     pub(super) bishops: Bitboard,
-    // TODO: Store "all" instead.
+    // TODO: Store "all" instead?
     pub(super) knights: Bitboard,
     pub(super) pawns: Bitboard,
 }
@@ -435,125 +428,6 @@ impl Pieces {
         self.pawns.clear(square);
     }
 }
-
-/// Piece-centric implementation of the chess board. This is the "back-end" of
-/// the chess engine, an efficient board representation is crucial for
-/// performance. An alternative implementation would be Square-Piece table but
-/// both have different trade-offs and scenarios where they are efficient. It is
-/// likely that the best overall performance can be achieved by keeping both to
-/// complement each other.
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct Board {
-    pub(super) white_pieces: Pieces,
-    pub(super) black_pieces: Pieces,
-}
-
-impl Board {
-    #[must_use]
-    pub(super) fn starting() -> Self {
-        Self {
-            white_pieces: Pieces::new_white(),
-            black_pieces: Pieces::new_black(),
-        }
-    }
-
-    // Constructs an empty Board to be filled by the board and position builder.
-    #[must_use]
-    pub(super) const fn empty() -> Self {
-        Self {
-            white_pieces: Pieces::empty(),
-            black_pieces: Pieces::empty(),
-        }
-    }
-
-    #[must_use]
-    pub(crate) const fn player_pieces(&self, player: Player) -> &Pieces {
-        match player {
-            Player::White => &self.white_pieces,
-            Player::Black => &self.black_pieces,
-        }
-    }
-
-    // WARNING: This is slow and inefficient for Bitboard-based piece-centric
-    // representation. Use with caution.
-    // TODO: Completely disallow bitboard.at()?
-    #[must_use]
-    pub(super) fn at(&self, square: Square) -> Option<Piece> {
-        if let Some(kind) = self.white_pieces.at(square) {
-            return Some(Piece {
-                owner: Player::White,
-                kind,
-            });
-        }
-        if let Some(kind) = self.black_pieces.at(square) {
-            return Some(Piece {
-                owner: Player::Black,
-                kind,
-            });
-        }
-        None
-    }
-}
-
-impl fmt::Display for Board {
-    /// Prints board representation in FEN format.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for rank_idx in (0..BOARD_WIDTH).rev() {
-            let rank: Rank = unsafe { mem::transmute(rank_idx) };
-            let mut empty_squares = 0i32;
-            for file_idx in 0..BOARD_WIDTH {
-                let file: File = unsafe { mem::transmute(file_idx) };
-                let square = Square::new(file, rank);
-                if let Some(piece) = self.at(square) {
-                    if empty_squares != 0 {
-                        write!(f, "{empty_squares}")?;
-                        empty_squares = 0;
-                    }
-                    write!(f, "{piece}")?;
-                } else {
-                    empty_squares += 1;
-                }
-            }
-            if empty_squares != 0 {
-                write!(f, "{empty_squares}")?;
-            }
-            if rank != Rank::One {
-                const RANK_SEPARATOR: char = '/';
-                write!(f, "{RANK_SEPARATOR}")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Debug for Board {
-    /// Dumps the board in a human readable format ('.' for empty square, FEN
-    /// algebraic symbol for piece).
-    ///
-    /// Useful for debugging purposes.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for rank_idx in (0..BOARD_WIDTH).rev() {
-            let rank: Rank = unsafe { mem::transmute(rank_idx) };
-            for file_idx in 0..BOARD_WIDTH {
-                let file: File = unsafe { mem::transmute(file_idx) };
-                match self.at(Square::new(file, rank)) {
-                    Some(piece) => write!(f, "{piece}"),
-                    None => f.write_char('.'),
-                }?;
-                if file != File::H {
-                    write!(f, "{SQUARE_SEPARATOR}")?;
-                }
-            }
-            if rank != Rank::One {
-                write!(f, "{LINE_SEPARATOR}")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-const LINE_SEPARATOR: &str = "\n";
-const SQUARE_SEPARATOR: &str = " ";
 
 #[cfg(test)]
 mod test {
@@ -823,49 +697,5 @@ mod test {
              . . . . . . . .\n\
              . . . . . . . ."
         );
-    }
-
-    #[test]
-    fn starting_board() {
-        let starting_board = Board::starting();
-        assert_eq!(
-            format!("{:?}", starting_board),
-            "r n b q k b n r\n\
-             p p p p p p p p\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             P P P P P P P P\n\
-             R N B Q K B N R"
-        );
-        assert_eq!(
-            starting_board.white_pieces.all() | starting_board.black_pieces.all(),
-            Rank::One.mask() | Rank::Two.mask() | Rank::Seven.mask() | Rank::Eight.mask()
-        );
-        assert_eq!(
-            !(starting_board.white_pieces.all() | starting_board.black_pieces.all()),
-            Rank::Three.mask() | Rank::Four.mask() | Rank::Five.mask() | Rank::Six.mask()
-        );
-        assert_eq!(
-            starting_board.to_string(),
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-        );
-    }
-
-    #[test]
-    fn empty_board() {
-        assert_eq!(
-            format!("{:?}", Board::empty()),
-            ". . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . ."
-        );
-        assert_eq!(Board::empty().to_string(), "8/8/8/8/8/8/8/8");
     }
 }

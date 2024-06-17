@@ -11,10 +11,9 @@
 // TODO: This code is probably by far the least appealing in the project.
 // Refactor it and make it nicer.
 
+use super::generated;
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{Player, Square, BOARD_SIZE};
-
-use super::generated;
 
 pub(super) fn king_attacks(from: Square) -> Bitboard {
     generated::KING_ATTACKS[from as usize]

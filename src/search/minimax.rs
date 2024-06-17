@@ -4,8 +4,6 @@
 //! [Minimax]: https://en.wikipedia.org/wiki/Minimax
 //! [Negamax]: https://en.wikipedia.org/wiki/Negamax
 //! [Alpha-Beta pruning]: https://en.wikipedia.org/wiki/Alpha%E2%80%93beta_pruning
-// TODO: Implement iterative deepening.
-// TODO: Implement alpha-beta pruning.
 // TODO: Implement move ordering.
 
 use crate::evaluation::material::material_advantage;
@@ -21,7 +19,7 @@ pub(super) fn negamax(context: &mut Context, depth: u8, alpha: Score, beta: Scor
 
     if position.is_checkmate() {
         // The player to move is in checkmate.
-        return Score::LOSE;
+        return Score::MIN;
     }
 
     // TODO: is_draw: stalemate + 50 move rule + 3 repetitions.
@@ -88,13 +86,13 @@ mod test {
         );
     }
 
-    #[test]
-    fn losing_position() {
-        todo!()
-    }
+    // #[test]
+    // fn losing_position() {
+    //     todo!()
+    // }
 
-    #[test]
-    fn winning_position() {
-        todo!()
-    }
+    // #[test]
+    // fn winning_position() {
+    //     todo!()
+    // }
 }

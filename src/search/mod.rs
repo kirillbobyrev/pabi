@@ -16,6 +16,9 @@ use crate::chess::position::Position;
 use crate::evaluation::Score;
 
 pub(crate) mod minimax;
+mod transposition;
+
+type Depth = u8;
 
 /// The search depth does not grow fast and an upper limit is set for improving
 /// performance.
@@ -27,7 +30,7 @@ const MAX_SEARCH_DEPTH: usize = 256;
 struct Context {
     position_history: ArrayVec<Position, MAX_SEARCH_DEPTH>,
     num_nodes: u64,
-    // TODO: num_pruned: u64,
+    // TODO: num_pruned for debugging
 }
 
 impl Context {
@@ -41,6 +44,9 @@ impl Context {
     }
 }
 
+/// Adding reserve time to ensure that the engine does not exceed the time
+/// limit.
+// TODO: Tweak this.
 const RESERVE: Duration = Duration::from_millis(500);
 
 /// Runs the search algorithm to find the best move under given time
@@ -52,7 +58,7 @@ pub fn go(position: &Position, limit: Duration, output: &mut impl Write) -> Move
 
     let mut best_move = None;
 
-    const MAX_DEPTH: u8 = 8;
+    const MAX_DEPTH: Depth = 8;
 
     for depth in 1..MAX_DEPTH {
         let (next_move, score) = find_best_move_and_score(position, depth, &mut context);
@@ -86,7 +92,7 @@ pub fn go(position: &Position, limit: Duration, output: &mut impl Write) -> Move
 
 fn find_best_move_and_score(
     position: &Position,
-    depth: u8,
+    depth: Depth,
     context: &mut Context,
 ) -> (Move, Score) {
     context.num_nodes += 1;

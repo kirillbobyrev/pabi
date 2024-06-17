@@ -10,8 +10,8 @@ license = "Apache-2.0"
 name = "pabi"
 readme = "README.md"
 repository = "https://github.com/kirillbobyrev/pabi"
-rust-version = "1.78"
-version = "0.1.0"
+rust-version = "1.79"
+version = "2024.6.16"
 include = [
   "/src/",
   "/generated/",
@@ -62,7 +62,6 @@ panic = "abort"
 # Needed for cargo flamegraph.
 debug = true
 
-# TODO: Mention this in BUILDING.md.
 # TODO: Test this out once the benchmarks are available and tweak specific
 # values. So far, this gives around -8% on parsing FEN/EPD positions.
 [profile.fast]

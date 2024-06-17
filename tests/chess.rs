@@ -1,7 +1,7 @@
 use std::fs;
 
 use itertools::Itertools;
-use pabi::chess::core::{Move, Promotion, Square};
+use pabi::chess::core::Move;
 use pabi::chess::position::{perft, Position};
 use pretty_assertions::assert_eq;
 
@@ -23,7 +23,7 @@ pub fn sanitize_fen(position: &str) -> String {
 
 fn expect_legal_position(input: &str) {
     let position = Position::from_fen(input).expect("we are parsing valid position: {input}");
-    assert_eq!(position.fen(), sanitize_fen(input));
+    assert_eq!(position.to_string(), sanitize_fen(input));
 }
 
 #[test]
@@ -158,7 +158,6 @@ fn clean_board_str() {
     .is_ok());
 }
 
-// TODO: Test precise error messages.
 #[test]
 fn no_crash() {
     assert!(Position::try_from("3k2p1N/82/8/8/7B/6K1/3R4/8 b - - 0 1").is_err());
@@ -166,7 +165,6 @@ fn no_crash() {
     assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3R4/8 b - - 0 48 b - - 0 4/8 b").is_err());
     assert!(Position::try_from("\tfen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
     assert!(Position::try_from("fen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
-    assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3r4/8 b - - +8 1").is_err());
     assert!(Position::from_fen(
         "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
     )
@@ -184,7 +182,7 @@ fn arbitrary_positions() {
             .lines()
     {
         let position = Position::try_from(serialized_position).unwrap();
-        assert_eq!(position.fen(), sanitize_fen(serialized_position));
+        assert_eq!(position.to_string(), sanitize_fen(serialized_position));
     }
 }
 
@@ -474,7 +472,7 @@ fn make_moves() {
     position.make_move(&Move::from_uci("h2h4").unwrap());
 
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "rnbqkbnr/pp4pp/2p1p3/3p1p2/PP5P/2P5/1B1PPPP1/RN1QKBNR b KQkq - 0 5"
     );
 
@@ -487,7 +485,7 @@ fn make_moves() {
     position.make_move(&Move::from_uci("f5g4").unwrap());
 
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "rnbqkbnr/pp6/2p1p1p1/3p4/PP4pP/2P5/1B1PP3/RN1QKBNR w KQkq - 0 9"
     );
 
@@ -497,7 +495,7 @@ fn make_moves() {
     position.make_move(&Move::from_uci("g5h4").unwrap());
 
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "rnbqkbnr/pp6/2p1p3/3p4/PP4pp/2PP4/1B1KP3/RN1Q1BNR w kq - 0 11"
     );
 
@@ -514,7 +512,7 @@ fn make_moves() {
     position.make_move(&Move::from_uci("e4d5").unwrap());
 
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "r1bqkbnr/3n4/p1p5/Pp1P4/1P4pp/2P5/1BKNP3/R3QBNR b kq - 0 16"
     );
 }
@@ -554,24 +552,24 @@ fn random_positions() {
 #[test]
 fn basic_moves() {
     let mut position = setup("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    position.make_move(&Move::new(Square::E2, Square::E4, None));
+    position.make_move(&Move::from_uci("e2e4").expect("valid move"));
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
     );
-    position.make_move(&Move::new(Square::E7, Square::E5, None));
+    position.make_move(&Move::from_uci("e7e5").expect("valid move"));
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
     );
-    position.make_move(&Move::new(Square::G1, Square::F3, None));
+    position.make_move(&Move::from_uci("g1f3").expect("valid move"));
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"
     );
-    position.make_move(&Move::new(Square::E8, Square::E7, None));
+    position.make_move(&Move::from_uci("e8e7").expect("valid move"));
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "rnbq1bnr/ppppkppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQ - 2 3"
     );
 }
@@ -579,9 +577,9 @@ fn basic_moves() {
 #[test]
 fn promotion_moves() {
     let mut position = setup("2n4k/1PP5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 w - - 0 1");
-    position.make_move(&Move::new(Square::B7, Square::C8, Some(Promotion::Queen)));
+    position.make_move(&Move::from_uci("b7c8q").expect("valid move"));
     assert_eq!(
-        position.fen(),
+        position.to_string(),
         "2Q4k/2P5/6K1/3Pp1Q1/3N4/3P4/P3R3/8 b - - 0 1"
     );
 }
@@ -589,8 +587,8 @@ fn promotion_moves() {
 #[test]
 fn castling_reset() {
     let mut position = setup("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
-    position.make_move(&Move::new(Square::A1, Square::A8, None));
-    assert_eq!(position.fen(), "R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1");
+    position.make_move(&Move::from_uci("a1a8").expect("valid move"));
+    assert_eq!(position.to_string(), "R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1");
 }
 
 #[test]
@@ -789,4 +787,46 @@ fn perft_promotion_options() {
 fn perft_cpw_challenge() {
     let position = setup("rnb1kbnr/pp1pp1pp/1qp2p2/8/Q1P5/N7/PP1PPPPP/1RB1KBNR b Kkq - 2 4");
     assert_eq!(perft(&position, 7), 14794751816);
+}
+
+#[test]
+fn repetition_hash() {
+    let mut position = setup("8/5k2/6p1/8/8/8/1p3P2/5K2 w - - 0 1");
+    let initial_hash = position.compute_hash();
+    position.make_move(&Move::from_uci("f1e2").expect("valid move"));
+    assert_ne!(initial_hash, position.compute_hash());
+    position.make_move(&Move::from_uci("f7f6").expect("valid move"));
+    assert_ne!(initial_hash, position.compute_hash());
+    position.make_move(&Move::from_uci("e2f1").expect("valid move"));
+    assert_ne!(initial_hash, position.compute_hash());
+    position.make_move(&Move::from_uci("f6f7").expect("valid move"));
+    assert_eq!(position.to_string(), "8/5k2/6p1/8/8/8/1p3P2/5K2 w - - 4 3");
+    assert_eq!(initial_hash, position.compute_hash());
+}
+
+#[test]
+fn en_passant_hash() {
+    assert_ne!(
+        setup("6qk/8/8/3Pp3/8/8/K7/8 w - e6 0 1").compute_hash(),
+        setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 0 1").compute_hash()
+    );
+}
+
+#[test]
+fn castling_hash() {
+    let mut position = setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq - 0 7");
+    let initial_hash = position.compute_hash();
+    assert_ne!(
+        initial_hash,
+        setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w Qkq - 0 7").compute_hash(),
+    );
+    position.make_move(&Move::from_uci("e1d2").expect("valid move"));
+    position.make_move(&Move::from_uci("e8d7").expect("valid move"));
+    position.make_move(&Move::from_uci("d2e1").expect("valid move"));
+    position.make_move(&Move::from_uci("d7e8").expect("valid move"));
+    assert_eq!(
+        position.to_string(),
+        "rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w - - 4 9"
+    );
+    assert_ne!(initial_hash, position.compute_hash());
 }

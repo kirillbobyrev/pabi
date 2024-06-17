@@ -25,9 +25,10 @@ struct Args {
     /// Maximum number of samples to extract.
     #[arg(long)]
     limit: Option<usize>,
-    /// Only positions with |eval| <= q_threshold will be kept. Practically, distinguishing between
-    /// very high evals shouldn't be very important, because if an engine reaches that position, it
-    /// is likely to be winning/losing anyway.
+    /// Only positions with |eval| <= q_threshold will be kept. Practically,
+    /// distinguishing between very high evals shouldn't be very important,
+    /// because if an engine reaches that position, it is likely to be
+    /// winning/losing anyway.
     ///
     /// Q-value to CP conversion formula:
     ///
@@ -36,8 +37,8 @@ struct Args {
     /// q = 0.9 corresponds to cp = 900
     #[arg(long, default_value_t = 0.9)]
     q_threshold: f32,
-    /// Remove positions with less than min_pieces pieces on the board. This is useful, because
-    /// most tournaments allow using 6 man tablebases.
+    /// Remove positions with less than min_pieces pieces on the board. This is
+    /// useful, because most tournaments allow using 6 man tablebases.
     #[arg(long, default_value_t = 6)]
     min_pieces: u8,
     /// Drop positions where the best move is capturing a piece. It is likely to
@@ -181,10 +182,10 @@ fn keep_sample(sample: &V6TrainingData, q_threshold: f32, filter_captures: bool)
 
     // TODO: Filter the capturing moves, positions in check and stalemates.
 
-    let board = pabi::chess::position::Position::empty();
-    let best_move =
-        pabi::chess::core::Move::from_uci(pabi_tools::IDX_TO_MOVE[sample.best_idx as usize]);
-    // TODO: Just check the target square manually?
+    // let board = pabi::chess::position::Position::empty();
+    // let best_move =
+    //    pabi::chess::core::Move::from_uci(pabi_tools::IDX_TO_MOVE[sample.best_idx
+    // as usize]); TODO: Just check the target square manually?
     // TODO: Set the bitboards...
 
     // for &color in &[Color::White, Color::Black] {
