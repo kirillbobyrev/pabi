@@ -2,33 +2,25 @@ name: Build developer documentation
 on:
   push:
     branches:
-    - main
+      - main
 jobs:
   docs:
     name: Build docs
     runs-on: ubuntu-latest
     # Ensure there are no conflicting pushes to GitHub Pages.
     concurrency:
-      group: docs
+      group: gh-pages
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          submodules: recursive
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+          components: rustfmt, clippy
       - name: Build the docs
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          # This is developer documentation: include crate-local symbols but
-          # don't build documentation for dependencies since it's unlikely to
-          # be useful.
-          args: --document-private-items --no-deps
+        # This is developer documentation: include crate-local symbols but don't
+        # build documentation for dependencies since it's unlikely to be useful.
+        run: cargo doc --document-private-items --no-deps
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:

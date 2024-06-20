@@ -1,4 +1,12 @@
+use std::env;
+
 fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() > 1 && args[1] == "bench" {
+        todo!()
+    }
+
     pabi::print_engine_info();
     pabi::print_binary_info();
 

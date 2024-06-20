@@ -13,7 +13,10 @@ use itertools::Itertools;
 
 use crate::chess::core::{Move, Player};
 use crate::chess::position::Position;
+use crate::engine::uci::Command;
 use crate::search::go;
+
+mod uci;
 
 /// The Engine connects everything together handles commands sent by UCI server,
 /// including I/O.
@@ -43,19 +46,6 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     /// simple setups, making it work with all UCI-compatible GUIs and
     /// corrupted input is not a priority.
     ///
-    /// Reads UCI commands from the input stream and executes them accordingly
-    /// while writing the responses to the output stream.
-    ///
-    /// The minimal set of supported commands should be:
-    ///
-    /// - `uci`
-    /// - `isready`
-    /// - `setoption`
-    /// - `ucinewgame`
-    /// - `go wtime btime winc binc`
-    /// - `quit`
-    /// - `stop`
-    ///
     /// NOTE: The assumption is that the UCI input stream is **correct**. It is
     /// tournament manager's responsibility to send uncorrupted input and make
     /// sure that the commands are in valid format. The engine won't spend too
@@ -74,21 +64,32 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                     panic!("Error reading from input: {}", e);
                 },
             }
-            let tokens: Vec<&str> = line.split_whitespace().collect();
-            let mut stream = tokens.iter();
-            match stream.next() {
-                Some(&"uci") => self.handle_uci()?,
-                Some(&"isready") => self.handle_isready()?,
-                Some(&"setoption") => self.handle_setoption(line)?,
-                Some(&"ucinewgame") => self.handle_ucinewgame()?,
-                Some(&"position") => self.handle_position(&mut stream, &tokens)?,
-                Some(&"go") => self.handle_go(&mut stream)?,
-                Some(&"stop") => self.handle_stop()?,
-                Some(&"quit") => break,
-                Some(&command) => {
-                    writeln!(self.output, "info string Unsupported command: {command}")?;
+            match Command::parse(&line) {
+                Command::Uci => self.handle_uci()?,
+                Command::Debug { on } => todo!(),
+                Command::IsReady => self.handle_isready()?,
+                Command::SetOption { option, value } => todo!(),
+                Command::SetPosition { fen, moves } => todo!(),
+                Command::NewGame => todo!(),
+                Command::Go {
+                    depth,
+                    wtime,
+                    btime,
+                    winc,
+                    binc,
+                    nodes,
+                    mate,
+                    movetime,
+                    infinite,
+                } => todo!(),
+                Command::Stop => self.handle_stop()?,
+                Command::Quit => {
+                    self.handle_stop()?;
+                    break;
                 },
-                None => {},
+                Command::Unknown(command) => {
+                    writeln!(self.output, "info string Unsupported command: {command}")?
+                },
             }
         }
         Ok(())
@@ -168,42 +169,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     }
 
     // TODO: Handle: wtime btime winc binc
-    fn handle_go(&mut self, stream: &mut std::slice::Iter<&str>) -> anyhow::Result<()> {
-        let mut time = None;
-        let mut increment = None;
-        while let Some(token) = stream.next() {
-            match *token {
-                "wtime" => {
-                    if self.position.us() == Player::White {
-                        time = Some(stream.next().unwrap().parse::<u64>()?);
-                    }
-                },
-                "btime" => {
-                    if self.position.us() == Player::Black {
-                        time = Some(stream.next().unwrap().parse::<u64>()?);
-                    }
-                },
-                "winc" => {
-                    if self.position.us() == Player::White {
-                        increment = Some(stream.next().unwrap().parse::<u64>()?);
-                    }
-                },
-                "binc" => {
-                    if self.position.us() == Player::Black {
-                        increment = Some(stream.next().unwrap().parse::<u64>()?);
-                    }
-                },
-                _ => continue,
-            }
-        }
-        // TODO: Correctly figure out how much time there should be spent.
-        let best_move = go(
-            &self.position,
-            Duration::from_millis(time.unwrap()),
-            &mut self.output,
-        );
-        writeln!(self.output, "bestmove {best_move}")?;
-
+    fn handle_go(&mut self, command: Command::Go) -> anyhow::Result<()> {
         Ok(())
     }
 

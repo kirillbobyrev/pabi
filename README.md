@@ -61,11 +61,11 @@ design the engine with chosen limitations in mind.
 Pabi chooses to be the best possible version of an engine that does well against
 other chess engines in online tournaments. That means that it will prioritize
 performance under the constraints put by the rules and environments of such
-tournaments. Most important tournament organizers are
+tournaments. Today the most interesting tournaments are are
 [TCEC](https://tcec-chess.com/) and
 [CCCC](https://www.chess.com/computer-chess-championship), and the most
-prominent rating to date is [CCRL](https://computerchess.org.uk/ccrl/). The
-first goal is reaching 3000 ELO on the rating lists that are accepted by the
+prominent rating list is [CCRL](https://computerchess.org.uk/ccrl/). The first
+goal is reaching 3000 ELO on the rating lists that are accepted by the
 organizers of these tournaments.
 
 Most of the competitions are in relatively fast time controls (Blitz, Bullet,
@@ -74,14 +74,14 @@ rules] and [TCEC rules], as well as in CCCC the engines are usually starting
 from pre-determined positions to make the games interesting and unbalanced.
 
 In all cases, the testing environment's CPU is of x86_64 architecture, which is
-very important because of PEXT and PDEP instructions that significantly increase
-the performance of move generators. Also, usually, many CPUs are available (8
-cores on CCRL, 52 on TCEC and as many as 256 on CCCC).
+allows using PEXT and PDEP instructions to significantly increase the
+performance of move generator. Also, usually, many CPU cores are available (8
+cores on CCRL, 52 on TCEC and up to 256 on CCCC).
 
 Other design choices are deliberate focus on performance over most things
-(except simplicity and clarity), such as error recovery (there should be minimal
-one: if the error happened and the engine can reject the input, it will reject
-the input and continue working) and support for arcane environments.
+(except simplicity and clarity). This includes graceful error recovery (it
+should be minimal: the engine shouldn't crash if it's possible to reject the
+malformed inputs and continue working) and support for arcane environments.
 
 ### Recipes
 
@@ -89,35 +89,28 @@ Most commands for development, building the engine, testing, checking for errors
 and fuzzing it are supported as [just](https://github.com/casey/just) recipes.
 See [justfile](/justfile) for a complete list of frequently used commands.
 
-<!-- TODO: Describe building and optimizing the binary (flags, LTO, BOLT). -->
-
 ### Code map
 
 Rustdoc developer documentation is pushed at each commit to
 <https://kirillbobyrev.github.io/pabi/docs/pabi/>.
 
-#### [`src/`](/src/)
-
-The source directory contains code for the engine driver implemented in Rust.
-
 ##### [`src/chess/`](/src/chess/)
 
-Contains implementation of the chess environment: [Bitboard]-based board
-representation, move generation and position parsing. This is the core of the
-engine: a fast move generator and convenient board implementation are crucial
-for engine's performance.
+Contains implementation of the chess environment and rules: [Bitboard]-based
+board representation, move generation, [Zobrist hashing]. This is the core of
+the engine: a fast move generator and convenient board implementation are
+crucial for engine's performance.
 
 ##### [`src/evaluation/`](/src/evaluation/)
 
 Contains code that extracts features from a given position and runs "static"
-[position evaluation]: a Neural Network considers just a single position and
-computes the score that determines how good it is for the player that is going
-to make the next move.
+[position evaluation]: a Neural Network that considers just a single position
+and predicts how good the position is for the player to move.
 
 ##### [`src/search/`](/src/search/)
 
 Implements Minimax [search] with a number of extensions for efficiently reducing
-the search space.
+the search space (Alpha-Beta pruning and its improvements).
 
 ##### [`src/engine/`](/src/engine/)
 
@@ -125,6 +118,11 @@ Assembles all pieces together and manages resources to search effieciently under
 given time constraints. It also communicates back and forth with the tournament
 manager/server through [Universal Chess Interface] (UCI) protocol
 implementation.
+
+#### [`generated/`](/generated/)
+
+Pre-computed constants (such as [Magic Bitboards], [Vector Attacks]) speed up
+move generation and search.
 
 #### [`tests/`](/tests/)
 
@@ -139,29 +137,11 @@ performance regression tests that should be frequently run to ensure that the
 engine is not becoming slower. Patches affecting performance should have
 benchmark result deltas in the description.
 
-<!-- Use `just bench`? -->
-
 #### [`fuzz/`](/fuzz/)
 
 [Fuzzers] complement the existing tests by generating random inputs and trying
 to increase the coverage. Plenty of bugs can be caught by even relatively simply
 fuzzers: writing and running them is highly encouraged.
-
-<!-- Use `just fuzz <target>` -->
-
-#### [`generated/`](/generated/)
-
-Pre-computed constants (such as [Magic Bitboards], [Vector Attacks] and [Zobrist
-hashing] table) speed up move generation and search. This data can be calculated
-at build time or startup instead but the drawbacks are:
-
-- Build time (compile-time Rust code can not make use of most built
-  infrastructure) or runtime (warm-up time) overhead
-- Maintenance cost
-- Losing opportunities for the compiler to do better optimizations
-
-Hence, these values are calculated once and checked into the source tree as Rust
-arrays. These constants shouldn't change over time.
 
 ## [Milestones]
 
@@ -190,5 +170,5 @@ arrays. These constants shouldn't change over time.
 [Universal Chess Interface]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
 [Magic Bitboards]: https://www.chessprogramming.org/Magic_Bitboards
 [vector attacks]: https://www.chessprogramming.org/Vector_Attacks
-[Zobrist hashing]: https://www.chessprogramming.org/Zobrist_Hashing
 [CCRL rules]: https://computerchess.org.uk/ccrl/404/about.html
+[Zobrist hashing]: https://www.chessprogramming.org/Zobrist_Hashing

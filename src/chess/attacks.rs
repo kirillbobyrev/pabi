@@ -213,7 +213,7 @@ pub(super) const BLACK_LONG_CASTLE_KING_WALK: Bitboard = Bitboard::from_bits(0x0
 pub(super) const BLACK_LONG_CASTLE_ROOK_WALK: Bitboard = Bitboard::from_bits(0x0E00_0000_0000_0000);
 
 #[cfg(test)]
-mod test {
+mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;

@@ -1,5 +1,11 @@
 name: Build
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
   build:
     name: Test Suite
@@ -29,16 +35,11 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Install ${{ matrix.toolchain }} toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.toolchain }}
-          override: true
-      - name: Build the project
-        uses: actions-rs/cargo@v1
+      - uses: taiki-e/install-action@v2
         with:
-          command: build
-          args: --all --release
+          tool: just
+      - run: just build

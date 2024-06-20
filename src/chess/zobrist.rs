@@ -1,16 +1,13 @@
-//! Implements Zobrist hashing and [Transposition Table] functionality.
-//!
-//! [Transposition Table](https://www.chessprogramming.org/Transposition_Table
+//! Zobrist hashing-related utilities`.
 
-// TODO: Migrate to RawTable instead for better performance?
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 
-use super::position::Position;
-
-/// Zobrist key is a 64-bit integer.
+/// Zobrist keys are 64-bit unsigned integers that are computed once position is
+/// created and updated whenever a move is made.
 pub type Key = u64;
 
+// TODO: Maybe switch to a more efficient implementation, e.g. this is what
+// Stockfish does: https://web.archive.org/web/20201107002606/https://marcelk.net/2013-04-06/paper/upcoming-rep-v2.pdf
 pub(crate) struct RepetitionTable {
     table: HashMap<Key, u8>,
 }
@@ -27,6 +24,7 @@ impl RepetitionTable {
     }
 
     /// Returns true if the position has occurred 3 times.
+    #[must_use]
     pub(crate) fn record(&mut self, key: Key) -> bool {
         let count = self.table.entry(key).or_insert(0);
         *count += 1;
@@ -50,37 +48,41 @@ impl RepetitionTable {
     }
 }
 
-mod test {
+#[cfg(test)]
+mod tests {
     use super::*;
     use crate::chess::core::Move;
+    use crate::chess::position::Position;
 
     #[test]
     fn repetition_table() {
         let mut table = RepetitionTable::new();
 
         let mut position = Position::starting();
-        assert!(!table.record(position.compute_hash()));
+        let initial_hash = position.hash();
+        assert!(!table.record(initial_hash));
 
         position.make_move(&Move::from_uci("g1f3").expect("valid move"));
-        assert!(!table.record(position.compute_hash()));
+        assert_ne!(initial_hash, position.hash());
+        assert!(!table.record(position.hash()));
         position.make_move(&Move::from_uci("g8f6").expect("valid move"));
-        assert!(!table.record(position.compute_hash()));
+        assert!(!table.record(position.hash()));
 
         position.make_move(&Move::from_uci("f3g1").expect("valid move"));
-        assert!(!table.record(position.compute_hash()));
+        assert!(!table.record(position.hash()));
         // Two-fold repetition.
         position.make_move(&Move::from_uci("f6g8").expect("valid move"));
-        assert!(!table.record(position.compute_hash()));
+        assert!(!table.record(position.hash()));
 
         position.make_move(&Move::from_uci("g1f3").expect("valid move"));
-        assert!(!table.record(position.compute_hash()));
+        assert!(!table.record(position.hash()));
         position.make_move(&Move::from_uci("g8f6").expect("valid move"));
-        assert!(!table.record(position.compute_hash()));
+        assert!(!table.record(position.hash()));
 
         position.make_move(&Move::from_uci("f3g1").expect("valid move"));
-        assert!(!table.record(position.compute_hash()));
-       // Three-fold repetition.
+        assert!(!table.record(position.hash()));
+        // Three-fold repetition.
         position.make_move(&Move::from_uci("f6g8").expect("valid move"));
-        assert!(table.record(position.compute_hash()));
+        assert!(table.record(position.hash()));
     }
 }

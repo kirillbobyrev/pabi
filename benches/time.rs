@@ -160,7 +160,7 @@ fn perft_bench(c: &mut Criterion) {
                 "perft",
                 format!(
                     "position {}, depth {}, nodes {}",
-                    position.fen(),
+                    position.to_string(),
                     depth,
                     nodes
                 ),

@@ -792,33 +792,33 @@ fn perft_cpw_challenge() {
 #[test]
 fn repetition_hash() {
     let mut position = setup("8/5k2/6p1/8/8/8/1p3P2/5K2 w - - 0 1");
-    let initial_hash = position.compute_hash();
+    let initial_hash = position.hash();
     position.make_move(&Move::from_uci("f1e2").expect("valid move"));
-    assert_ne!(initial_hash, position.compute_hash());
+    assert_ne!(initial_hash, position.hash());
     position.make_move(&Move::from_uci("f7f6").expect("valid move"));
-    assert_ne!(initial_hash, position.compute_hash());
+    assert_ne!(initial_hash, position.hash());
     position.make_move(&Move::from_uci("e2f1").expect("valid move"));
-    assert_ne!(initial_hash, position.compute_hash());
+    assert_ne!(initial_hash, position.hash());
     position.make_move(&Move::from_uci("f6f7").expect("valid move"));
     assert_eq!(position.to_string(), "8/5k2/6p1/8/8/8/1p3P2/5K2 w - - 4 3");
-    assert_eq!(initial_hash, position.compute_hash());
+    assert_eq!(initial_hash, position.hash());
 }
 
 #[test]
 fn en_passant_hash() {
     assert_ne!(
-        setup("6qk/8/8/3Pp3/8/8/K7/8 w - e6 0 1").compute_hash(),
-        setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 0 1").compute_hash()
+        setup("6qk/8/8/3Pp3/8/8/K7/8 w - e6 0 1").hash(),
+        setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 0 1").hash()
     );
 }
 
 #[test]
 fn castling_hash() {
     let mut position = setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq - 0 7");
-    let initial_hash = position.compute_hash();
+    let initial_hash = position.hash();
     assert_ne!(
         initial_hash,
-        setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w Qkq - 0 7").compute_hash(),
+        setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w Qkq - 0 7").hash(),
     );
     position.make_move(&Move::from_uci("e1d2").expect("valid move"));
     position.make_move(&Move::from_uci("e8d7").expect("valid move"));
@@ -828,5 +828,5 @@ fn castling_hash() {
         position.to_string(),
         "rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w - - 4 9"
     );
-    assert_ne!(initial_hash, position.compute_hash());
+    assert_ne!(initial_hash, position.hash());
 }

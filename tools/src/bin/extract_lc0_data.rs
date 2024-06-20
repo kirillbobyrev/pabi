@@ -134,12 +134,8 @@ fn extract_training_samples(archive: impl BufRead) -> io::Result<Vec<V6TrainingD
         let num_samples = decompressed_data.len() / STRUCT_SIZE;
         for i in 0..num_samples {
             let (start, end) = (i * STRUCT_SIZE, (i + 1) * STRUCT_SIZE);
-            let num_samples = decompressed_data.len() / STRUCT_SIZE;
-            for i in 0..num_samples {
-                let (start, end) = (i * STRUCT_SIZE, (i + 1) * STRUCT_SIZE);
-                let sample = V6TrainingData::from_bytes(&decompressed_data[start..end]);
-                samples.push(sample);
-            }
+            let sample = V6TrainingData::from_bytes(&decompressed_data[start..end]);
+            samples.push(sample);
         }
     }
 
@@ -264,7 +260,6 @@ fn main() -> anyhow::Result<()> {
     if !std::fs::metadata(&args.archive_path)?.is_file() {
         bail!("{:?} is not a file", &args.archive_path);
     }
-    let archive = std::fs::File::open(Path::new(&args.archive_path))?;
 
     let archive = std::fs::File::open(Path::new(&args.archive_path))?;
 
@@ -283,12 +278,8 @@ fn main() -> anyhow::Result<()> {
     let out_file = std::fs::File::create_new(&output_path)?;
 
     println!(
-        "Extracting data from {:?} to {:?}",
-        &args.archive_path, &output_path
-    );
-    println!(
-        "Filtering |q| <= {:.2}, filtering out captures: {}",
-        args.q_threshold, args.filter_captures
+        "Extracting data from {:?} to {:?} with config: {:?}",
+        &args.archive_path, &output_path, args
     );
 
     let total_samples = process_archive(

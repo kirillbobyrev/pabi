@@ -8,7 +8,9 @@
 use std::fmt::Display;
 use std::ops::Neg;
 
-pub(crate) mod material;
+pub(crate) mod brain;
+pub(crate) mod features;
+pub(crate) mod pesto;
 
 /// A thin wrapper around i32 for ergonomics and type safety.
 // TODO: Support "Mate in X" by using the unoccupied range of i32.

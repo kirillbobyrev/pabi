@@ -26,7 +26,7 @@ fix:
 
 # Run most tests that are fast and are run by default.
 test_basic:
-  cargo test
+  {{ compile_flags }} cargo test --profile=fast
 
 # Run tests that are slow and are not run by default.
 test_slow:
@@ -45,7 +45,7 @@ list_fuzz_targets:
 
 fuzz target:
   cd fuzz
-  {{ compile_flags }} cargo +nightly fuzz run {{ target }}
+  {{ compile_flags }} cargo +nightly --profile=fast fuzz run {{ target }}
 
 # Play a single game between two engine versions in 2'+1'' format and save the
 # game PGN.

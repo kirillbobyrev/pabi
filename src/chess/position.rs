@@ -13,139 +13,19 @@ use anyhow::{bail, Context};
 
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    File,
-    Move,
-    MoveList,
-    Piece,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 
-/// Piece-centric implementation of the chess board. This is the "back-end" of
-/// the chess engine, an efficient board representation is crucial for
-/// performance. An alternative implementation would be Square-Piece table but
-/// both have different trade-offs and scenarios where they are efficient. It is
-/// likely that the best overall performance can be achieved by keeping both to
-/// complement each other.
-#[derive(Clone, PartialEq, Eq)]
-struct Board {
-    white_pieces: Pieces,
-    black_pieces: Pieces,
-}
-
-impl Board {
-    #[must_use]
-    fn starting() -> Self {
-        Self {
-            white_pieces: Pieces::new_white(),
-            black_pieces: Pieces::new_black(),
-        }
-    }
-
-    // Constructs an empty Board to be filled by the board and position builder.
-    #[must_use]
-    const fn empty() -> Self {
-        Self {
-            white_pieces: Pieces::empty(),
-            black_pieces: Pieces::empty(),
-        }
-    }
-
-    #[must_use]
-    const fn player_pieces(&self, player: Player) -> &Pieces {
-        match player {
-            Player::White => &self.white_pieces,
-            Player::Black => &self.black_pieces,
-        }
-    }
-
-    // WARNING: This is slow and inefficient for Bitboard-based piece-centric
-    // representation. Use with caution.
-    // TODO: Completely disallow bitboard.at()?
-    #[must_use]
-    fn at(&self, square: Square) -> Option<Piece> {
-        if let Some(kind) = self.white_pieces.at(square) {
-            return Some(Piece {
-                owner: Player::White,
-                kind,
-            });
-        }
-        if let Some(kind) = self.black_pieces.at(square) {
-            return Some(Piece {
-                owner: Player::Black,
-                kind,
-            });
-        }
-        None
-    }
-}
-
-impl fmt::Display for Board {
-    /// Prints board representation in FEN format.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for rank_idx in (0..BOARD_WIDTH).rev() {
-            let rank: Rank = unsafe { std::mem::transmute(rank_idx) };
-            let mut empty_squares = 0i32;
-            for file_idx in 0..BOARD_WIDTH {
-                let file: File = unsafe { std::mem::transmute(file_idx) };
-                let square = Square::new(file, rank);
-                if let Some(piece) = self.at(square) {
-                    if empty_squares != 0 {
-                        write!(f, "{empty_squares}")?;
-                        empty_squares = 0;
-                    }
-                    write!(f, "{piece}")?;
-                } else {
-                    empty_squares += 1;
-                }
-            }
-            if empty_squares != 0 {
-                write!(f, "{empty_squares}")?;
-            }
-            if rank != Rank::One {
-                const RANK_SEPARATOR: char = '/';
-                write!(f, "{RANK_SEPARATOR}")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Debug for Board {
-    /// Dumps the board in a human readable format ('.' for empty square, FEN
-    /// algebraic symbol for piece).
-    ///
-    /// Useful for debugging purposes.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        const LINE_SEPARATOR: &str = "\n";
-        const SQUARE_SEPARATOR: &str = " ";
-        for rank_idx in (0..BOARD_WIDTH).rev() {
-            let rank: Rank = unsafe { std::mem::transmute(rank_idx) };
-            for file_idx in 0..BOARD_WIDTH {
-                let file: File = unsafe { std::mem::transmute(file_idx) };
-                match self.at(Square::new(file, rank)) {
-                    Some(piece) => write!(f, "{piece}"),
-                    None => f.write_char('.'),
-                }?;
-                if file != File::H {
-                    write!(f, "{SQUARE_SEPARATOR}")?;
-                }
-            }
-            if rank != Rank::One {
-                write!(f, "{LINE_SEPARATOR}")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-/// State of the chess game: board, half-move counters and castling rights,
-/// etc. It has 1:1 relationship with [Forsyth-Edwards Notation] (FEN).
+/// Piece-centric implementation of the chess position, which includes all
+/// pieces and their placement, information about the castling rights, side to
+/// move, 50 move rule counters etc.
+///
+/// This is the "back-end" of the chess engine, an efficient board
+/// representation is crucial for performance. An alternative implementation
+/// would be Square-Piece table but both have different trade-offs and scenarios
+/// where they are efficient.  It is likely that the best overall performance
+/// can be achieved by keeping both to complement each other.
 ///
 /// [`Position::try_from()`] provides a convenient interface for creating a
 /// [`Position`]. It will clean up the input (trim newlines and whitespace) and
@@ -161,11 +41,10 @@ impl fmt::Debug for Board {
 /// [Extended Position Description]: https://www.chessprogramming.org/Extended_Position_Description
 /// [Operations]: https://www.chessprogramming.org/Extended_Position_Description#Operations
 // TODO: Make the fields private, expose appropriate assessors.
-// TODO: Store Zobrist hash, possibly other info such as repetition count,
-// in_check (might be useful for move_gen and other things).
 #[derive(Clone)]
 pub struct Position {
-    board: Board,
+    white_pieces: Pieces,
+    black_pieces: Pieces,
     castling: CastleRights,
     side_to_move: Player,
     /// [Halfmove Clock][^ply] keeps track of the number of halfmoves since the
@@ -197,7 +76,8 @@ impl Position {
     #[must_use]
     pub fn starting() -> Self {
         Self {
-            board: Board::starting(),
+            white_pieces: Pieces::starting(Player::White),
+            black_pieces: Pieces::starting(Player::Black),
             castling: CastleRights::ALL,
             side_to_move: Player::White,
             halfmove_clock: 0,
@@ -215,11 +95,21 @@ impl Position {
     }
 
     pub(crate) fn pieces(&self, player: Player) -> &Pieces {
-        self.board.player_pieces(player)
+        match player {
+            Player::White => &self.white_pieces,
+            Player::Black => &self.black_pieces,
+        }
+    }
+
+    /// Returns Zobrist hash of the position.
+    // TODO: Compute hash once and incrementally update it in make_move along with
+    // accumulator.
+    pub fn hash(&self) -> zobrist::Key {
+        self.compute_hash()
     }
 
     fn occupancy(&self, player: Player) -> Bitboard {
-        self.board.player_pieces(player).all()
+        self.pieces(player).all()
     }
 
     fn occupied_squares(&self) -> Bitboard {
@@ -258,7 +148,8 @@ impl Position {
     /// extra symbols.
     // TODO: Add support for Shredder FEN and Chess960.
     pub fn from_fen(input: &str) -> anyhow::Result<Self> {
-        let mut board = Board::empty();
+        let mut white_pieces = Pieces::empty();
+        let mut black_pieces = Pieces::empty();
 
         let mut parts = input.split(' ');
         // Parse Piece Placement.
@@ -289,12 +180,12 @@ impl Position {
                 }
                 match Piece::try_from(symbol) {
                     Ok(piece) => {
-                        let owner = match piece.owner {
-                            Player::White => &mut board.white_pieces,
-                            Player::Black => &mut board.black_pieces,
+                        let pieces = match piece.owner {
+                            Player::White => &mut white_pieces,
+                            Player::Black => &mut black_pieces,
                         };
                         let square = Square::new(file.try_into()?, rank);
-                        *owner.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
+                        *pieces.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
                     },
                     Err(e) => return Err(e),
                 }
@@ -359,14 +250,17 @@ impl Position {
 
         let halfmove_clock = halfmove_clock.unwrap_or(0);
         let fullmove_counter = fullmove_counter.unwrap_or(1);
+
         let result = Self {
-            board,
+            white_pieces,
+            black_pieces,
             castling,
             side_to_move,
             halfmove_clock,
             fullmove_counter,
             en_passant_square,
         };
+
         match validate(&result) {
             Ok(()) => Ok(result),
             Err(e) => Err(e.context("illegal position")),
@@ -511,20 +405,19 @@ impl Position {
         moves
     }
 
-    // TODO: Docs: this is the only way to mutate a position....
-    // TODO: Make an checked version of it? With the move coming from the UCI
-    // it's best to check if it's valid or not.
-    // TODO: Is it better to clone and return a new Position? It seems that the
-    // most usecases (e.g. for search) would clone the position and then mutate
-    // it anyway. This would prevent (im)mutability reference problems.
+    /// Transitions to the next position by applying the move.
+    ///
+    /// This is the only way to mutate the position and it will ensure that the
+    /// cached information (e.g. hash) is updated correctly.
+    // TODO: Recompute hash here instead of whenever it is requested.
     pub fn make_move(&mut self, next_move: &Move) {
         debug_assert!(self.is_legal());
         // TODO: debug_assert!(self.is_legal_move(move));
         let (us, them) = (self.us(), self.them());
         let our_backrank = Rank::backrank(us);
         let (our_pieces, their_pieces) = match self.us() {
-            Player::White => (&mut self.board.white_pieces, &mut self.board.black_pieces),
-            Player::Black => (&mut self.board.black_pieces, &mut self.board.white_pieces),
+            Player::White => (&mut self.white_pieces, &mut self.black_pieces),
+            Player::Black => (&mut self.black_pieces, &mut self.white_pieces),
         };
         let previous_en_passant = self.en_passant_square;
         self.en_passant_square = None;
@@ -666,9 +559,26 @@ impl Position {
         todo!()
     }
 
-    /// Computes standard Zobrist hash of the using pseudo-random numbers
-    /// generated during the build stage.
-    pub fn compute_hash(&self) -> zobrist::Key {
+    #[must_use]
+    pub(crate) fn at(&self, square: Square) -> Option<Piece> {
+        if let Some(kind) = self.white_pieces.at(square) {
+            return Some(Piece {
+                owner: Player::White,
+                kind,
+            });
+        }
+        if let Some(kind) = self.black_pieces.at(square) {
+            return Some(Piece {
+                owner: Player::Black,
+                kind,
+            });
+        }
+        None
+    }
+
+    /// Computes standard Zobrist hash of the position using pseudo-random
+    /// numbers generated during the build stage.
+    fn compute_hash(&self) -> zobrist::Key {
         let mut key = 0;
 
         if self.side_to_move == Player::Black {
@@ -688,14 +598,12 @@ impl Position {
             key ^= generated::BLACK_CAN_CASTLE_LONG;
         }
 
-        if let Some(square) = self.en_passant_square {
-            let en_passant_file = square.file();
-            key ^= generated::EN_PASSANT_FILES[en_passant_file as usize];
+        if let Some(ep_square) = self.en_passant_square {
+            key ^= generated::EN_PASSANT_FILES[ep_square.file() as usize];
         }
 
-        let occupied_squares = self.board.white_pieces.all() | self.board.black_pieces.all();
-        for square in occupied_squares.iter() {
-            let piece = self.board.at(square).expect("the square");
+        for square in self.occupied_squares().iter() {
+            let piece = self.at(square).expect("occupied square");
             key ^= generated::get_piece_key(piece, square);
         }
 
@@ -706,7 +614,6 @@ impl Position {
 impl TryFrom<&str> for Position {
     type Error = anyhow::Error;
 
-    // TODO: Docs.
     // TODO: Parse UCI position move1 move2 ...
     fn try_from(input: &str) -> anyhow::Result<Self> {
         let input = input.trim();
@@ -720,10 +627,33 @@ impl TryFrom<&str> for Position {
 }
 
 impl fmt::Display for Position {
-    /// Prints board in Forsyth-Edwards Notation.
+    /// Returns position representation in Forsyth-Edwards Notation (FEN).
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} ", &self.board)?;
-        write!(f, "{} ", &self.side_to_move)?;
+        for rank_idx in (0..BOARD_WIDTH).rev() {
+            let rank: Rank = unsafe { std::mem::transmute(rank_idx) };
+            let mut empty_squares = 0i32;
+            for file_idx in 0..BOARD_WIDTH {
+                let file: File = unsafe { std::mem::transmute(file_idx) };
+                let square = Square::new(file, rank);
+                if let Some(piece) = self.at(square) {
+                    if empty_squares != 0 {
+                        write!(f, "{empty_squares}")?;
+                        empty_squares = 0;
+                    }
+                    write!(f, "{piece}")?;
+                } else {
+                    empty_squares += 1;
+                }
+            }
+            if empty_squares != 0 {
+                write!(f, "{empty_squares}")?;
+            }
+            if rank != Rank::One {
+                const RANK_SEPARATOR: char = '/';
+                write!(f, "{RANK_SEPARATOR}")?;
+            }
+        }
+        write!(f, " {} ", &self.side_to_move)?;
         write!(f, "{} ", &self.castling)?;
         match self.en_passant_square {
             Some(square) => write!(f, "{square} "),
@@ -736,8 +666,32 @@ impl fmt::Display for Position {
 }
 
 impl fmt::Debug for Position {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "{:?}", &self.board)?;
+    /// Dumps the board in a human readable format ('.' for empty square, FEN
+    /// algebraic symbol for piece).
+    ///
+    /// Useful for debugging purposes.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Board:")?;
+
+        const LINE_SEPARATOR: &str = "\n";
+        const SQUARE_SEPARATOR: &str = " ";
+
+        for rank_idx in (0..BOARD_WIDTH).rev() {
+            let rank: Rank = unsafe { std::mem::transmute(rank_idx) };
+            for file_idx in 0..BOARD_WIDTH {
+                let file: File = unsafe { std::mem::transmute(file_idx) };
+                match self.at(Square::new(file, rank)) {
+                    Some(piece) => write!(f, "{piece}"),
+                    None => f.write_char('.'),
+                }?;
+                if file != File::H {
+                    write!(f, "{SQUARE_SEPARATOR}")?;
+                }
+            }
+            write!(f, "{LINE_SEPARATOR}")?;
+        }
+        write!(f, "{LINE_SEPARATOR}")?;
+
         writeln!(f, "Player to move: {:?}", &self.side_to_move)?;
         writeln!(f, "Fullmove counter: {:?}", &self.fullmove_counter)?;
         writeln!(f, "En Passant: {:?}", &self.en_passant_square)?;
@@ -745,6 +699,7 @@ impl fmt::Debug for Position {
         // dump FEN instead.
         writeln!(f, "Castling rights: {}", &self.castling)?;
         writeln!(f, "FEN: {}", &self.to_string())?;
+
         Ok(())
     }
 }
@@ -771,14 +726,14 @@ pub fn perft(position: &Position, depth: u8) -> u64 {
     nodes
 }
 
-// Checks if the position is "legal", i.e. if it can be reasoned about by the
-// engine. Checking whether the position is truly reachable from the starting
-// position (either in standard chess or Chess960) requires retrograde analysis
-// and potentially unreasonable amount of time.  This check employs a limited
-// number of heuristics that filter out the most obvious incorrect positions and
-// prevents them from being analyzed.  This helps set up barrier (constructing
-// positions from FEN) between the untrusted environment (UCI front-end, user
-// input) and the engine.
+/// Checks if the position is "legal", i.e. if it can be reasoned about by the
+/// engine. Checking whether the position is truly reachable from the starting
+/// position (either in standard chess or Chess960) requires retrograde analysis
+/// and potentially unreasonable amount of time.  This check employs a limited
+/// number of heuristics that filter out the most obvious incorrect positions
+/// and prevents them from being analyzed.  This helps set up barrier
+/// (constructing positions from FEN) between the untrusted environment (UCI
+/// front-end, user input) and the engine.
 fn validate(position: &Position) -> anyhow::Result<()> {
     if position.fullmove_counter == 0 {
         bail!("fullmove counter cannot be zero")
@@ -786,31 +741,31 @@ fn validate(position: &Position) -> anyhow::Result<()> {
     // TODO: Probe opposite checks.
     // TODO: The following patterns look repetitive; maybe refactor the
     // common structure even though it's quite short?
-    if position.board.white_pieces.king.count() != 1 {
+    if position.white_pieces.king.count() != 1 {
         bail!(
             "expected 1 white king, got {}",
-            position.board.white_pieces.king.count()
+            position.white_pieces.king.count()
         )
     }
-    if position.board.black_pieces.king.count() != 1 {
+    if position.black_pieces.king.count() != 1 {
         bail!(
             "expected 1 black king, got {}",
-            position.board.black_pieces.king.count()
+            position.black_pieces.king.count()
         )
     }
-    if position.board.white_pieces.pawns.count() > 8 {
+    if position.white_pieces.pawns.count() > 8 {
         bail!(
             "expected <= 8 white pawns, got {}",
-            position.board.white_pieces.pawns.count()
+            position.white_pieces.pawns.count()
         )
     }
-    if position.board.black_pieces.pawns.count() > 8 {
+    if position.black_pieces.pawns.count() > 8 {
         bail!(
             "expected <= 8 black pawns, got {}",
-            position.board.black_pieces.pawns.count()
+            position.black_pieces.pawns.count()
         )
     }
-    if ((position.board.white_pieces.pawns | position.board.black_pieces.pawns)
+    if ((position.white_pieces.pawns | position.black_pieces.pawns)
         & (Rank::One.mask() | Rank::Eight.mask()))
     .has_any()
     {
@@ -1135,51 +1090,40 @@ fn generate_castle_moves(
     }
 }
 
-mod test {
-    use crate::chess::core::Rank;
-    use crate::chess::position::Board;
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
-    fn empty_board() {
+    fn starting() {
+        let position = Position::starting();
         assert_eq!(
-            format!("{:?}", Board::empty()),
-            ". . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . .\n\
-             . . . . . . . ."
-        );
-        assert_eq!(Board::empty().to_string(), "8/8/8/8/8/8/8/8");
-    }
-
-    #[test]
-    fn starting_board() {
-        let starting_board = Board::starting();
-        assert_eq!(
-            format!("{:?}", starting_board),
-            "r n b q k b n r\n\
+            format!("{:?}", position),
+            "Board:\n\
+             r n b q k b n r\n\
              p p p p p p p p\n\
              . . . . . . . .\n\
              . . . . . . . .\n\
              . . . . . . . .\n\
              . . . . . . . .\n\
              P P P P P P P P\n\
-             R N B Q K B N R"
+             R N B Q K B N R\n\
+             \n\
+             Player to move: White\n\
+             Fullmove counter: 1\n\
+             En Passant: None\n\
+             Castling rights: KQkq\n\
+             FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\n"
         );
         assert_eq!(
-            starting_board.white_pieces.all() | starting_board.black_pieces.all(),
+            position.white_pieces.all() | position.black_pieces.all(),
             Rank::One.mask() | Rank::Two.mask() | Rank::Seven.mask() | Rank::Eight.mask()
         );
         assert_eq!(
-            !(starting_board.white_pieces.all() | starting_board.black_pieces.all()),
+            !(position.white_pieces.all() | position.black_pieces.all()),
             Rank::Three.mask() | Rank::Four.mask() | Rank::Five.mask() | Rank::Six.mask()
-        );
-        assert_eq!(
-            starting_board.to_string(),
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
         );
     }
 }

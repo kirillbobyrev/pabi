@@ -3,33 +3,17 @@
 //! [README]: https://github.com/kirillbobyrev/pabi/blob/main/README.md
 
 // TODO: Gradually move most of warnings to deny.
-#![warn(missing_docs, variant_size_differences)]
-// Rustc lints.
 #![warn(
+    missing_docs,
+    variant_size_differences,
     absolute_paths_not_starting_with_crate,
-    keyword_idents,
     macro_use_extern_crate,
-    trivial_casts,
-    trivial_numeric_casts,
-    unreachable_pub,
     unused_extern_crates,
     unused_import_braces,
     unused_lifetimes,
     unused_qualifications,
-    unused_results
+    let_underscore_drop
 )]
-// Rustdoc lints.
-#![warn(
-    rustdoc::missing_doc_code_examples,
-    rustdoc::private_doc_tests,
-    rustdoc::missing_crate_level_docs,
-    rustdoc::broken_intra_doc_links,
-    rustdoc::invalid_codeblock_attributes,
-    rustdoc::invalid_html_tags,
-    rustdoc::invalid_rust_codeblocks,
-    rustdoc::bare_urls
-)]
-// Clippy lints.
 #![warn(
     clippy::correctness,
     clippy::suspicious,
@@ -39,8 +23,23 @@
     clippy::nursery,
     clippy::cargo
 )]
-// Performance is extremely important.
-#![deny(clippy::perf)]
+#![deny(
+    // rustc
+    unreachable_pub,
+    keyword_idents,
+    keyword_idents_2018,
+    keyword_idents_2024,
+    unused_results,
+    trivial_casts,
+    trivial_numeric_casts,
+    single_use_lifetimes,
+    // clippy
+    clippy::perf,
+    // rustdoc
+    rustdoc::broken_intra_doc_links,
+    rustdoc::invalid_rust_codeblocks,
+    rustdoc::unescaped_backticks
+)]
 
 // TODO: Re-export types for convenience.
 pub mod chess;

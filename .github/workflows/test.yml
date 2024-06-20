@@ -1,5 +1,11 @@
 name: Test Suite
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
   test:
     name: Test Suite
@@ -23,15 +29,11 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Install ${{ matrix.toolchain }} toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.toolchain }}
-          override: true
-      - name: Run basic tests
-        run: cargo test --release
-      - name: Run expensive tests
-        run: cargo test --release -- --ignored
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      - run: just test

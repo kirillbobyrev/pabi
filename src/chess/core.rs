@@ -59,7 +59,6 @@ impl TryFrom<&str> for Move {
         }
         let from = Square::try_from(&uci[..2])?;
         let to = Square::try_from(&uci[2..4])?;
-        // TODO: Debug assert that promotions only occur on the last rank.
         let promotion = match uci.len() {
             5 => Some(match &uci[4..5] {
                 "q" => Promotion::Queen,
@@ -226,7 +225,6 @@ impl fmt::Display for Square {
 
 /// Represents a column (vertical row) of the chessboard. In chess notation, it
 /// is normally represented with a lowercase letter.
-// TODO: Re-export in lib.rs for convenience?
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(missing_docs)]
@@ -443,6 +441,12 @@ pub struct Piece {
     pub owner: Player,
     #[allow(missing_docs)]
     pub kind: PieceKind,
+}
+
+impl Piece {
+    pub const fn plane(&self) -> usize {
+        self.owner as usize * 6 + self.kind as usize
+    }
 }
 
 impl TryFrom<char> for Piece {
@@ -683,7 +687,7 @@ impl Direction {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::mem::{size_of, size_of_val};
 
     use pretty_assertions::assert_eq;

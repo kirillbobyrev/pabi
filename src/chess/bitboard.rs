@@ -24,14 +24,15 @@ use std::{fmt, mem};
 
 use itertools::Itertools;
 
+use super::core::Player;
 use crate::chess::core::{Direction, PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
 /// board.
 ///
-/// Mirroring [`Square`] semantics, the least significant
-/// bit corresponds to A1, and the most significant bit - to H8.
+/// Mirroring [`Square`] semantics, the least significant bit corresponds to
+/// [`Square::A1`], and the most significant bit - to [`Square::H8`].
 ///
 /// Bitboard is a thin wrapper around [u64].
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -302,6 +303,7 @@ impl TryInto<Square> for Bitboard {
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
 /// is [`crate::chess::position::Position`], [Bitboard] is not very useful on
 /// its own.
+// TODO: Implement iterator over all pieces.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Pieces {
     pub(super) king: Bitboard,
@@ -325,45 +327,42 @@ impl Pieces {
         }
     }
 
-    pub(super) fn new_white() -> Self {
-        Self {
-            king: Square::E1.into(),
-            queens: Square::D1.into(),
-            rooks: Bitboard::from_squares(&[Square::A1, Square::H1]),
-            bishops: Bitboard::from_squares(&[Square::C1, Square::F1]),
-            knights: Bitboard::from_squares(&[Square::B1, Square::G1]),
-            pawns: Bitboard::from_squares(&[
-                Square::A2,
-                Square::B2,
-                Square::C2,
-                Square::D2,
-                Square::E2,
-                Square::F2,
-                Square::G2,
-                Square::H2,
-            ]),
-        }
-    }
-
-    pub(super) fn new_black() -> Self {
-        // TODO: Implement flip and return new_white().flip() to prevent copying
-        // code.
-        Self {
-            king: Square::E8.into(),
-            queens: Square::D8.into(),
-            rooks: Bitboard::from_squares(&[Square::A8, Square::H8]),
-            bishops: Bitboard::from_squares(&[Square::C8, Square::F8]),
-            knights: Bitboard::from_squares(&[Square::B8, Square::G8]),
-            pawns: Bitboard::from_squares(&[
-                Square::A7,
-                Square::B7,
-                Square::C7,
-                Square::D7,
-                Square::E7,
-                Square::F7,
-                Square::G7,
-                Square::H7,
-            ]),
+    pub(super) fn starting(player: Player) -> Self {
+        match player {
+            Player::White => Self {
+                king: Square::E1.into(),
+                queens: Square::D1.into(),
+                rooks: Bitboard::from_squares(&[Square::A1, Square::H1]),
+                bishops: Bitboard::from_squares(&[Square::C1, Square::F1]),
+                knights: Bitboard::from_squares(&[Square::B1, Square::G1]),
+                pawns: Bitboard::from_squares(&[
+                    Square::A2,
+                    Square::B2,
+                    Square::C2,
+                    Square::D2,
+                    Square::E2,
+                    Square::F2,
+                    Square::G2,
+                    Square::H2,
+                ]),
+            },
+            Player::Black => Self {
+                king: Square::E8.into(),
+                queens: Square::D8.into(),
+                rooks: Bitboard::from_squares(&[Square::A8, Square::H8]),
+                bishops: Bitboard::from_squares(&[Square::C8, Square::F8]),
+                knights: Bitboard::from_squares(&[Square::B8, Square::G8]),
+                pawns: Bitboard::from_squares(&[
+                    Square::A7,
+                    Square::B7,
+                    Square::C7,
+                    Square::D7,
+                    Square::E7,
+                    Square::F7,
+                    Square::G7,
+                    Square::H7,
+                ]),
+            },
         }
     }
 
@@ -396,8 +395,6 @@ impl Pieces {
         }
     }
 
-    // TODO: Maybe completely disallow this? If we have the Square ->
-    // Option<Piece> mapping, this is potentially obsolete.
     #[must_use]
     pub(super) fn at(&self, square: Square) -> Option<PieceKind> {
         if self.all().contains(square) {
@@ -430,7 +427,7 @@ impl Pieces {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -456,8 +453,8 @@ mod test {
     #[test]
     fn set_basics() {
         // Create a starting position.
-        let white = Pieces::new_white();
-        let black = Pieces::new_black();
+        let white = Pieces::starting(Player::White);
+        let black = Pieces::starting(Player::Black);
 
         // Check that each player has 16 pieces.
         assert_eq!(white.all().bits.count_ones(), 16);
@@ -491,7 +488,7 @@ mod test {
 
     #[test]
     fn bitboard_iterator() {
-        let white = Pieces::new_white();
+        let white = Pieces::starting(Player::White);
 
         let mut it = white.king.iter();
         assert_eq!(it.next(), Some(Square::E1));
@@ -638,8 +635,8 @@ mod test {
 
     #[test]
     fn set_dump() {
-        let white = Pieces::new_white();
-        let black = Pieces::new_black();
+        let white = Pieces::starting(Player::White);
+        let black = Pieces::starting(Player::Black);
 
         assert_eq!(
             format!("{:?}", black.all()),

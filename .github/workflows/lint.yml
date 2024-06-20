@@ -1,5 +1,11 @@
 name: Lint
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
   lint:
     name: Lint
@@ -7,14 +13,9 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          submodules: recursive
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
           components: rustfmt, clippy
       - uses: taiki-e/install-action@v2
         with:

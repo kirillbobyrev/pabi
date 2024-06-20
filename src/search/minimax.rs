@@ -6,7 +6,7 @@
 //! [Alpha-Beta pruning]: https://en.wikipedia.org/wiki/Alpha%E2%80%93beta_pruning
 // TODO: Implement move ordering.
 
-use crate::evaluation::material::material_advantage;
+use crate::evaluation::pesto::evaluate;
 use crate::evaluation::Score;
 use crate::search::Context;
 
@@ -30,7 +30,7 @@ pub(super) fn negamax(context: &mut Context, depth: u8, alpha: Score, beta: Scor
     }
 
     if depth == 0 {
-        return material_advantage(position);
+        return evaluate(position);
     }
 
     let mut best_eval = Score::MIN;
@@ -46,7 +46,7 @@ pub(super) fn negamax(context: &mut Context, depth: u8, alpha: Score, beta: Scor
 
         let eval = -negamax(context, depth - 1, -beta, -alpha);
 
-        let _ = context.position_history.pop();
+        drop(context.position_history.pop());
 
         // Update the best score and move that achieves it if the explored move
         // leads to the best result so far.
@@ -63,36 +63,52 @@ pub(super) fn negamax(context: &mut Context, depth: u8, alpha: Score, beta: Scor
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::chess::position::Position;
-    use crate::evaluation::material::material_advantage;
+    use crate::evaluation::pesto::evaluate;
 
     #[test]
     fn zero_depth() {
         let mut state = Context::new(&Position::starting());
         assert_eq!(
             negamax(&mut state, 0, Score::MIN, Score::MAX),
-            material_advantage(&Position::starting())
+            evaluate(&Position::starting())
         );
     }
 
     #[test]
     fn starting_position() {
         let mut state = Context::new(&Position::starting());
-        assert_eq!(
-            negamax(&mut state, 1, Score::MIN, Score::MAX),
-            Score::from(0),
-        );
+        assert!(negamax(&mut state, 1, Score::MIN, Score::MAX) >= Score::from(0));
     }
 
+    /*
+    #[test]
+    fn symmetric_evaluation() {
+        let original_position =
+            Position::from_fen("rnbq1bnr/pp4pp/4kp2/2pp4/8/N7/PPPPPP1P/R1BQ1K1R b - - 4 11")
+                .expect("valid position");
+        let mut state = Context::new(&original_position);
+        let original_evaluation = negamax(&mut state, 1, Score::MIN, Score::MAX);
+
+        let symmetric_position =
+            Position::from_fen("rnbq1bnr/pp4pp/4kp2/2pp4/8/N7/PPPPPP1P/R1BQ1K1R w - - 4 11")
+                .expect("valid position");
+        let mut state = Context::new(&symmetric_position);
+        let symmetric_evaluation = negamax(&mut state, 1, Score::MIN, Score::MAX);
+
+        assert_eq!(original_evaluation, -symmetric_evaluation);
+    }
+    */
+
     // #[test]
-    // fn losing_position() {
+    // fn find_mate_losing_position() {
     //     todo!()
     // }
 
     // #[test]
-    // fn winning_position() {
+    // fn find_mate_winning_position() {
     //     todo!()
     // }
 }

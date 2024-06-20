@@ -1,31 +1,29 @@
 name: Test Coverage
-# TODO: Extend to pull requests and report the diff.
-on: [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
   coverage:
     name: Test Coverage
     runs-on: ubuntu-latest
+    # Ensure there are no conflicting pushes to Codecov.
+    concurrency:
+      group: test-coverage
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-tarpaulin
-          version: latest
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
       - name: Cargo tarpaulin
-        uses: actions-rs/cargo@v1
-        with:
-          command: tarpaulin
-          args: --out Xml
+        run: cargo tarpaulin --out Xml
       - name: Upload the report to Codecov
+        if: github.event_name == 'push'
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: true

@@ -44,6 +44,11 @@ impl Context {
     }
 }
 
+pub(crate) struct Settings {
+    depth: Option<Depth>,
+    time: Option<Duration>,
+}
+
 /// Adding reserve time to ensure that the engine does not exceed the time
 /// limit.
 // TODO: Tweak this.
@@ -111,7 +116,7 @@ fn find_best_move_and_score(
 
         let score = -minimax::negamax(context, depth - 1, -beta, -alpha);
 
-        let _ = context.position_history.pop();
+        drop(context.position_history.pop());
 
         if score >= best_score {
             best_score = score;
