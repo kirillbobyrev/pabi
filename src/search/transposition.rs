@@ -51,9 +51,4 @@ impl TranspositionTable {
 }
 
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn clear() {
-        todo!()
-    }
-}
+mod tests {}

@@ -9,42 +9,17 @@
 use std::io::Write;
 use std::time::{Duration, Instant};
 
-use arrayvec::ArrayVec;
-
 use crate::chess::core::Move;
 use crate::chess::position::Position;
 use crate::evaluation::Score;
 
-mod history;
+mod state;
+use state::State;
 pub(crate) mod minimax;
 mod transposition;
 
 /// Search depth in plies.
 pub type Depth = u8;
-
-/// The search depth does not grow fast and an upper limit is set for improving
-/// performance.
-///
-/// Realistically, it is probably way lower than 256, but it should not affect
-/// performance too much.
-const MAX_SEARCH_DEPTH: usize = 256;
-
-struct Context {
-    position_history: ArrayVec<Position, MAX_SEARCH_DEPTH>,
-    num_nodes: u64,
-    // TODO: num_pruned for debugging
-}
-
-impl Context {
-    fn new(position: &Position) -> Self {
-        let mut position_history = ArrayVec::new();
-        position_history.push(position.clone());
-        Self {
-            position_history,
-            num_nodes: 1,
-        }
-    }
-}
 
 pub(crate) struct Limiter {
     pub(crate) timer: Instant,
@@ -60,7 +35,7 @@ const RESERVE: Duration = Duration::from_millis(100);
 /// Runs the search algorithm to find the best move under given time
 /// constraints.
 pub(crate) fn find_best_move(
-    position: &Position,
+    root: Position,
     max_depth: Option<Depth>,
     time: Option<Duration>,
     output: &mut impl Write,
@@ -71,14 +46,14 @@ pub(crate) fn find_best_move(
         time,
     };
 
-    let mut context = Context::new(position);
+    let mut state = State::new(root);
 
     let mut best_move = None;
 
     let max_depth = limiter.depth.unwrap_or(Depth::MAX);
 
-    for depth in 1..max_depth {
-        let (next_move, score) = find_best_move_and_score(position, depth, &mut context);
+    for depth in 1..=max_depth {
+        let (next_move, score) = find_best_move_and_score(depth, &mut state);
 
         best_move = Some(next_move);
         writeln!(
@@ -87,7 +62,7 @@ pub(crate) fn find_best_move(
             depth,
             score,
             &best_move.unwrap().to_string(),
-            context.num_nodes,
+            state.searched_nodes(),
             limiter.timer.elapsed().as_millis(),
         )
         .unwrap();
@@ -102,22 +77,16 @@ pub(crate) fn find_best_move(
     writeln!(
         output,
         "info nodes {} nps {}",
-        context.num_nodes,
-        (context.num_nodes as f64 / limiter.timer.elapsed().as_secs_f64()) as u64,
+        state.searched_nodes(),
+        (state.searched_nodes() as f64 / limiter.timer.elapsed().as_secs_f64()) as u64,
     )
     .unwrap();
 
     best_move.unwrap()
 }
 
-fn find_best_move_and_score(
-    position: &Position,
-    depth: Depth,
-    context: &mut Context,
-) -> (Move, Score) {
+fn find_best_move_and_score(depth: Depth, state: &mut State) -> (Move, Score) {
     assert!(depth > 0);
-
-    context.num_nodes += 1;
 
     let mut best_move = None;
     let mut best_score = -Score::INFINITY;
@@ -125,15 +94,15 @@ fn find_best_move_and_score(
     let alpha = -Score::INFINITY;
     let beta = Score::INFINITY;
 
-    for next_move in position.generate_moves() {
-        let mut next_position = position.clone();
+    for next_move in state.last().generate_moves() {
+        let mut next_position = state.last().clone();
         next_position.make_move(&next_move);
 
-        context.position_history.push(next_position);
+        let _ = state.push(next_position);
 
-        let score = -minimax::negamax(context, depth - 1, -beta, -alpha);
+        let score = -minimax::negamax(state, depth - 1, -beta, -alpha);
 
-        drop(context.position_history.pop());
+        state.pop();
 
         if score >= best_score {
             best_score = score;
@@ -142,4 +111,49 @@ fn find_best_move_and_score(
     }
 
     (best_move.unwrap(), best_score)
+}
+
+/// Runs search on a small set of positions to provide an estimate of engine's
+/// performance.
+///
+/// Implementing `bench` CLI command is a [requirement for OpenBench].
+///
+/// NOTE: This function **has to run less than 60 seconds**.
+///
+/// See <https://github.com/AndyGrant/OpenBench/blob/master/Client/bench.py> for
+/// more details.
+///
+/// [requirement for OpenBench]: https://github.com/AndyGrant/OpenBench/wiki/Requirements-For-Public-Engines#basic-requirements
+// TODO: Add more positions and limit search in each position to few seconds
+// (summing up to 60).
+pub fn openbench() {
+    let mut total_nodes = 0;
+    let timer = Instant::now();
+
+    for (position, depth) in [
+        (Position::starting(), 6),
+        (
+            Position::from_fen(
+                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            )
+            .unwrap(),
+            5,
+        ),
+        (
+            Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap(),
+            5,
+        ),
+    ] {
+        let mut state = State::new(position);
+        minimax::negamax(&mut state, depth, -Score::INFINITY, Score::INFINITY);
+        total_nodes += state.searched_nodes();
+    }
+
+    let elapsed = timer.elapsed();
+
+    println!(
+        "{} nodes {} nps",
+        total_nodes,
+        (total_nodes as f64 / elapsed.as_secs_f64()) as u64,
+    );
 }

@@ -8,25 +8,18 @@
 
 use crate::evaluation::pesto::evaluate;
 use crate::evaluation::Score;
-use crate::search::Context;
+use crate::search::state::State;
 
-pub(super) fn negamax(context: &mut Context, depth: u8, alpha: Score, beta: Score) -> Score {
-    debug_assert!(!context.position_history.is_empty());
-
-    context.num_nodes += 1;
-
-    let position = context.position_history.last_mut().unwrap();
+pub(super) fn negamax(state: &mut State, depth: u8, alpha: Score, beta: Score) -> Score {
+    let position = state.last();
 
     if position.is_checkmate() {
         // The player to move is in checkmate.
-        // TODO: Mate in.
-        return -Score::INFINITY;
+        return -Score::mate(state.moves());
     }
 
-    // TODO: is_draw: stalemate + 50 move rule + 3 repetitions.
-    if position.is_stalemate() {
-        // TODO: Maybe handle stalemate differently since it's a "precise"
-        // evaluation.
+    if position.is_draw_on_board() {
+        // TODO: Maybe handle stalemate differently since it's precise.
         return Score::DRAW;
     }
 
@@ -37,17 +30,20 @@ pub(super) fn negamax(context: &mut Context, depth: u8, alpha: Score, beta: Scor
     let mut best_eval = -Score::INFINITY;
     let mut alpha = alpha;
 
-    // TODO: Do not copy here, figure out how to beat the borrow checker.
-    let current_position = context.position_history.last().unwrap().clone();
-    for next_move in current_position.generate_moves() {
+    for next_move in position.generate_moves() {
         // Update the search state.
-        let mut new_position = current_position.clone();
+        let mut new_position = state.last().clone();
         new_position.make_move(&next_move);
-        context.position_history.push(new_position);
 
-        let eval = -negamax(context, depth - 1, -beta, -alpha);
+        let draw = state.push(new_position);
 
-        drop(context.position_history.pop());
+        let eval = if !draw {
+            -negamax(state, depth - 1, -beta, -alpha)
+        } else {
+            Score::DRAW
+        };
+
+        state.pop();
 
         // Update the best score and move that achieves it if the explored move
         // leads to the best result so far.
@@ -71,7 +67,7 @@ mod tests {
 
     #[test]
     fn zero_depth() {
-        let mut state = Context::new(&Position::starting());
+        let mut state = State::new(Position::starting());
         assert_eq!(
             negamax(&mut state, 0, -Score::INFINITY, Score::INFINITY),
             evaluate(&Position::starting())
@@ -80,7 +76,7 @@ mod tests {
 
     #[test]
     fn starting_position() {
-        let mut state = Context::new(&Position::starting());
+        let mut state = State::new(Position::starting());
         assert!(negamax(&mut state, 1, -Score::INFINITY, Score::INFINITY) >= Score::cp(0));
     }
 

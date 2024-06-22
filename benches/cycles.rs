@@ -75,8 +75,7 @@ fn perft() {
             4,
             422_333,
         ),
-    ]
-    {
+    ] {
         assert_eq!(pabi::chess::position::perft(position, *depth), *nodes);
     }
 }

@@ -8,7 +8,6 @@ pub mod engine;
 pub mod evaluation;
 pub mod search;
 
-pub use engine::openbench::bench;
 pub use engine::Engine;
 use shadow_rs::shadow;
 

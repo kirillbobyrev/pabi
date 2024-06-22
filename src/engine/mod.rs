@@ -14,7 +14,6 @@ use crate::chess::position::Position;
 use crate::engine::uci::Command;
 use crate::search::{find_best_move, Depth};
 
-pub mod openbench;
 mod time_manager;
 mod uci;
 
@@ -174,7 +173,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
             Player::White => (wtime, winc),
             Player::Black => (btime, binc),
         };
-        let next_move = find_best_move(&self.position, max_depth, time, self.output);
+        let next_move = find_best_move(self.position.clone(), max_depth, time, self.output);
         writeln!(self.output, "bestmove {next_move}")?;
         Ok(())
     }

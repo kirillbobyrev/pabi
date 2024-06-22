@@ -13,19 +13,29 @@ pub(crate) struct RepetitionTable {
 }
 
 impl RepetitionTable {
+    /// Creates an empty repetition table.
     pub(crate) fn new() -> Self {
         Self {
             table: HashMap::new(),
         }
     }
 
+    /// Removes all entries from the repetition history.
     pub(crate) fn clear(&mut self) {
         self.table.clear();
     }
 
+    /// Checks whether the repetition table has no entries.
+    ///
+    /// This is mostly used for debugging purposes.
+    #[must_use]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.table.is_empty()
+    }
+
     /// Returns true if the position has occurred 3 times.
     ///
-    /// In most tournament settings 3-fold repetition counts as a draw.
+    /// In the tournament setting 3-fold repetition is a draw.
     #[must_use]
     pub(crate) fn record(&mut self, key: Key) -> bool {
         let count = self.table.entry(key).or_insert(0);

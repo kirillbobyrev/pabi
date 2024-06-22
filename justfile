@@ -17,12 +17,12 @@ fmt:
 # Checks the code for bad formatting, errors and warnings.
 lint:
   cargo +nightly fmt --all -- --check
-  cargo +nightly clippy --all-features
+  cargo +nightly clippy --all-targets --all-features
 
 # Runs the linters and tries to apply automatic fixes.
 fix:
   cargo +nightly fmt --all
-  cargo +nightly clippy --all-features --fix --allow-staged
+  cargo +nightly clippy --all-targets --all-features --fix --allow-staged
 
 # Run most tests that are fast and are run by default.
 test:

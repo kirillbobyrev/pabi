@@ -19,7 +19,7 @@ const MIDDLEGAME_VALUES: [[i32; 64]; 12] =
     include!(concat!(env!("OUT_DIR"), "/pesto_middlegame_table"));
 const ENDGAME_VALUES: [[i32; 64]; 12] = include!(concat!(env!("OUT_DIR"), "/pesto_endgame_table"));
 
-pub(crate) fn evaluate(position: &Position) -> Score {
+pub fn evaluate(position: &Position) -> Score {
     let mut middlegame_white = 0;
     let mut middlegame_black = 0;
     let mut endgame_white = 0;

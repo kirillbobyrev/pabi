@@ -122,7 +122,7 @@ fn check_with_unrelated_en_passant() {
 #[test]
 #[should_panic(expected = "doubly pushed pawn can not be the only blocker on a diagonal")]
 fn double_push_blocks_existing_check() {
-    let _ = Position::try_from("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1");
+    Position::try_from("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1").unwrap();
 }
 
 #[test]
@@ -537,7 +537,7 @@ fn random_positions() {
         assert_eq!(
             moves
                 .iter()
-                .map(std::string::ToString::to_string)
+                .map(ToString::to_string)
                 .sorted()
                 .collect::<Vec<_>>(),
             shakmaty::Position::legal_moves(&shakmaty_position)

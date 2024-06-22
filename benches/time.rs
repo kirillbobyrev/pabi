@@ -149,15 +149,12 @@ fn perft_bench(c: &mut Criterion) {
             6,
             120_142_144,
         ),
-    ]
-    {
+    ] {
         group.throughput(criterion::Throughput::Elements(*nodes));
         group.bench_with_input(
             BenchmarkId::new(
                 "perft",
-                format!(
-                    "position {position}, depth {depth}, nodes {nodes}"
-                ),
+                format!("position {position}, depth {depth}, nodes {nodes}"),
             ),
             depth,
             |b, &depth| {

@@ -43,7 +43,6 @@ impl Move {
     /// Converts the move from UCI format to the internal representation. This
     /// is important for the communication between the engine and UCI server in
     /// `position` command.
-    #[must_use]
     pub fn from_uci(uci: &str) -> anyhow::Result<Self> {
         Self::try_from(uci)
     }
@@ -52,7 +51,6 @@ impl Move {
 impl TryFrom<&str> for Move {
     type Error = anyhow::Error;
 
-    #[must_use]
     fn try_from(uci: &str) -> anyhow::Result<Self> {
         if uci.len() < 4 || uci.len() > 5 {
             bail!("UCI move should be 4 or 5 characters long, got {uci}");
@@ -164,15 +162,17 @@ impl Square {
     }
 
     fn next(self) -> Option<Self> {
-        if self as u8 == 63 {
+        let next = self as u8 + 1;
+        if next == BOARD_SIZE {
             None
         } else {
-            Some(unsafe { mem::transmute(self as u8 + 1) })
+            Some(unsafe { mem::transmute(next) })
         }
     }
 
     /// Creates an iterator over all squares, starting from A1 (0) to H8 (63).
-    #[must_use] pub fn iter() -> SquareIterator {
+    #[must_use]
+    pub fn iter() -> SquareIterator {
         SquareIterator {
             current: Some(Self::A1),
         }
@@ -475,7 +475,8 @@ pub struct Piece {
 }
 
 impl Piece {
-    #[must_use] pub const fn plane(&self) -> usize {
+    #[must_use]
+    pub const fn plane(&self) -> usize {
         self.owner as usize * 6 + self.kind as usize
     }
 }
@@ -853,6 +854,9 @@ mod tests {
             squares,
             vec![Square::B3, Square::F5, Square::H8, Square::E4]
         );
+
+        assert_eq!(Square::try_from(4u8).unwrap(), Square::E1);
+        assert_eq!(Square::try_from(4i8).unwrap(), Square::E1);
     }
 
     #[test]

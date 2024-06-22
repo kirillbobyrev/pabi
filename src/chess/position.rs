@@ -15,16 +15,7 @@ use arrayvec::ArrayVec;
 use super::zobrist::RepetitionTable;
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    File,
-    Move,
-    MoveList,
-    Piece,
-    Player,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 
@@ -115,7 +106,8 @@ impl Position {
     /// Returns Zobrist hash of the position.
     // TODO: Compute hash once and incrementally update it in make_move along with
     // accumulator.
-    #[must_use] pub fn hash(&self) -> zobrist::Key {
+    #[must_use]
+    pub fn hash(&self) -> zobrist::Key {
         self.compute_hash()
     }
 
@@ -556,19 +548,19 @@ impl Position {
     /// Note that because position does not keep track of the 3-fold repetition
     /// it is not taken into account.
     #[must_use]
-    pub fn is_stalemate(&self) -> bool {
+    pub fn is_draw_on_board(&self) -> bool {
         self.halfmove_clock >= 100 || (!self.in_check() && self.generate_moves().is_empty())
     }
 
-    #[must_use]
-    pub fn is_capture(&self, next_move: &Move) -> bool {
-        todo!()
-    }
+    // #[must_use]
+    // pub fn is_capture(&self, next_move: &Move) -> bool {
+    //     todo!()
+    // }
 
-    #[must_use]
-    pub fn gives_check(&self, next_move: &Move) -> bool {
-        todo!()
-    }
+    // #[must_use]
+    // pub fn gives_check(&self, next_move: &Move) -> bool {
+    //     todo!()
+    // }
 
     #[must_use]
     pub(crate) fn at(&self, square: Square) -> Option<Piece> {
@@ -1098,30 +1090,6 @@ fn generate_castle_moves(
                 }
             },
         }
-    }
-}
-
-struct PositionHistory {
-    positions: ArrayVec<Position, 256>,
-    repetitions: RepetitionTable,
-}
-
-impl PositionHistory {
-    fn new() -> Self {
-        Self {
-            positions: ArrayVec::new(),
-            repetitions: RepetitionTable::new(),
-        }
-    }
-
-    fn current_position(&self) -> &Position {
-        self.positions.last().expect("no positions in history")
-    }
-
-    fn push(&mut self, position: Position) -> bool {
-        let hash = position.hash();
-        self.positions.push(position);
-        self.repetitions.record(hash)
     }
 }
 
