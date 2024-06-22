@@ -428,6 +428,7 @@ impl Pieces {
 
 #[cfg(test)]
 mod tests {
+    use mem::size_of;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -435,7 +436,7 @@ mod tests {
 
     #[test]
     fn basics() {
-        assert_eq!(mem::size_of::<Bitboard>(), 8);
+        assert_eq!(size_of::<Bitboard>(), 8);
         assert_eq!(Bitboard::full().bits, u64::MAX);
         assert_eq!(Bitboard::empty().bits, u64::MIN);
 

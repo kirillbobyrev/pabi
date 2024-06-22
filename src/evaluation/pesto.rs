@@ -27,8 +27,7 @@ pub(crate) fn evaluate(position: &Position) -> Score {
 
     let mut game_phase = 0;
 
-    for square in 0..64u8 {
-        let square = Square::try_from(square).expect("valid square");
+    for square in Square::iter() {
         if let Some(piece) = position.at(square) {
             if piece.owner == Player::White {
                 middlegame_white += MIDDLEGAME_VALUES[piece.plane()][square as usize];
@@ -53,14 +52,13 @@ pub(crate) fn evaluate(position: &Position) -> Score {
     let middlegame_phase = std::cmp::min(game_phase, 24);
     let endgame_phase = 24 - middlegame_phase;
 
-    Score::from((middlegame_score * middlegame_phase + endgame_score * endgame_phase) / 24)
+    Score::cp((middlegame_score * middlegame_phase + endgame_score * endgame_phase) / 24)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::chess::core::{Piece, PieceKind, Player, Square};
-
     use super::*;
+    use crate::chess::core::{Piece, PieceKind, Player, Square};
 
     // Check that the tables are correctly built and loaded.
     #[test]
@@ -98,7 +96,7 @@ mod tests {
 
     #[test]
     fn starting_position() {
-        assert_eq!(evaluate(&Position::starting()), Score::from(0));
+        assert_eq!(evaluate(&Position::starting()), Score::cp(0));
     }
 
     #[test]
@@ -112,6 +110,6 @@ mod tests {
                 &Position::from_fen("rnbq1bnr/pp4pp/4kp2/2pp4/8/N7/PPPPPP1P/R1BQ1K1R w - - 4 11")
                     .expect("valid position")
             )
-        )
+        );
     }
 }

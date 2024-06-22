@@ -31,18 +31,16 @@ fn generate_zobrist_keys() {
     let mut rng = rand::thread_rng();
 
     let piece_keys: [ZobristKey; NUM_COLORS * NUM_PIECES * NUM_SQUARES] =
-        std::array::from_fn(|_| rand::Rng::gen(&mut rng));
-    generate_file(
-        &format!("pieces_zobrist_keys"),
-        &format!("{:?}", piece_keys),
-    );
+        std::array::from_fn(|_| rand::Rng::r#gen(&mut rng));
+    generate_file("pieces_zobrist_keys", &format!("{piece_keys:?}"));
 
-    let en_passant_keys: [ZobristKey; 8] = std::array::from_fn(|_| rand::Rng::gen(&mut rng));
-    generate_file("en_passant_zobrist_keys", &format!("{:?}", en_passant_keys));
+    let en_passant_keys: [ZobristKey; 8] = std::array::from_fn(|_| rand::Rng::r#gen(&mut rng));
+    generate_file("en_passant_zobrist_keys", &format!("{en_passant_keys:?}"));
 }
 
 // PeSTO tables with modified encoding for easier serialization.
-// Piece indices match the order of PieceKind, the planes match the order of Piece.
+// Piece indices match the order of PieceKind, the planes match the order of
+// Piece.
 
 const MIDDLEGAME_VALUE: [i32; 6] = [0, 1025, 477, 365, 337, 82];
 const ENDGAME_VALUE: [i32; 6] = [0, 936, 512, 297, 281, 94];
@@ -185,7 +183,7 @@ const ENDGAME_KING_TABLE: [i32; 64] = [
     -53, -34, -21, -11, -28, -14, -24, -43
 ];
 
-fn flip(square: usize) -> usize {
+const fn flip(square: usize) -> usize {
     square ^ 56
 }
 
@@ -218,20 +216,20 @@ fn generate_pesto_tables() {
     {
         populate_piece_values(
             piece_index,
-            &middlegame_piece_table,
+            middlegame_piece_table,
             &MIDDLEGAME_VALUE,
             &mut middlegame_table,
         );
         populate_piece_values(
             piece_index,
-            &endgame_piece_table,
+            endgame_piece_table,
             &ENDGAME_VALUE,
             &mut endgame_table,
         );
     }
 
-    generate_file("pesto_middlegame_table", &format!("{:?}", middlegame_table));
-    generate_file("pesto_endgame_table", &format!("{:?}", endgame_table));
+    generate_file("pesto_middlegame_table", &format!("{middlegame_table:?}"));
+    generate_file("pesto_endgame_table", &format!("{endgame_table:?}"));
 }
 
 fn main() -> shadow_rs::SdResult<()> {

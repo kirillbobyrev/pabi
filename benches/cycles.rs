@@ -28,9 +28,9 @@ fn parse_stockfish_book_positions() {
 
 // Low depths of known perft results (https://www.chessprogramming.org/Perft_Results).
 fn perft() {
-    for (position, depth, nodes) in [
+    for (position, depth, nodes) in &[
         // Position 1 (starting).
-        (Position::starting(), 5, 4865609),
+        (Position::starting(), 5, 4_865_609),
         // Position 2.
         (
             Position::from_fen(
@@ -38,27 +38,27 @@ fn perft() {
             )
             .unwrap(),
             4,
-            4085603,
+            4_085_603,
         ),
         // Position 3.
         (
             Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap(),
             5,
-            674624,
+            674_624,
         ),
         // Position 4.
         (
             Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1")
                 .unwrap(),
             4,
-            422333,
+            422_333,
         ),
         // Position 5.
         (
             Position::from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
                 .unwrap(),
             4,
-            2103487,
+            2_103_487,
         ),
         // Position 6.
         (
@@ -67,16 +67,15 @@ fn perft() {
             )
             .unwrap(),
             4,
-            3894594,
+            3_894_594,
         ),
         (
             Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1")
                 .unwrap(),
             4,
-            422333,
+            422_333,
         ),
     ]
-    .iter()
     {
         assert_eq!(pabi::chess::position::perft(position, *depth), *nodes);
     }

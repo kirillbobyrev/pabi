@@ -10,10 +10,21 @@
 use std::fmt::{self, Write};
 
 use anyhow::{bail, Context};
+use arrayvec::ArrayVec;
 
+use super::zobrist::RepetitionTable;
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    File,
+    Move,
+    MoveList,
+    Piece,
+    Player,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 
@@ -104,7 +115,7 @@ impl Position {
     /// Returns Zobrist hash of the position.
     // TODO: Compute hash once and incrementally update it in make_move along with
     // accumulator.
-    pub fn hash(&self) -> zobrist::Key {
+    #[must_use] pub fn hash(&self) -> zobrist::Key {
         self.compute_hash()
     }
 
@@ -698,7 +709,7 @@ impl fmt::Debug for Position {
         // bitflags' default fmt::Debug implementation is not very convenient:
         // dump FEN instead.
         writeln!(f, "Castling rights: {}", &self.castling)?;
-        writeln!(f, "FEN: {}", &self.to_string())?;
+        writeln!(f, "FEN: {}", &self)?;
 
         Ok(())
     }
@@ -1087,6 +1098,30 @@ fn generate_castle_moves(
                 }
             },
         }
+    }
+}
+
+struct PositionHistory {
+    positions: ArrayVec<Position, 256>,
+    repetitions: RepetitionTable,
+}
+
+impl PositionHistory {
+    fn new() -> Self {
+        Self {
+            positions: ArrayVec::new(),
+            repetitions: RepetitionTable::new(),
+        }
+    }
+
+    fn current_position(&self) -> &Position {
+        self.positions.last().expect("no positions in history")
+    }
+
+    fn push(&mut self, position: Position) -> bool {
+        let hash = position.hash();
+        self.positions.push(position);
+        self.repetitions.record(hash)
     }
 }
 

@@ -22,6 +22,63 @@ include = [
   "README.md",
 ] # Reduce the package size by only including things necessary for building it.
 
+[lints.rust]
+# Warn
+absolute_paths_not_starting_with_crate = "warn"
+let_underscore_drop = "warn"
+macro_use_extern_crate = "warn"
+missing_docs = "warn"
+unused_extern_crates = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+variant_size_differences = "warn"
+# Deny
+keyword_idents = "deny"
+keyword_idents_2018 = "deny"
+keyword_idents_2024 = "deny"
+single_use_lifetimes = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unreachable_pub = "deny"
+unused_results = "deny"
+
+[lints.clippy]
+# Warn
+cargo = "warn"
+cognitive_complexity = "warn"
+complexity = "warn"
+correctness = "warn"
+dbg_macro = "warn"
+nursery = "warn"
+pedantic = "warn"
+style = "warn"
+suspicious = "warn"
+decimal_literal_representation = "warn"
+# Deny
+cargo_common_metadata = "deny"
+doc_markdown = "deny"
+equatable_if_let = "deny"
+float_cmp = "deny"
+float_cmp_const = "deny"
+get_unwrap = "deny"
+implicit_clone = "deny"
+imprecise_flops = "deny"
+inefficient_to_string = "deny"
+linkedlist = "deny"
+manual_assert = "deny"
+needless_collect = "deny"
+perf = "deny"
+redundant_clone = "deny"
+suboptimal_flops = "deny"
+trivial_regex = "deny"
+use_self = "deny"
+
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+invalid_rust_codeblocks = "deny"
+unescaped_backticks = "deny"
+
 [workspace]
 members = ["tools"]
 
@@ -37,6 +94,7 @@ shadow-rs = "0.28.0"
 rand = "0.8.5"
 
 [dev-dependencies]
+assert_cmd = "2.0.14"
 criterion = { version = "0.5.1", features = [
   "cargo_bench_support",
   "csv_output",
@@ -46,6 +104,7 @@ iai = "0.1.1"
 pretty_assertions = "1.1.0"
 # Used for testing and comparing against a reasonable baseline for correctness.
 shakmaty = "0.27.0"
+predicates = "3.1.0"
 
 [[bench]]
 harness = false

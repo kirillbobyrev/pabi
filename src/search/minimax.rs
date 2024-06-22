@@ -19,21 +19,22 @@ pub(super) fn negamax(context: &mut Context, depth: u8, alpha: Score, beta: Scor
 
     if position.is_checkmate() {
         // The player to move is in checkmate.
-        return Score::MIN;
+        // TODO: Mate in.
+        return -Score::INFINITY;
     }
 
     // TODO: is_draw: stalemate + 50 move rule + 3 repetitions.
     if position.is_stalemate() {
         // TODO: Maybe handle stalemate differently since it's a "precise"
         // evaluation.
-        return Score::from(0);
+        return Score::DRAW;
     }
 
     if depth == 0 {
         return evaluate(position);
     }
 
-    let mut best_eval = Score::MIN;
+    let mut best_eval = -Score::INFINITY;
     let mut alpha = alpha;
 
     // TODO: Do not copy here, figure out how to beat the borrow checker.
@@ -72,7 +73,7 @@ mod tests {
     fn zero_depth() {
         let mut state = Context::new(&Position::starting());
         assert_eq!(
-            negamax(&mut state, 0, Score::MIN, Score::MAX),
+            negamax(&mut state, 0, -Score::INFINITY, Score::INFINITY),
             evaluate(&Position::starting())
         );
     }
@@ -80,27 +81,26 @@ mod tests {
     #[test]
     fn starting_position() {
         let mut state = Context::new(&Position::starting());
-        assert!(negamax(&mut state, 1, Score::MIN, Score::MAX) >= Score::from(0));
+        assert!(negamax(&mut state, 1, -Score::INFINITY, Score::INFINITY) >= Score::cp(0));
     }
 
-    /*
-    #[test]
-    fn symmetric_evaluation() {
-        let original_position =
-            Position::from_fen("rnbq1bnr/pp4pp/4kp2/2pp4/8/N7/PPPPPP1P/R1BQ1K1R b - - 4 11")
-                .expect("valid position");
-        let mut state = Context::new(&original_position);
-        let original_evaluation = negamax(&mut state, 1, Score::MIN, Score::MAX);
-
-        let symmetric_position =
-            Position::from_fen("rnbq1bnr/pp4pp/4kp2/2pp4/8/N7/PPPPPP1P/R1BQ1K1R w - - 4 11")
-                .expect("valid position");
-        let mut state = Context::new(&symmetric_position);
-        let symmetric_evaluation = negamax(&mut state, 1, Score::MIN, Score::MAX);
-
-        assert_eq!(original_evaluation, -symmetric_evaluation);
-    }
-    */
+    // #[test]
+    // fn symmetric_evaluation() {
+    // let original_position =
+    // Position::from_fen("rnbq1bnr/pp4pp/4kp2/2pp4/8/N7/PPPPPP1P/R1BQ1K1R b - -
+    // 4 11") .expect("valid position");
+    // let mut state = Context::new(&original_position);
+    // let original_evaluation = negamax(&mut state, 1, Score::MIN, Score::MAX);
+    //
+    // let symmetric_position =
+    // Position::from_fen("rnbq1bnr/pp4pp/4kp2/2pp4/8/N7/PPPPPP1P/R1BQ1K1R w - -
+    // 4 11") .expect("valid position");
+    // let mut state = Context::new(&symmetric_position);
+    // let symmetric_evaluation = negamax(&mut state, 1, Score::MIN,
+    // Score::MAX);
+    //
+    // assert_eq!(original_evaluation, -symmetric_evaluation);
+    // }
 
     // #[test]
     // fn find_mate_losing_position() {

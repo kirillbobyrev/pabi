@@ -47,67 +47,67 @@ fn basic_positions() {
 #[test]
 #[should_panic(expected = "expected 1 white king, got 0")]
 fn no_white_king() {
-    Position::try_from("3k4/8/8/8/8/8/8/8 w - - 0 1").unwrap();
+    let _ = setup("3k4/8/8/8/8/8/8/8 w - - 0 1");
 }
 
 #[test]
 #[should_panic(expected = "expected 1 black king, got 0")]
 fn no_black_king() {
-    Position::try_from("8/8/8/8/8/8/8/3K4 w - - 0 1").unwrap();
+    let _ = setup("8/8/8/8/8/8/8/3K4 w - - 0 1");
 }
 
 #[test]
 #[should_panic(expected = "expected 1 white king, got 3")]
 fn too_many_kings() {
-    Position::try_from("1kkk4/8/8/8/8/8/8/1KKK4 w - - 0 1").unwrap();
+    let _ = setup("1kkk4/8/8/8/8/8/8/1KKK4 w - - 0 1");
 }
 
 #[test]
 #[should_panic(expected = "expected <= 8 white pawns, got 9")]
 fn too_many_white_pawns() {
-    Position::try_from("rnbqkbnr/pppppppp/8/8/8/P7/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+    let _ = setup("rnbqkbnr/pppppppp/8/8/8/P7/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
 #[test]
 #[should_panic(expected = "expected <= 8 black pawns, got 9")]
 fn too_many_black_pawns() {
-    Position::try_from("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+    let _ = setup("rnbqkbnr/pppppppp/p7/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
 #[test]
 #[should_panic(expected = "pawns can not be placed on backranks")]
 fn pawns_on_backranks() {
-    Position::try_from("3kr3/8/8/8/8/5Q2/8/1KP5 w - - 0 1").unwrap();
+    let _ = setup("3kr3/8/8/8/8/5Q2/8/1KP5 w - - 0 1");
 }
 
 #[test]
 #[should_panic(expected = "expected en passant square to be on rank 6, got 3")]
 fn wrong_en_passant_player() {
-    Position::try_from("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e3 0 1").unwrap();
+    let _ = setup("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e3 0 1");
 }
 
 #[test]
 #[should_panic(expected = "expected en passant square to be on rank 3, got 4")]
 fn wrong_en_passant_rank() {
-    Position::try_from("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq e4 0 1").unwrap();
+    let _ = setup("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq e4 0 1");
 }
 
 #[test]
 #[should_panic(expected = "en passant square is not beyond pushed pawn")]
 fn en_passant_not_beyond_pawn() {
-    Position::try_from("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq d3 0 1").unwrap();
+    let _ = setup("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq d3 0 1");
 }
 
 #[test]
 #[should_panic(expected = "more than 1 check after double pawn push is impossible")]
 fn en_passant_double_check() {
-    Position::try_from("r2qkbnr/ppp3Np/8/4Q3/4P3/8/PP4PP/RNB1KB1R b KQkq e3 0 1").unwrap();
+    let _ = setup("r2qkbnr/ppp3Np/8/4Q3/4P3/8/PP4PP/RNB1KB1R b KQkq e3 0 1");
 }
 
 #[test]
 #[should_panic(expected = "expected <= 2 checks, got 3")]
 fn triple_check() {
-    Position::try_from("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34").unwrap();
+    let _ = setup("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34");
 }
 
 #[test]
@@ -116,14 +116,13 @@ fn triple_check() {
     original pawn square or the pushed pawn itself"
 )]
 fn check_with_unrelated_en_passant() {
-    Position::try_from("rnbqk1nr/bb3p1p/1q2r3/2pPp3/3P4/7P/1PP1NpPP/R1BQKBNR w KQkq c6 0 1")
-        .unwrap();
+    let _ = setup("rnbqk1nr/bb3p1p/1q2r3/2pPp3/3P4/7P/1PP1NpPP/R1BQKBNR w KQkq c6 0 1");
 }
 
 #[test]
 #[should_panic(expected = "doubly pushed pawn can not be the only blocker on a diagonal")]
 fn double_push_blocks_existing_check() {
-    Position::try_from("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1").unwrap();
+    let _ = Position::try_from("q6k/8/8/3pP3/8/8/8/7K w - d6 0 1");
 }
 
 #[test]
@@ -171,15 +170,16 @@ fn no_crash() {
     .is_err());
 }
 
-// This test is very expensive in the Debug setting (could take 200+ seconds):
-// disable it by default.
+// This test is very expensive in the Debug setting (could take 200+ seconds).
 #[ignore]
 #[test]
 fn arbitrary_positions() {
-    for serialized_position in
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/positions.fen"))
-            .unwrap()
-            .lines()
+    for serialized_position in fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/positions.fen"
+    ))
+    .unwrap()
+    .lines()
     {
         let position = Position::try_from(serialized_position).unwrap();
         assert_eq!(position.to_string(), sanitize_fen(serialized_position));
@@ -517,15 +517,16 @@ fn make_moves() {
     );
 }
 
-// This test is very expensive in the Debug setting (could take 200+ seconds):
-// disable it by default.
+// This test is very expensive in the Debug setting (could take 200+ seconds).
 #[ignore]
 #[test]
 fn random_positions() {
-    for serialized_position in
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/positions.fen"))
-            .unwrap()
-            .lines()
+    for serialized_position in fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/positions.fen"
+    ))
+    .unwrap()
+    .lines()
     {
         let position = Position::from_fen(serialized_position).unwrap();
         let shakmaty_setup: shakmaty::fen::Fen = serialized_position.parse().unwrap();
@@ -536,7 +537,7 @@ fn random_positions() {
         assert_eq!(
             moves
                 .iter()
-                .map(|m| m.to_string())
+                .map(std::string::ToString::to_string)
                 .sorted()
                 .collect::<Vec<_>>(),
             shakmaty::Position::legal_moves(&shakmaty_position)
@@ -605,9 +606,9 @@ fn perft_starting_position() {
 fn perft_expensive_starting() {
     // Position 1.
     let position = Position::starting();
-    assert_eq!(perft(&position, 4), 197281);
-    assert_eq!(perft(&position, 5), 4865609);
-    assert_eq!(perft(&position, 6), 119060324);
+    assert_eq!(perft(&position, 4), 197_281);
+    assert_eq!(perft(&position, 5), 4_865_609);
+    assert_eq!(perft(&position, 6), 119_060_324);
 }
 
 // Positions from https://www.chessprogramming.org/Perft_Results
@@ -626,8 +627,8 @@ fn perft_kiwipete() {
 fn perft_kiwipete_expensive() {
     // Position 2.
     let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-    assert_eq!(perft(&position, 4), 4085603);
-    assert_eq!(perft(&position, 5), 193690690);
+    assert_eq!(perft(&position, 4), 4_085_603);
+    assert_eq!(perft(&position, 5), 193_690_690);
 }
 
 // Position 3.
@@ -643,8 +644,8 @@ fn perft_endgame() {
 #[ignore]
 fn perft_endgame_expensive() {
     let position = setup("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-    assert_eq!(perft(&position, 4), 4085603);
-    assert_eq!(perft(&position, 5), 193690690);
+    assert_eq!(perft(&position, 4), 4_085_603);
+    assert_eq!(perft(&position, 5), 193_690_690);
 }
 
 // Position 4.
@@ -660,8 +661,8 @@ fn perft_complex() {
 #[ignore]
 fn perft_complex_expensive() {
     let position = setup("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1");
-    assert_eq!(perft(&position, 4), 422333);
-    assert_eq!(perft(&position, 5), 15833292);
+    assert_eq!(perft(&position, 4), 422_333);
+    assert_eq!(perft(&position, 5), 15_833_292);
 }
 
 // Position 5.
@@ -677,8 +678,8 @@ fn perft_fifth() {
 #[ignore]
 fn perft_fifth_expensive() {
     let position = setup("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
-    assert_eq!(perft(&position, 4), 2103487);
-    assert_eq!(perft(&position, 5), 89941194);
+    assert_eq!(perft(&position, 4), 2_103_487);
+    assert_eq!(perft(&position, 5), 89_941_194);
 }
 
 // Position 6.
@@ -696,8 +697,8 @@ fn perft_sixth() {
 fn perft_sixth_expensive() {
     let position =
         setup("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
-    assert_eq!(perft(&position, 4), 3894594);
-    assert_eq!(perft(&position, 5), 164075551);
+    assert_eq!(perft(&position, 4), 3_894_594);
+    assert_eq!(perft(&position, 5), 164_075_551);
 }
 
 // Other positions.
@@ -709,7 +710,7 @@ fn perft_complex_middlegame() {
     assert_eq!(perft(&position, 1), 46);
     assert_eq!(perft(&position, 2), 1149);
     assert_eq!(perft(&position, 3), 51032);
-    assert_eq!(perft(&position, 4), 1352097);
+    assert_eq!(perft(&position, 4), 1_352_097);
 }
 
 #[test]
@@ -720,7 +721,7 @@ fn perft_endgame_promotions() {
     assert_eq!(perft(&position, 3), 949);
     assert_eq!(perft(&position, 4), 4848);
     assert_eq!(perft(&position, 5), 67834);
-    assert_eq!(perft(&position, 6), 390018);
+    assert_eq!(perft(&position, 6), 390_018);
 }
 
 #[test]
@@ -741,7 +742,7 @@ fn perft_queen_endgame() {
     assert_eq!(perft(&position, 2), 97);
     assert_eq!(perft(&position, 3), 2422);
     assert_eq!(perft(&position, 4), 11436);
-    assert_eq!(perft(&position, 5), 291937);
+    assert_eq!(perft(&position, 5), 291_937);
 }
 
 #[test]
@@ -751,7 +752,7 @@ fn perft_tactical_opening() {
     assert_eq!(perft(&position, 1), 29);
     assert_eq!(perft(&position, 2), 605);
     assert_eq!(perft(&position, 3), 18210);
-    assert_eq!(perft(&position, 4), 413607);
+    assert_eq!(perft(&position, 4), 413_607);
 }
 
 #[test]
@@ -762,7 +763,7 @@ fn perft_advanced_pawn_race() {
     assert_eq!(perft(&position, 3), 461);
     assert_eq!(perft(&position, 4), 5919);
     assert_eq!(perft(&position, 5), 38616);
-    assert_eq!(perft(&position, 6), 565553);
+    assert_eq!(perft(&position, 6), 565_553);
 }
 
 #[test]
@@ -773,7 +774,7 @@ fn perft_queen_vs_pawns() {
     assert_eq!(perft(&position, 3), 461);
     assert_eq!(perft(&position, 4), 5919);
     assert_eq!(perft(&position, 5), 38616);
-    assert_eq!(perft(&position, 6), 565553);
+    assert_eq!(perft(&position, 6), 565_553);
 }
 
 #[test]
@@ -786,7 +787,7 @@ fn perft_promotion_options() {
 #[test]
 fn perft_cpw_challenge() {
     let position = setup("rnb1kbnr/pp1pp1pp/1qp2p2/8/Q1P5/N7/PP1PPPPP/1RB1KBNR b Kkq - 2 4");
-    assert_eq!(perft(&position, 7), 14794751816);
+    assert_eq!(perft(&position, 7), 14_794_751_816);
 }
 
 #[test]

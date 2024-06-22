@@ -9,19 +9,22 @@ use core::panic;
 use std::io::{BufRead, Write};
 use std::time::Duration;
 
-use itertools::Itertools;
-
 use crate::chess::core::{Move, Player};
 use crate::chess::position::Position;
 use crate::engine::uci::Command;
-use crate::search::go;
+use crate::search::{find_best_move, Depth};
 
+pub mod openbench;
+mod time_manager;
 mod uci;
 
-/// The Engine connects everything together handles commands sent by UCI server,
-/// including I/O.
+/// The Engine connects everything together and handles commands sent by UCI
+/// server.
 pub struct Engine<'a, R: BufRead, W: Write> {
     position: Position,
+    debug: bool,
+    // TODO: time_manager,
+    // TODO: transposition_table
     input: &'a mut R,
     output: &'a mut W,
 }
@@ -33,18 +36,20 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     pub fn new(input: &'a mut R, output: &'a mut W) -> Self {
         Self {
             position: Position::starting(),
+            debug: false,
             input,
             output,
         }
     }
 
     /// Continuously reads the input stream and executes sent UCI commands until
-    /// "quit" is sent or it is shut down.
+    /// "quit" is sent.
     ///
     /// The implementation here does not aim to be complete and exhaustive,
-    /// because the main goal is to make the engine work in relatively
-    /// simple setups, making it work with all UCI-compatible GUIs and
-    /// corrupted input is not a priority.
+    /// because the main goal is to make the engine work in relatively simple
+    /// setups, making it work with all UCI-compatible GUIs and corrupted input
+    /// is not a priority. For supported commands and their options see
+    /// [`Command`].
     ///
     /// NOTE: The assumption is that the UCI input stream is **correct**. It is
     /// tournament manager's responsibility to send uncorrupted input and make
@@ -65,14 +70,14 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                 },
             }
             match Command::parse(&line) {
-                Command::Uci => self.handle_uci()?,
-                Command::Debug { on } => todo!(),
-                Command::IsReady => self.handle_isready()?,
+                Command::Uci => self.handshake()?,
+                Command::Debug { on } => self.debug = on,
+                Command::IsReady => self.sync()?,
                 Command::SetOption { option, value } => todo!(),
-                Command::SetPosition { fen, moves } => todo!(),
-                Command::NewGame => todo!(),
+                Command::SetPosition { fen, moves } => self.set_position(fen, moves)?,
+                Command::NewGame => self.new_game()?,
                 Command::Go {
-                    depth,
+                    max_depth,
                     wtime,
                     btime,
                     winc,
@@ -81,14 +86,17 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                     mate,
                     movetime,
                     infinite,
-                } => todo!(),
-                Command::Stop => self.handle_stop()?,
+                } => self.go(
+                    max_depth, wtime, btime, winc, binc, nodes, mate, movetime, infinite,
+                )?,
+                Command::Stop => self.stop_search()?,
                 Command::Quit => {
-                    self.handle_stop()?;
+                    self.stop_search()?;
                     break;
                 },
+                Command::State => todo!(),
                 Command::Unknown(command) => {
-                    writeln!(self.output, "info string Unsupported command: {command}")?
+                    writeln!(self.output, "info string Unsupported command: {command}")?;
                 },
             }
         }
@@ -96,7 +104,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     }
 
     /// Responds to the `uci` handshake command by identifying the engine.
-    fn handle_uci(&mut self) -> anyhow::Result<()> {
+    fn handshake(&mut self) -> anyhow::Result<()> {
         writeln!(
             self.output,
             "id name {} {}",
@@ -109,7 +117,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     }
 
     /// Syncs with the UCI server by responding with `readyok`.
-    fn handle_isready(&mut self) -> anyhow::Result<()> {
+    fn sync(&mut self) -> anyhow::Result<()> {
         writeln!(self.output, "readyok")?;
         Ok(())
     }
@@ -125,58 +133,56 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
         Ok(())
     }
 
-    fn handle_ucinewgame(&mut self) -> anyhow::Result<()> {
-        // TODO: Implement this method - reset search state.
+    fn new_game(&mut self) -> anyhow::Result<()> {
+        // TODO: Reset search state.
+        // TODO: Clear transposition table.
+        // TODO: Reset time manager.
         Ok(())
     }
 
     /// Changes the position of the board to the one specified in the command.
-    fn handle_position(
-        &mut self,
-        stream: &mut std::slice::Iter<&str>,
-        tokens: &[&str],
-    ) -> anyhow::Result<()> {
-        match stream.next() {
-            Some(&"startpos") => self.position = Position::starting(),
-            Some(&"fen") => {
-                const FEN_SIZE: usize = 6;
-                const COMMAND_START_SIZE: usize = 2;
-                if tokens.len() < COMMAND_START_SIZE + FEN_SIZE {
-                    writeln!(
-                        self.output,
-                        "info string FEN consists of 6 pieces, got {}",
-                        tokens.len() - 2
-                    )?;
-                }
-                self.position = Position::from_fen(&stream.take(FEN_SIZE).join(" "))?;
-            },
-            _ => writeln!(
-                self.output,
-                "info string Expected `position [fen <fenstring> | startpos]
-                moves <move1> ... <move_i>`, got: {:?}",
-                tokens.join(" ")
-            )?,
-        }
-        if stream.next() == Some(&"moves") {
-            for next_move in stream {
-                match Move::from_uci(next_move) {
-                    Ok(next_move) => self.position.make_move(&next_move),
-                    Err(e) => writeln!(self.output, "info string Unexpected UCI move: {e}")?,
-                }
+    fn set_position(&mut self, fen: Option<String>, moves: Vec<String>) -> anyhow::Result<()> {
+        match fen {
+            Some(fen) => self.position = Position::from_fen(&fen)?,
+            None => self.position = Position::starting(),
+        };
+        for next_move in moves {
+            match Move::from_uci(&next_move) {
+                Ok(next_move) => self.position.make_move(&next_move),
+                Err(_) => unreachable!(),
             }
         }
         Ok(())
     }
 
-    // TODO: Handle: wtime btime winc binc
-    fn handle_go(&mut self, command: Command::Go) -> anyhow::Result<()> {
+    fn go(
+        &mut self,
+        max_depth: Option<Depth>,
+        wtime: Option<Duration>,
+        btime: Option<Duration>,
+        winc: Option<Duration>,
+        binc: Option<Duration>,
+        nodes: Option<usize>,
+        mate: Option<Depth>,
+        movetime: Option<Duration>,
+        infinite: bool,
+    ) -> anyhow::Result<()> {
+        if mate.is_some() {
+            todo!()
+        }
+        let (time, increment) = match self.position.us() {
+            Player::White => (wtime, winc),
+            Player::Black => (btime, binc),
+        };
+        let next_move = find_best_move(&self.position, max_depth, time, self.output);
+        writeln!(self.output, "bestmove {next_move}")?;
         Ok(())
     }
 
     /// Stops the search immediately.
     ///
     /// NOTE: This is a no-op for now.
-    fn handle_stop(&mut self) -> anyhow::Result<()> {
+    fn stop_search(&mut self) -> anyhow::Result<()> {
         // TODO: Implement this method.
         Ok(())
     }

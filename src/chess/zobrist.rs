@@ -24,6 +24,8 @@ impl RepetitionTable {
     }
 
     /// Returns true if the position has occurred 3 times.
+    ///
+    /// In most tournament settings 3-fold repetition counts as a draw.
     #[must_use]
     pub(crate) fn record(&mut self, key: Key) -> bool {
         let count = self.table.entry(key).or_insert(0);

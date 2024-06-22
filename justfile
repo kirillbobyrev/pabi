@@ -25,7 +25,7 @@ fix:
   cargo +nightly clippy --all-features --fix --allow-staged
 
 # Run most tests that are fast and are run by default.
-test_basic:
+test:
   {{ compile_flags }} cargo test --profile=fast
 
 # Run tests that are slow and are not run by default.
@@ -33,7 +33,7 @@ test_slow:
   {{ compile_flags }} cargo test --profile=fast -- --ignored
 
 # Run all tests.
-test: test_basic test_slow
+test_all: test test_slow
 
 bench:
   {{ compile_flags }} cargo bench --profile=fast

@@ -15,10 +15,12 @@ use crate::chess::core::Move;
 use crate::chess::position::Position;
 use crate::evaluation::Score;
 
+mod history;
 pub(crate) mod minimax;
 mod transposition;
 
-type Depth = u8;
+/// Search depth in plies.
+pub type Depth = u8;
 
 /// The search depth does not grow fast and an upper limit is set for improving
 /// performance.
@@ -44,28 +46,38 @@ impl Context {
     }
 }
 
-pub(crate) struct Settings {
-    depth: Option<Depth>,
-    time: Option<Duration>,
+pub(crate) struct Limiter {
+    pub(crate) timer: Instant,
+    pub(crate) depth: Option<Depth>,
+    pub(crate) time: Option<Duration>,
 }
 
 /// Adding reserve time to ensure that the engine does not exceed the time
 /// limit.
-// TODO: Tweak this.
-const RESERVE: Duration = Duration::from_millis(500);
+// TODO: Tweak/tune this.
+const RESERVE: Duration = Duration::from_millis(100);
 
 /// Runs the search algorithm to find the best move under given time
 /// constraints.
-pub fn go(position: &Position, limit: Duration, output: &mut impl Write) -> Move {
-    let timer = Instant::now();
+pub(crate) fn find_best_move(
+    position: &Position,
+    max_depth: Option<Depth>,
+    time: Option<Duration>,
+    output: &mut impl Write,
+) -> Move {
+    let limiter = Limiter {
+        timer: Instant::now(),
+        depth: max_depth,
+        time,
+    };
 
     let mut context = Context::new(position);
 
     let mut best_move = None;
 
-    const MAX_DEPTH: Depth = 8;
+    let max_depth = limiter.depth.unwrap_or(Depth::MAX);
 
-    for depth in 1..MAX_DEPTH {
+    for depth in 1..max_depth {
         let (next_move, score) = find_best_move_and_score(position, depth, &mut context);
 
         best_move = Some(next_move);
@@ -76,12 +88,14 @@ pub fn go(position: &Position, limit: Duration, output: &mut impl Write) -> Move
             score,
             &best_move.unwrap().to_string(),
             context.num_nodes,
-            timer.elapsed().as_millis(),
+            limiter.timer.elapsed().as_millis(),
         )
         .unwrap();
 
-        if timer.elapsed() + RESERVE >= limit {
-            break;
+        if let Some(time_limit) = limiter.time {
+            if limiter.timer.elapsed() + RESERVE >= time_limit {
+                break;
+            }
         }
     }
 
@@ -89,9 +103,10 @@ pub fn go(position: &Position, limit: Duration, output: &mut impl Write) -> Move
         output,
         "info nodes {} nps {}",
         context.num_nodes,
-        (context.num_nodes as f64 / timer.elapsed().as_secs_f64()) as u64,
+        (context.num_nodes as f64 / limiter.timer.elapsed().as_secs_f64()) as u64,
     )
     .unwrap();
+
     best_move.unwrap()
 }
 
@@ -100,13 +115,15 @@ fn find_best_move_and_score(
     depth: Depth,
     context: &mut Context,
 ) -> (Move, Score) {
+    assert!(depth > 0);
+
     context.num_nodes += 1;
 
     let mut best_move = None;
-    let mut best_score = Score::MIN;
+    let mut best_score = -Score::INFINITY;
 
-    let alpha = Score::MIN;
-    let beta = Score::MAX;
+    let alpha = -Score::INFINITY;
+    let beta = Score::INFINITY;
 
     for next_move in position.generate_moves() {
         let mut next_position = position.clone();

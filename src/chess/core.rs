@@ -162,6 +162,21 @@ impl Square {
             Err(_) => None,
         }
     }
+
+    fn next(self) -> Option<Self> {
+        if self as u8 == 63 {
+            None
+        } else {
+            Some(unsafe { mem::transmute(self as u8 + 1) })
+        }
+    }
+
+    /// Creates an iterator over all squares, starting from A1 (0) to H8 (63).
+    #[must_use] pub fn iter() -> SquareIterator {
+        SquareIterator {
+            current: Some(Self::A1),
+        }
+    }
 }
 
 impl TryFrom<u8> for Square {
@@ -214,6 +229,22 @@ impl TryFrom<&str> for Square {
             ),
         };
         Ok(Self::new(file.try_into()?, rank.try_into()?))
+    }
+}
+
+/// Iterates over squares in the order from A1 to H8, from left to right, from
+/// bottom to the top.
+pub struct SquareIterator {
+    current: Option<Square>,
+}
+
+impl Iterator for SquareIterator {
+    type Item = Square;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = self.current;
+        self.current = self.current.and_then(Square::next);
+        result
     }
 }
 
@@ -444,7 +475,7 @@ pub struct Piece {
 }
 
 impl Piece {
-    pub const fn plane(&self) -> usize {
+    #[must_use] pub const fn plane(&self) -> usize {
         self.owner as usize * 6 + self.kind as usize
     }
 }

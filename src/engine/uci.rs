@@ -1,3 +1,7 @@
+use std::time::Duration;
+
+use crate::search::Depth;
+
 #[derive(Debug, PartialEq)]
 pub(super) enum Command {
     Uci,
@@ -15,18 +19,23 @@ pub(super) enum Command {
     },
     NewGame,
     Go {
-        depth: Option<u32>,
-        wtime: Option<u32>,
-        btime: Option<u32>,
-        winc: Option<u32>,
-        binc: Option<u32>,
-        nodes: Option<u32>,
-        mate: Option<u32>,
-        movetime: Option<u32>,
+        max_depth: Option<Depth>,
+        wtime: Option<Duration>,
+        btime: Option<Duration>,
+        winc: Option<Duration>,
+        binc: Option<Duration>,
+        nodes: Option<usize>,
+        mate: Option<Depth>,
+        movetime: Option<Duration>,
         infinite: bool,
     },
     Stop,
     Quit,
+    /// This is an extension to the UCI protocol useful for debugging. The
+    /// response will contain the static evaluation of the current position and
+    /// the engine internal state (current settings, search options,
+    /// transposition table information and so on).
+    State,
     Unknown(String),
 }
 
@@ -44,7 +53,7 @@ pub(super) enum OptionValue {
 }
 
 fn parse_go(parts: &[&str]) -> Command {
-    let mut depth = None;
+    let mut max_depth = None;
     let mut wtime = None;
     let mut btime = None;
     let mut winc = None;
@@ -58,14 +67,24 @@ fn parse_go(parts: &[&str]) -> Command {
 
     while i < parts.len() {
         match parts[i] {
-            "depth" if i + 1 < parts.len() => depth = parts[i + 1].parse().ok(),
-            "wtime" if i + 1 < parts.len() => wtime = parts[i + 1].parse().ok(),
-            "btime" if i + 1 < parts.len() => btime = parts[i + 1].parse().ok(),
-            "winc" if i + 1 < parts.len() => winc = parts[i + 1].parse().ok(),
-            "binc" if i + 1 < parts.len() => binc = parts[i + 1].parse().ok(),
+            "depth" if i + 1 < parts.len() => max_depth = parts[i + 1].parse().ok(),
+            "wtime" if i + 1 < parts.len() => {
+                wtime = parts[i + 1].parse().map(Duration::from_micros).ok();
+            },
+            "btime" if i + 1 < parts.len() => {
+                btime = parts[i + 1].parse().map(Duration::from_micros).ok();
+            },
+            "winc" if i + 1 < parts.len() => {
+                winc = parts[i + 1].parse().map(Duration::from_micros).ok();
+            },
+            "binc" if i + 1 < parts.len() => {
+                binc = parts[i + 1].parse().map(Duration::from_micros).ok();
+            },
             "nodes" if i + 1 < parts.len() => nodes = parts[i + 1].parse().ok(),
             "mate" if i + 1 < parts.len() => mate = parts[i + 1].parse().ok(),
-            "movetime" if i + 1 < parts.len() => movetime = parts[i + 1].parse().ok(),
+            "movetime" if i + 1 < parts.len() => {
+                movetime = parts[i + 1].parse().map(Duration::from_micros).ok();
+            },
             "infinite" => infinite = true,
             _ => {},
         }
@@ -77,7 +96,7 @@ fn parse_go(parts: &[&str]) -> Command {
     }
 
     Command::Go {
-        depth,
+        max_depth,
         wtime,
         btime,
         winc,
@@ -132,7 +151,7 @@ fn parse_setposition(parts: &[&str]) -> Command {
     let moves = if let Some(moves_index) = moves_index {
         parts[moves_index + 1..]
             .iter()
-            .map(|s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect()
     } else {
         vec![]
@@ -145,22 +164,23 @@ impl Command {
         let parts: Vec<&str> = input.split_whitespace().collect();
 
         if parts.is_empty() {
-            return Command::Unknown(input.to_string());
+            return Self::Unknown(input.to_string());
         }
 
         match parts[0] {
-            "uci" => Command::Uci,
-            "debug" if parts.len() > 1 => Command::Debug {
+            "uci" => Self::Uci,
+            "debug" if parts.len() > 1 => Self::Debug {
                 on: parts[1] == "on",
             },
-            "isready" => Command::IsReady,
+            "isready" => Self::IsReady,
             "setoption" => parse_setoption(&parts),
             "position" => parse_setposition(&parts),
-            "ucinewgame" => Command::NewGame,
+            "ucinewgame" => Self::NewGame,
             "go" => parse_go(&parts),
-            "stop" => Command::Stop,
-            "quit" => Command::Quit,
-            _ => Command::Unknown(input.to_string()),
+            "stop" => Self::Stop,
+            "quit" => Self::Quit,
+            "state" => Self::State,
+            _ => Self::Unknown(input.to_string()),
         }
     }
 }
@@ -239,23 +259,23 @@ mod tests {
 
     #[test]
     fn parse_go() {
-        assert_eq!(Command::parse("go depth 20 wtime 300000 btime 300000 winc 10000 binc 10000 nodes 500000 mate 10 movetime 5000 infinite"),
+        assert_eq!(Command::parse("go depth 20 wtime 300000 btime 300000 winc 10000 binc 10000 nodes 500000 movetime 5000"),
             Command::Go {
-                depth: Some(20),
-                wtime: Some(300000),
-                btime: Some(300000),
-                winc: Some(10000),
-                binc: Some(10000),
-                nodes: Some(500000),
-                mate: Some(10),
-                movetime: Some(5000),
-                infinite: true,
+                max_depth: Some(20),
+                wtime: Some(Duration::from_micros(300_000)),
+                btime: Some(Duration::from_micros(300_000)),
+                winc: Some(Duration::from_micros(10000)),
+                binc: Some(Duration::from_micros(10000)),
+                nodes: Some(500_000),
+                mate: None,
+                movetime: Some(Duration::from_micros(5000)),
+                infinite: false,
             });
 
         assert_eq!(
             Command::parse("go depth 10"),
             Command::Go {
-                depth: Some(10),
+                max_depth: Some(10),
                 wtime: None,
                 btime: None,
                 winc: None,
@@ -270,8 +290,8 @@ mod tests {
         assert_eq!(
             Command::parse("go wtime 1000"),
             Command::Go {
-                depth: None,
-                wtime: Some(1000),
+                max_depth: None,
+                wtime: Some(Duration::from_micros(1000)),
                 btime: None,
                 winc: None,
                 binc: None,
@@ -285,7 +305,7 @@ mod tests {
         assert_eq!(
             Command::parse("go infinite"),
             Command::Go {
-                depth: None,
+                max_depth: None,
                 wtime: None,
                 btime: None,
                 winc: None,
@@ -294,6 +314,21 @@ mod tests {
                 mate: None,
                 movetime: None,
                 infinite: true,
+            }
+        );
+
+        assert_eq!(
+            Command::parse("go mate 42"),
+            Command::Go {
+                max_depth: None,
+                wtime: None,
+                btime: None,
+                winc: None,
+                binc: None,
+                nodes: None,
+                mate: Some(42),
+                movetime: None,
+                infinite: false,
             }
         );
     }
@@ -306,6 +341,11 @@ mod tests {
     #[test]
     fn parse_quit() {
         assert_eq!(Command::parse("quit"), Command::Quit);
+    }
+
+    #[test]
+    fn parse_state() {
+        assert_eq!(Command::parse("state"), Command::State);
     }
 
     #[test]

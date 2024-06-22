@@ -25,18 +25,18 @@ struct Args {
     /// Maximum number of samples to extract.
     #[arg(long)]
     limit: Option<usize>,
-    /// Only positions with |eval| <= q_threshold will be kept. Practically,
+    /// Only positions with |eval| <= value_threshold will be kept. Practically,
     /// distinguishing between very high evals shouldn't be very important,
-    /// because if an engine reaches that position, it is likely to be
-    /// winning/losing anyway.
+    /// because if an engine reaches that eval, it is likely to keep the
+    /// advantage and convert to victory or find a checkmate.
     ///
-    /// Q-value to CP conversion formula:
+    /// Value to CP conversion formula:
     ///
-    /// cp = 660.6 * q / (1 - 0.9751875 * q^10)
+    /// cp = 660.6 * v / (1 - 0.9751875 * v^10)
     ///
-    /// q = 0.9 corresponds to cp = 900
+    /// v = 0.9 corresponds to cp = 900
     #[arg(long, default_value_t = 0.9)]
-    q_threshold: f32,
+    value_threshold: f32,
     /// Remove positions with less than min_pieces pieces on the board. This is
     /// useful, because most tournaments allow using 6 man tablebases.
     #[arg(long, default_value_t = 6)]
@@ -162,12 +162,12 @@ fn extract_planes(sample: &V6TrainingData) -> Vec<u64> {
     ]
 }
 
-fn keep_sample(sample: &V6TrainingData, q_threshold: f32, filter_captures: bool) -> bool {
+fn keep_sample(sample: &V6TrainingData, value_threshold: f32, filter_captures: bool) -> bool {
     assert!(sample.version == 6 && sample.input_format == 1);
     if sample.invariance_info & (1 << 6) != 0 {
         return false;
     }
-    if sample.best_q.abs() > q_threshold {
+    if sample.best_q.abs() > value_threshold {
         return false;
     }
 
@@ -238,14 +238,14 @@ fn serialize_sample<W: Write>(sample: &V6TrainingData, out: &mut BufWriter<W>) -
 fn process_archive<W: Write>(
     archive: impl BufRead,
     output: &mut BufWriter<W>,
-    q_threshold: f32,
+    value_threshold: f32,
     filter_captures: bool,
 ) -> io::Result<usize> {
     let mut num_samples = 0;
 
     for sample in extract_training_samples(archive)?
         .into_iter()
-        .filter(|sample| keep_sample(sample, q_threshold, filter_captures))
+        .filter(|sample| keep_sample(sample, value_threshold, filter_captures))
     {
         serialize_sample(&sample, output)?;
         num_samples += 1
@@ -285,7 +285,7 @@ fn main() -> anyhow::Result<()> {
     let total_samples = process_archive(
         io::BufReader::new(archive),
         &mut io::BufWriter::new(out_file),
-        args.q_threshold,
+        args.value_threshold,
         args.filter_captures,
     )?;
     println!("Extracted {:} samples", total_samples);

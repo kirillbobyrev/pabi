@@ -4,13 +4,13 @@ use crate::chess::core::{Piece, Square, BOARD_SIZE};
 use crate::chess::zobrist::Key;
 
 // All keys required for Zobrist hashing of a chess position.
-pub(super) const BLACK_TO_MOVE: Key = 0x9E06BAD39D761293;
+pub(super) const BLACK_TO_MOVE: Key = 0x9E06_BAD3_9D76_1293;
 
-pub(super) const WHITE_CAN_CASTLE_SHORT: Key = 0xF05AC573DD61D323;
-pub(super) const WHITE_CAN_CASTLE_LONG: Key = 0x41D8B55BA5FEB78B;
+pub(super) const WHITE_CAN_CASTLE_SHORT: Key = 0xF05A_C573_DD61_D323;
+pub(super) const WHITE_CAN_CASTLE_LONG: Key = 0x41D8_B55B_A5FE_B78B;
 
-pub(super) const BLACK_CAN_CASTLE_SHORT: Key = 0x680988787A43D289;
-pub(super) const BLACK_CAN_CASTLE_LONG: Key = 0x2F941F8DFD3E3D1F;
+pub(super) const BLACK_CAN_CASTLE_SHORT: Key = 0x6809_8878_7A43_D289;
+pub(super) const BLACK_CAN_CASTLE_LONG: Key = 0x2F94_1F8D_FD3E_3D1F;
 
 pub(super) const EN_PASSANT_FILES: [Key; 8] =
     include!(concat!(env!("OUT_DIR"), "/en_passant_zobrist_keys"));
