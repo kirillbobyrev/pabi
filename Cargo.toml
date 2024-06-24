@@ -94,22 +94,12 @@ name = "cycles"
 harness = false
 name = "time"
 
-# This is not the most perofrmmance-optimized profile. Use `fast` instead. Read
-# BUILDING.md for more information.
-[profile.release]
-panic = "abort"
-# Needed for cargo flamegraph.
-debug = true
-
 # TODO: Test this out once the benchmarks are available and tweak specific
 # values. So far, this gives around -8% on parsing FEN/EPD positions.
-[profile.fast]
-debug = false
+[profile.release]
 codegen-units = 1
-inherits = "release"
 lto = "fat"
+panic = "abort"
 strip = true
-# TODO: Oh-oh, this is dangerous! Maybe measure if it gives any benefits.
-# overflow-checks = false
 # TODO: Tweak inline-threshold.
 # TODO: Set profile-generate and profile-use (https://github.com/kirillbobyrev/pabi/issues/9).

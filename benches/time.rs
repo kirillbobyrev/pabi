@@ -8,11 +8,14 @@ use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
 
 // TODO: Add Throughput.
 fn parse(c: &mut Criterion) {
-    let positions = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/positions.fen"))
-        .unwrap()
-        .lines()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
+    let positions = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/positions.fen"
+    ))
+    .unwrap()
+    .lines()
+    .map(ToString::to_string)
+    .collect::<Vec<_>>();
     c.bench_with_input(
         BenchmarkId::new(
             "stockfish books",
@@ -46,9 +49,12 @@ fn generate_moves(positions: &[Position]) {
 fn movegen_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("Move generation");
     let mut positions = vec![];
-    for line in fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/positions.fen"))
-        .unwrap()
-        .lines()
+    for line in fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/positions.fen"
+    ))
+    .unwrap()
+    .lines()
     {
         positions.push(Position::try_from(line).unwrap());
     }
@@ -69,9 +75,12 @@ fn movegen_bench(c: &mut Criterion) {
     // it's not important to be faster than this but it's an important reference
     // point.
     let mut shakmaty_positions = Vec::<Chess>::new();
-    for line in fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/positions.fen"))
-        .unwrap()
-        .lines()
+    for line in fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/positions.fen"
+    ))
+    .unwrap()
+    .lines()
     {
         let shakmaty_setup: shakmaty::fen::Fen = line.parse().unwrap();
         shakmaty_positions.push(

@@ -10,9 +10,7 @@
 use std::fmt::{self, Write};
 
 use anyhow::{bail, Context};
-use arrayvec::ArrayVec;
 
-use super::zobrist::RepetitionTable;
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
     CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
@@ -60,6 +58,7 @@ pub struct Position {
     halfmove_clock: u8,
     fullmove_counter: u16,
     en_passant_square: Option<Square>,
+    hash: zobrist::Key,
 }
 
 // TODO: Mark more functions as const.
@@ -77,7 +76,7 @@ impl Position {
     /// ```
     #[must_use]
     pub fn starting() -> Self {
-        Self {
+        let mut result = Self {
             white_pieces: Pieces::starting(Player::White),
             black_pieces: Pieces::starting(Player::Black),
             castling: CastleRights::ALL,
@@ -85,7 +84,10 @@ impl Position {
             halfmove_clock: 0,
             fullmove_counter: 1,
             en_passant_square: None,
-        }
+            hash: zobrist::Key::default(),
+        };
+        result.hash = result.compute_hash();
+        result
     }
 
     pub(crate) const fn us(&self) -> Player {
@@ -108,7 +110,7 @@ impl Position {
     // accumulator.
     #[must_use]
     pub fn hash(&self) -> zobrist::Key {
-        self.compute_hash()
+        self.hash
     }
 
     fn occupancy(&self, player: Player) -> Bitboard {
@@ -254,7 +256,7 @@ impl Position {
         let halfmove_clock = halfmove_clock.unwrap_or(0);
         let fullmove_counter = fullmove_counter.unwrap_or(1);
 
-        let result = Self {
+        let mut result = Self {
             white_pieces,
             black_pieces,
             castling,
@@ -262,7 +264,9 @@ impl Position {
             halfmove_clock,
             fullmove_counter,
             en_passant_square,
+            hash: zobrist::Key::default(),
         };
+        result.hash = result.compute_hash();
 
         match validate(&result) {
             Ok(()) => Ok(result),
@@ -416,43 +420,61 @@ impl Position {
     pub fn make_move(&mut self, next_move: &Move) {
         debug_assert!(self.is_legal());
         // TODO: debug_assert!(self.is_legal_move(move));
-        let (us, them) = (self.us(), self.them());
-        let our_backrank = Rank::backrank(us);
-        let (our_pieces, their_pieces) = match self.us() {
-            Player::White => (&mut self.white_pieces, &mut self.black_pieces),
-            Player::Black => (&mut self.black_pieces, &mut self.white_pieces),
-        };
-        let previous_en_passant = self.en_passant_square;
-        self.en_passant_square = None;
-        if us == Player::Black {
+
+        // Increment halfmove clock early: it will be reset on capture or pawn
+        // push.
+        self.halfmove_clock += 1;
+
+        // Reset castling early.
+        match next_move.from {
+            Square::A1 => self.castling.remove(CastleRights::WHITE_LONG),
+            Square::H1 => self.castling.remove(CastleRights::WHITE_SHORT),
+            Square::A8 => self.castling.remove(CastleRights::BLACK_LONG),
+            Square::H8 => self.castling.remove(CastleRights::BLACK_SHORT),
+            _ => (),
+        }
+
+        self.handle_regular_captures(next_move);
+        self.make_pawn_move(next_move);
+        self.make_king_move(next_move);
+        self.make_regular_move(next_move);
+
+        if self.side_to_move == Player::Black {
             self.fullmove_counter += 1;
         }
-        self.halfmove_clock += 1;
-        // NOTE: We reset side_to_move early! To access the moving side, use cached
-        // `us`.
-        self.side_to_move = us.opponent();
-        // Handle captures.
-        if our_pieces.rooks.contains(next_move.from) {
-            match (us, next_move.from) {
-                (Player::White, Square::A1) => self.castling.remove(CastleRights::WHITE_LONG),
-                (Player::White, Square::H1) => self.castling.remove(CastleRights::WHITE_SHORT),
-                (Player::Black, Square::A8) => self.castling.remove(CastleRights::BLACK_LONG),
-                (Player::Black, Square::H8) => self.castling.remove(CastleRights::BLACK_SHORT),
-                _ => (),
-            }
-        }
+
+        self.side_to_move = self.side_to_move.opponent();
+    }
+
+    fn handle_regular_captures(&mut self, next_move: &Move) {
+        let their_pieces = match self.side_to_move.opponent() {
+            Player::White => &mut self.white_pieces,
+            Player::Black => &mut self.black_pieces,
+        };
+
         if their_pieces.all().contains(next_move.to) {
             // Capturing a piece resets the clock.
             self.halfmove_clock = 0;
-            match (them, next_move.to) {
-                (Player::White, Square::H1) => self.castling.remove(CastleRights::WHITE_SHORT),
-                (Player::White, Square::A1) => self.castling.remove(CastleRights::WHITE_LONG),
-                (Player::Black, Square::H8) => self.castling.remove(CastleRights::BLACK_SHORT),
-                (Player::Black, Square::A8) => self.castling.remove(CastleRights::BLACK_LONG),
+            match next_move.to {
+                Square::H1 => self.castling.remove(CastleRights::WHITE_SHORT),
+                Square::A1 => self.castling.remove(CastleRights::WHITE_LONG),
+                Square::H8 => self.castling.remove(CastleRights::BLACK_SHORT),
+                Square::A8 => self.castling.remove(CastleRights::BLACK_LONG),
                 _ => (),
             };
             their_pieces.clear(next_move.to);
         }
+    }
+
+    fn make_pawn_move(&mut self, next_move: &Move) -> bool {
+        let (our_pieces, their_pieces) = match self.side_to_move {
+            Player::White => (&mut self.white_pieces, &mut self.black_pieces),
+            Player::Black => (&mut self.black_pieces, &mut self.white_pieces),
+        };
+
+        let previous_en_passant = self.en_passant_square;
+        self.en_passant_square = None;
+
         if our_pieces.pawns.contains(next_move.from) {
             // Pawn move resets the clock.
             self.halfmove_clock = 0;
@@ -473,47 +495,74 @@ impl Position {
                     Promotion::Bishop => our_pieces.bishops.extend(next_move.to),
                     Promotion::Knight => our_pieces.knights.extend(next_move.to),
                 };
-                return;
+                return true;
             }
             our_pieces.pawns.extend(next_move.to);
-            let single_push_square = next_move.from.shift(us.pawn_push_direction()).unwrap();
-            if next_move.from.rank() == Rank::pawns_starting(us)
+            let single_push_square = next_move
+                .from
+                .shift(self.side_to_move.pawn_push_direction())
+                .unwrap();
+            if next_move.from.rank() == Rank::pawns_starting(self.side_to_move)
                 && next_move.from.file() == next_move.to.file()
                 && single_push_square != next_move.to
                 // Technically, this is not correct: https://github.com/jhlywa/chess.js/issues/294
-                && (their_pieces.pawns & attacks::pawn_attacks(single_push_square, us)).has_any()
+                && (their_pieces.pawns & attacks::pawn_attacks(single_push_square, self.side_to_move)).has_any()
             {
                 self.en_passant_square = Some(single_push_square);
             }
-            return;
+            return true;
         }
-        if our_pieces.king.contains(next_move.from) {
-            // Check if the move is castling.
-            if next_move.from.rank() == our_backrank
-                && next_move.to.rank() == our_backrank
-                && next_move.from.file() == File::E
-            {
-                if next_move.to.file() == File::G {
-                    // TODO: debug_assert!(self.can_castle_short())
-                    our_pieces.rooks.clear(Square::new(File::H, our_backrank));
-                    our_pieces.rooks.extend(Square::new(File::F, our_backrank));
-                } else if next_move.to.file() == File::C {
-                    // TODO: debug_assert!(self.can_castle_long())
-                    our_pieces.rooks.clear(Square::new(File::A, our_backrank));
-                    our_pieces.rooks.extend(Square::new(File::D, our_backrank));
-                }
+
+        false
+    }
+
+    /// Castle or regular king move.
+    fn make_king_move(self: &mut Self, next_move: &Move) -> bool {
+        let our_pieces = match self.side_to_move {
+            Player::White => &mut self.white_pieces,
+            Player::Black => &mut self.black_pieces,
+        };
+
+        if !our_pieces.king.contains(next_move.from) {
+            return false;
+        }
+
+        let backrank = Rank::backrank(self.side_to_move);
+
+        // Check if the move is castling.
+        if next_move.from.rank() == backrank
+            && next_move.to.rank() == backrank
+            && next_move.from.file() == File::E
+        {
+            if next_move.to.file() == File::G {
+                // TODO: debug_assert!(self.can_castle_short())
+                our_pieces.rooks.clear(Square::new(File::H, backrank));
+                our_pieces.rooks.extend(Square::new(File::F, backrank));
+            } else if next_move.to.file() == File::C {
+                // TODO: debug_assert!(self.can_castle_long())
+                our_pieces.rooks.clear(Square::new(File::A, backrank));
+                our_pieces.rooks.extend(Square::new(File::D, backrank));
             }
-            our_pieces.king.clear(next_move.from);
-            our_pieces.king.extend(next_move.to);
-            // The king has moved: reset castling.
-            match us {
-                Player::White => self.castling.remove(CastleRights::WHITE_BOTH),
-                Player::Black => self.castling.remove(CastleRights::BLACK_BOTH),
-            };
-            return;
         }
-        // Regular moves: put the piece from the source to destination. We
-        // already cleared the opponent piece if there was a capture.
+
+        our_pieces.king.clear(next_move.from);
+        our_pieces.king.extend(next_move.to);
+
+        // The king has moved: reset castling.
+        match self.side_to_move {
+            Player::White => self.castling.remove(CastleRights::WHITE_BOTH),
+            Player::Black => self.castling.remove(CastleRights::BLACK_BOTH),
+        };
+
+        true
+    }
+
+    fn make_regular_move(self: &mut Self, next_move: &Move) {
+        let our_pieces = match self.side_to_move {
+            Player::White => &mut self.white_pieces,
+            Player::Black => &mut self.black_pieces,
+        };
+
         for piece in [
             &mut our_pieces.queens,
             &mut our_pieces.rooks,
@@ -581,6 +630,10 @@ impl Position {
 
     /// Computes standard Zobrist hash of the position using pseudo-random
     /// numbers generated during the build stage.
+    ///
+    /// This is not very efficeint and should be only used when a position is
+    /// created. After that the hash should be updated incrementally whenever a
+    /// move is made.
     fn compute_hash(&self) -> zobrist::Key {
         let mut key = 0;
 

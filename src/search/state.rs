@@ -1,8 +1,7 @@
 use arrayvec::ArrayVec;
 
-use crate::chess::{position::Position, zobrist::RepetitionTable};
-
-use super::Depth;
+use crate::chess::position::Position;
+use crate::chess::zobrist::RepetitionTable;
 
 pub(super) struct State {
     position_history: ArrayVec<Position, 256>,
@@ -58,48 +57,51 @@ impl State {
     #[must_use]
     pub(super) fn moves(&self) -> u8 {
         assert!(!self.position_history.is_empty());
-        let plies = self.position_history.len() as u8;
-        // Two plies per move, excluding the root.
-        plies / 2
-    }
-}
-
-/*
-impl PositionHistory {
-    /// Creates an empty position history for new search.
-    #[must_use]
-    pub(crate) fn new() -> Self {
-        Self {
-            history: ArrayVec::new(),
-            repetitions: RepetitionTable::new(),
+        let plies = self.position_history.len();
+        if plies == 1 {
+            // Only the root is present: no moves have been made.
+            0
+        } else {
+            // Two plies per move, excluding the root.
+            plies as u8 / 2
         }
     }
-
-    #[must_use]
-    pub(crate) fn current_position(&self) -> &Position {
-        self.history.last().expect("no positions in history")
-    }
-
-    #[must_use]
-    pub(crate) fn push(&mut self, position: Position) -> bool {
-        let hash = position.hash();
-        self.history.push(position);
-        self.repetitions.record(hash)
-    }
-
-    /// Removes the last position from the history and reduces the number of
-    /// times that position is counted for repretitions.
-    pub(crate) fn pop(&mut self) {
-        let _ = self.history.pop();
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.history.is_empty()
-    }
-
-    pub(crate) fn last(&self) -> &Position {
-        debug_assert!(!self.is_empty());
-        self.history.last().unwrap()
-    }
 }
-*/
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chess::core::Move;
+    use crate::chess::position::Position;
+
+    // #[test]
+    // fn detect_repetition() {
+    //     let mut state = State::new(Position::starting());
+    //     assert_eq!(state.searched_nodes(), 1);
+    //     assert_eq!(state.moves(), 0);
+
+    //     let mut position = Position::starting();
+    //     position.make_move(&Move::from_uci("e2e4").unwrap());
+
+    //     assert!(!state.push(position.clone()));
+    //     assert_eq!(state.searched_nodes(), 2);
+    //     assert_eq!(state.moves(), 1);
+
+    //     assert!(!state.push(position.clone()));
+    //     assert_eq!(state.searched_nodes(), 3);
+    //     assert_eq!(state.moves(), 1);
+
+    //     // 3-fold "repetition" (the same position was pushed multiple times).
+    //     assert!(state.push(position.clone()));
+    //     assert_eq!(state.searched_nodes(), 4);
+    //     assert_eq!(state.moves(), 2);
+
+    //     position.make_move(&Move::from_uci("e7e5").unwrap());
+    //     // Next move is not a repetition.
+    //     assert!(!state.push(position.clone()));
+    //     assert_eq!(state.searched_nodes(), 5);
+    //     assert_eq!(state.moves(), 2);
+
+    //     state.pop();
+    // }
+}

@@ -18,9 +18,12 @@ use std::fs;
 use pabi::chess::position::Position;
 
 fn parse_stockfish_book_positions() {
-    for line in fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/positions.fen"))
-        .unwrap()
-        .lines()
+    for line in fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/positions.fen"
+    ))
+    .unwrap()
+    .lines()
     {
         iai::black_box(Position::try_from(line).expect("benchmarks are given valid positions"));
     }

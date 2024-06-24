@@ -171,8 +171,8 @@ fn no_crash() {
 }
 
 // This test is very expensive in the Debug setting (could take 200+ seconds).
-#[ignore]
 #[test]
+#[ignore]
 fn arbitrary_positions() {
     for serialized_position in fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -518,8 +518,8 @@ fn make_moves() {
 }
 
 // This test is very expensive in the Debug setting (could take 200+ seconds).
-#[ignore]
 #[test]
+#[ignore]
 fn random_positions() {
     for serialized_position in fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -783,8 +783,8 @@ fn perft_promotion_options() {
     assert_eq!(perft(&position, 5), 23744);
 }
 
-#[ignore]
 #[test]
+#[ignore]
 fn perft_cpw_challenge() {
     let position = setup("rnb1kbnr/pp1pp1pp/1qp2p2/8/Q1P5/N7/PP1PPPPP/1RB1KBNR b Kkq - 2 4");
     assert_eq!(perft(&position, 7), 14_794_751_816);

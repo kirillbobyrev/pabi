@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
+use std::num::NonZeroU8;
 use std::ops::Neg;
 
 /// The score represents the relative value of the position (in centipawns) or
@@ -40,13 +41,13 @@ impl Score {
     /// Creates a new score representing player's victory in `moves` *full*
     /// moves.
     #[must_use]
-    pub fn mate(moves: u8) -> Self {
+    pub fn mate(moves: NonZeroU8) -> Self {
         Self {
-            value: Self::INFINITY.value - i32::from(moves),
+            value: Self::INFINITY.value - moves.get() as i32,
         }
     }
 
-    /// Returns the number of moves until mate.
+    /// Returns the number of moves until mate. Positive
     ///
     /// # Panics
     ///
@@ -95,8 +96,8 @@ mod tests {
 
     #[test]
     fn mate() {
-        assert!(Score::mate(42).is_mate());
-        assert_eq!(Score::mate(42).mate_in(), 42);
+        assert!(Score::mate(NonZeroU8::new(42).unwrap()).is_mate());
+        assert_eq!(Score::mate(NonZeroU8::new(42).unwrap()).mate_in(), 42);
     }
 
     #[test]
@@ -114,8 +115,8 @@ mod tests {
         let cp = Score::cp(42);
         assert_eq!(-cp, Score { value: -42 });
 
-        assert_eq!(Score::mate(42).mate_in(), 42);
-        assert_eq!(-Score::mate(42).mate_in(), -42);
+        assert_eq!(Score::mate(NonZeroU8::new(42).unwrap()).mate_in(), 42);
+        assert_eq!(-Score::mate(NonZeroU8::new(42).unwrap()).mate_in(), -42);
     }
 
     #[test]
@@ -123,15 +124,15 @@ mod tests {
         let cp = Score::cp(123);
         assert_eq!(cp.to_string(), "cp 123");
 
-        let mate = Score::mate(3);
+        let mate = Score::mate(NonZeroU8::new(3).unwrap());
         assert_eq!(mate.to_string(), "mate 3");
     }
 
     #[test]
     fn mate_vs_cp() {
-        assert!(Score::mate(42) > Score::cp(42));
-        assert!(-Score::mate(1) < Score::cp(42));
-        assert!(Score::mate(2) > Score::cp(-42));
+        assert!(Score::mate(NonZeroU8::new(42).unwrap()) > Score::cp(42));
+        assert!(-Score::mate(NonZeroU8::new(1).unwrap()) < Score::cp(42));
+        assert!(Score::mate(NonZeroU8::new(2).unwrap()) > Score::cp(-42));
     }
 
     #[test]

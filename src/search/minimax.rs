@@ -6,6 +6,8 @@
 //! [Alpha-Beta pruning]: https://en.wikipedia.org/wiki/Alpha%E2%80%93beta_pruning
 // TODO: Implement move ordering.
 
+use std::num::NonZeroU8;
+
 use crate::evaluation::pesto::evaluate;
 use crate::evaluation::Score;
 use crate::search::state::State;
@@ -15,7 +17,10 @@ pub(super) fn negamax(state: &mut State, depth: u8, alpha: Score, beta: Score) -
 
     if position.is_checkmate() {
         // The player to move is in checkmate.
-        return -Score::mate(state.moves());
+        return -Score::mate(
+            NonZeroU8::new(state.moves())
+                .expect("Can't start negamax at root in checkmate position"),
+        );
     }
 
     if position.is_draw_on_board() {

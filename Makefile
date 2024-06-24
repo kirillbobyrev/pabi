@@ -15,6 +15,6 @@ COMPILE_FLAGS := RUSTFLAGS='-C target-feature=+avx2,+fma,+bmi1,+bmi2'
 
 # Compile the target and add a link to the binary for OpenBench to pick up.
 openbench:
-	$(COMPILE_FLAGS) cargo rustc --profile=fast --bin=pabi -- --emit link=$(EXE)$(EXE_SUFFIX)
+	$(COMPILE_FLAGS) cargo rustc --profile=release --bin=pabi -- --emit link=$(EXE)$(EXE_SUFFIX)
 
 .PHONY: openbench

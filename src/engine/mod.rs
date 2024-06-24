@@ -18,26 +18,30 @@ mod time_manager;
 mod uci;
 
 /// The Engine connects everything together and handles commands sent by UCI
-/// server.
+/// server. It is created when the program is started and implement the "main
+/// loop" via [`Engine::uci_loop`].
 pub struct Engine<'a, R: BufRead, W: Write> {
+    /// Next search will start from this position.
     position: Position,
     debug: bool,
     // TODO: time_manager,
     // TODO: transposition_table
+    /// UCI commands will be read from this stream.
     input: &'a mut R,
-    output: &'a mut W,
+    /// Responses to UCI commands will be written to this stream.
+    out: &'a mut W,
 }
 
 impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     /// Creates a new instance of the engine with starting position and provided
     /// I/O.
     #[must_use]
-    pub fn new(input: &'a mut R, output: &'a mut W) -> Self {
+    pub fn new(input: &'a mut R, out: &'a mut W) -> Self {
         Self {
             position: Position::starting(),
             debug: false,
             input,
-            output,
+            out,
         }
     }
 
@@ -72,7 +76,17 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                 Command::Uci => self.handshake()?,
                 Command::Debug { on } => self.debug = on,
                 Command::IsReady => self.sync()?,
-                Command::SetOption { option, value } => todo!(),
+                Command::SetOption { option, value } => match option {
+                    uci::EngineOption::Hash => match value {
+                        uci::OptionValue::Integer(_) => todo!(),
+                        uci::OptionValue::String(value) => writeln!(
+                            self.out,
+                            "info string Invalid value for Hash option: {value}"
+                        )?,
+                    },
+                    uci::EngineOption::Threads => todo!(),
+                    uci::EngineOption::SyzygyTablebase => todo!(),
+                },
                 Command::SetPosition { fen, moves } => self.set_position(fen, moves)?,
                 Command::NewGame => self.new_game()?,
                 Command::Go {
@@ -95,7 +109,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                 },
                 Command::State => todo!(),
                 Command::Unknown(command) => {
-                    writeln!(self.output, "info string Unsupported command: {command}")?;
+                    writeln!(self.out, "info string Unsupported command: {command}")?;
                 },
             }
         }
@@ -105,30 +119,19 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
     /// Responds to the `uci` handshake command by identifying the engine.
     fn handshake(&mut self) -> anyhow::Result<()> {
         writeln!(
-            self.output,
+            self.out,
             "id name {} {}",
             env!("CARGO_PKG_NAME"),
             crate::engine_version()
         )?;
-        writeln!(self.output, "id author {}", env!("CARGO_PKG_AUTHORS"))?;
-        writeln!(self.output, "uciok")?;
+        writeln!(self.out, "id author {}", env!("CARGO_PKG_AUTHORS"))?;
+        writeln!(self.out, "uciok")?;
         Ok(())
     }
 
     /// Syncs with the UCI server by responding with `readyok`.
     fn sync(&mut self) -> anyhow::Result<()> {
-        writeln!(self.output, "readyok")?;
-        Ok(())
-    }
-
-    /// Sets the engine options. This is a no-op for now. In the future this
-    /// should at least support setting the transposition table size and search
-    /// thread count.
-    fn handle_setoption(&mut self, line: String) -> anyhow::Result<()> {
-        writeln!(
-            self.output,
-            "info string `setoption` is no-op for now: received command {line}"
-        )?;
+        writeln!(self.out, "readyok")?;
         Ok(())
     }
 
@@ -173,8 +176,8 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
             Player::White => (wtime, winc),
             Player::Black => (btime, binc),
         };
-        let next_move = find_best_move(self.position.clone(), max_depth, time, self.output);
-        writeln!(self.output, "bestmove {next_move}")?;
+        let next_move = find_best_move(self.position.clone(), max_depth, time, self.out);
+        writeln!(self.out, "bestmove {next_move}")?;
         Ok(())
     }
 
