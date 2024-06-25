@@ -65,7 +65,7 @@ members = ["tools"]
 [dependencies]
 anyhow = "1.0.83"
 arrayvec = "0.7.2"
-bitflags = "2.2.1"
+bitflags = "2.6.0"
 itertools = "0.13.0"
 shadow-rs = "0.29.0"
 
