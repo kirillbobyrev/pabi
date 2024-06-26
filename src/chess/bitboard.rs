@@ -384,18 +384,6 @@ impl Pieces {
     }
 
     #[must_use]
-    pub(crate) fn bitboard_for(&self, piece: PieceKind) -> &Bitboard {
-        match piece {
-            PieceKind::King => &self.king,
-            PieceKind::Queen => &self.queens,
-            PieceKind::Rook => &self.rooks,
-            PieceKind::Bishop => &self.bishops,
-            PieceKind::Knight => &self.knights,
-            PieceKind::Pawn => &self.pawns,
-        }
-    }
-
-    #[must_use]
     pub(super) fn at(&self, square: Square) -> Option<PieceKind> {
         if self.all().contains(square) {
             let kind = if self.king.contains(square) {

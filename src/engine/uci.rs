@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::search::Depth;
+use crate::mcts::Depth;
 
 #[derive(Debug, PartialEq)]
 pub(super) enum Command {
@@ -24,8 +24,6 @@ pub(super) enum Command {
         btime: Option<Duration>,
         winc: Option<Duration>,
         binc: Option<Duration>,
-        nodes: Option<usize>,
-        mate: Option<Depth>,
         movetime: Option<Duration>,
         infinite: bool,
     },
@@ -58,8 +56,6 @@ fn parse_go(parts: &[&str]) -> Command {
     let mut btime = None;
     let mut winc = None;
     let mut binc = None;
-    let mut nodes = None;
-    let mut mate = None;
     let mut movetime = None;
     let mut infinite = false;
 
@@ -80,8 +76,6 @@ fn parse_go(parts: &[&str]) -> Command {
             "binc" if i + 1 < parts.len() => {
                 binc = parts[i + 1].parse().map(Duration::from_micros).ok();
             },
-            "nodes" if i + 1 < parts.len() => nodes = parts[i + 1].parse().ok(),
-            "mate" if i + 1 < parts.len() => mate = parts[i + 1].parse().ok(),
             "movetime" if i + 1 < parts.len() => {
                 movetime = parts[i + 1].parse().map(Duration::from_micros).ok();
             },
@@ -101,8 +95,6 @@ fn parse_go(parts: &[&str]) -> Command {
         btime,
         winc,
         binc,
-        nodes,
-        mate,
         movetime,
         infinite,
     }
@@ -259,18 +251,20 @@ mod tests {
 
     #[test]
     fn parse_go() {
-        assert_eq!(Command::parse("go depth 20 wtime 300000 btime 300000 winc 10000 binc 10000 nodes 500000 movetime 5000"),
+        assert_eq!(
+            Command::parse(
+                "go depth 20 wtime 300000 btime 300000 winc 10000 binc 10000 movetime 5000"
+            ),
             Command::Go {
                 max_depth: Some(20),
                 wtime: Some(Duration::from_micros(300_000)),
                 btime: Some(Duration::from_micros(300_000)),
                 winc: Some(Duration::from_micros(10000)),
                 binc: Some(Duration::from_micros(10000)),
-                nodes: Some(500_000),
-                mate: None,
                 movetime: Some(Duration::from_micros(5000)),
                 infinite: false,
-            });
+            }
+        );
 
         assert_eq!(
             Command::parse("go depth 10"),
@@ -280,8 +274,6 @@ mod tests {
                 btime: None,
                 winc: None,
                 binc: None,
-                nodes: None,
-                mate: None,
                 movetime: None,
                 infinite: false,
             }
@@ -295,8 +287,6 @@ mod tests {
                 btime: None,
                 winc: None,
                 binc: None,
-                nodes: None,
-                mate: None,
                 movetime: None,
                 infinite: false,
             }
@@ -310,25 +300,8 @@ mod tests {
                 btime: None,
                 winc: None,
                 binc: None,
-                nodes: None,
-                mate: None,
                 movetime: None,
                 infinite: true,
-            }
-        );
-
-        assert_eq!(
-            Command::parse("go mate 42"),
-            Command::Go {
-                max_depth: None,
-                wtime: None,
-                btime: None,
-                winc: None,
-                binc: None,
-                nodes: None,
-                mate: Some(42),
-                movetime: None,
-                infinite: false,
             }
         );
     }

@@ -59,9 +59,6 @@ perf = "deny"
 # invalid_rust_codeblocks = "deny"
 # unescaped_backticks = "deny"
 
-[workspace]
-members = ["tools"]
-
 [dependencies]
 anyhow = "1.0.83"
 arrayvec = "0.7.2"
@@ -70,8 +67,8 @@ itertools = "0.13.0"
 shadow-rs = "0.29.0"
 
 [build-dependencies]
-shadow-rs = "0.29.0"
 rand = "0.8.5"
+shadow-rs = "0.29.0"
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
@@ -81,10 +78,11 @@ criterion = { version = "0.5.1", features = [
   "html_reports",
 ] }
 iai = "0.1.1"
+predicates = "3.1.0"
 pretty_assertions = "1.1.0"
+shadow-rs = "0.29.0"
 # Used for testing and comparing against a reasonable baseline for correctness.
 shakmaty = "0.27.0"
-predicates = "3.1.0"
 
 [[bench]]
 harness = false

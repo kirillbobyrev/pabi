@@ -16,10 +16,10 @@ pub struct Score {
 }
 
 impl Score {
-    pub(crate) const DRAW: Self = Self { value: 0 };
     pub(crate) const INFINITY: Self = Self {
         value: 2_000_000_000,
     };
+
     /// `[-INFINITY, -INFINITY + MATE_RANGE)` and `(INFINITY - MATE_RANGE,
     /// INFINITY]` are reserved for mate scores.
     /// `[-INFINITY + MATE_RANGE, INFINITY - MATE_RANGE]` if for centipawn

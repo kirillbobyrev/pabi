@@ -9,10 +9,12 @@ use core::panic;
 use std::io::{BufRead, Write};
 use std::time::Duration;
 
+use anyhow::bail;
+
 use crate::chess::core::{Move, Player};
 use crate::chess::position::Position;
 use crate::engine::uci::Command;
-use crate::search::{find_best_move, Depth};
+use crate::mcts::{find_best_move, Depth};
 
 mod time_manager;
 mod uci;
@@ -33,8 +35,8 @@ pub struct Engine<'a, R: BufRead, W: Write> {
 }
 
 impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
-    /// Creates a new instance of the engine with starting position and provided
-    /// I/O.
+    /// Creates a new instance of the engine with the starting position as the
+    /// search root.
     #[must_use]
     pub fn new(input: &'a mut R, out: &'a mut W) -> Self {
         Self {
@@ -95,12 +97,10 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                     btime,
                     winc,
                     binc,
-                    nodes,
-                    mate,
                     movetime,
                     infinite,
                 } => self.go(
-                    max_depth, wtime, btime, winc, binc, nodes, mate, movetime, infinite,
+                    max_depth, wtime, btime, winc, binc, movetime, infinite,
                 )?,
                 Command::Stop => self.stop_search()?,
                 Command::Quit => {
@@ -164,13 +164,14 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
         btime: Option<Duration>,
         winc: Option<Duration>,
         binc: Option<Duration>,
-        nodes: Option<usize>,
-        mate: Option<Depth>,
         movetime: Option<Duration>,
         infinite: bool,
     ) -> anyhow::Result<()> {
-        if mate.is_some() {
-            todo!()
+        if infinite && (wtime.is_some() || btime.is_some() || movetime.is_some()) {
+            bail!("Infinite is set, but wtime, btime or movetime is also set");
+        }
+        if movetime.is_some() && (wtime.is_some() || btime.is_some()) {
+            bail!("Movetime is set, but wtime or btime is also set");
         }
         let (time, increment) = match self.position.us() {
             Player::White => (wtime, winc),

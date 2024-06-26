@@ -17,10 +17,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - name: Build the docs
-        # This is developer documentation: include crate-local symbols but don't
-        # build documentation for dependencies since it's unlikely to be useful.
-        run: cargo doc --document-private-items --no-deps
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      - run: just doc
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:

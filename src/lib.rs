@@ -6,15 +6,15 @@
 pub mod chess;
 pub mod engine;
 pub mod evaluation;
-pub mod search;
+pub mod mcts;
 
 pub use engine::Engine;
 use shadow_rs::shadow;
 
 shadow!(build);
 
-/// Build type and target. Produced by `build.rs`.
-const FEATURES: &str = include_str!(concat!(env!("OUT_DIR"), "/features"));
+/// Features the engine is built with (e.g. build type and target). Produced by `build.rs`.
+const BUILD_FEATURES: &str = include_str!(concat!(env!("OUT_DIR"), "/features"));
 
 /// Returns the full engine version that can be used to identify how it was
 /// built in the first place.
@@ -38,7 +38,7 @@ pub fn print_engine_info() {
 /// on engine startup.
 pub fn print_binary_info() {
     println!("Release build: {}", !shadow_rs::is_debug());
-    println!("Features: {FEATURES}");
+    println!("Features: {BUILD_FEATURES}");
     if !shadow_rs::git_clean() {
         println!("Warning: built with uncommitted changes");
     }

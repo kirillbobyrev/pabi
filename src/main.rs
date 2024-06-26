@@ -4,7 +4,7 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() == 2 && args[1] == "bench" {
-        pabi::search::openbench();
+        pabi::mcts::openbench();
         return Ok(());
     }
 

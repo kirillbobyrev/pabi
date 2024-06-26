@@ -7,7 +7,6 @@
 
 pub(crate) mod brain;
 pub(crate) mod features;
-pub(crate) mod pesto;
-mod score;
 
+mod score;
 pub use score::Score;

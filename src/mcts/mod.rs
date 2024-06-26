@@ -14,9 +14,8 @@ use crate::chess::position::Position;
 use crate::evaluation::Score;
 
 mod state;
+mod tree;
 use state::State;
-pub(crate) mod minimax;
-mod transposition;
 
 /// Search depth in plies.
 pub type Depth = u8;
@@ -86,31 +85,7 @@ pub(crate) fn find_best_move(
 }
 
 fn find_best_move_and_score(depth: Depth, state: &mut State) -> (Move, Score) {
-    assert!(depth > 0);
-
-    let mut best_move = None;
-    let mut best_score = -Score::INFINITY;
-
-    let alpha = -Score::INFINITY;
-    let beta = Score::INFINITY;
-
-    for next_move in state.last().generate_moves() {
-        let mut next_position = state.last().clone();
-        next_position.make_move(&next_move);
-
-        let _ = state.push(next_position);
-
-        let score = -minimax::negamax(state, depth - 1, -beta, -alpha);
-
-        state.pop();
-
-        if score >= best_score {
-            best_score = score;
-            best_move = Some(next_move);
-        }
-    }
-
-    (best_move.unwrap(), best_score)
+    todo!()
 }
 
 /// Runs search on a small set of positions to provide an estimate of engine's
@@ -145,7 +120,9 @@ pub fn openbench() {
         ),
     ] {
         let mut state = State::new(position);
-        minimax::negamax(&mut state, depth, -Score::INFINITY, Score::INFINITY);
+
+        todo!();
+
         total_nodes += state.searched_nodes();
     }
 

@@ -74,34 +74,34 @@ mod tests {
     use crate::chess::core::Move;
     use crate::chess::position::Position;
 
-    // #[test]
-    // fn detect_repetition() {
-    //     let mut state = State::new(Position::starting());
-    //     assert_eq!(state.searched_nodes(), 1);
-    //     assert_eq!(state.moves(), 0);
+    #[test]
+    fn detect_repetition() {
+        let mut state = State::new(Position::starting());
+        assert_eq!(state.searched_nodes(), 1);
+        assert_eq!(state.moves(), 0);
 
-    //     let mut position = Position::starting();
-    //     position.make_move(&Move::from_uci("e2e4").unwrap());
+        let mut position = Position::starting();
+        position.make_move(&Move::from_uci("e2e4").unwrap());
 
-    //     assert!(!state.push(position.clone()));
-    //     assert_eq!(state.searched_nodes(), 2);
-    //     assert_eq!(state.moves(), 1);
+        assert!(!state.push(position.clone()));
+        assert_eq!(state.searched_nodes(), 2);
+        assert_eq!(state.moves(), 1);
 
-    //     assert!(!state.push(position.clone()));
-    //     assert_eq!(state.searched_nodes(), 3);
-    //     assert_eq!(state.moves(), 1);
+        assert!(!state.push(position.clone()));
+        assert_eq!(state.searched_nodes(), 3);
+        assert_eq!(state.moves(), 1);
 
-    //     // 3-fold "repetition" (the same position was pushed multiple times).
-    //     assert!(state.push(position.clone()));
-    //     assert_eq!(state.searched_nodes(), 4);
-    //     assert_eq!(state.moves(), 2);
+        // 3-fold "repetition" (the same position was pushed multiple times).
+        assert!(state.push(position.clone()));
+        assert_eq!(state.searched_nodes(), 4);
+        assert_eq!(state.moves(), 2);
 
-    //     position.make_move(&Move::from_uci("e7e5").unwrap());
-    //     // Next move is not a repetition.
-    //     assert!(!state.push(position.clone()));
-    //     assert_eq!(state.searched_nodes(), 5);
-    //     assert_eq!(state.moves(), 2);
+        position.make_move(&Move::from_uci("e7e5").unwrap());
+        // Next move is not a repetition.
+        assert!(!state.push(position.clone()));
+        assert_eq!(state.searched_nodes(), 5);
+        assert_eq!(state.moves(), 2);
 
-    //     state.pop();
-    // }
+        state.pop();
+    }
 }

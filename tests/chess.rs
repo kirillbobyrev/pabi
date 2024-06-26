@@ -831,3 +831,11 @@ fn castling_hash() {
     );
     assert_ne!(initial_hash, position.hash());
 }
+
+#[test]
+fn move_clock_hash() {
+    assert_eq!(
+        setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 0 1").hash(),
+        setup("6qk/8/8/3Pp3/8/8/K7/8 w - - 2 3").hash()
+    );
+}

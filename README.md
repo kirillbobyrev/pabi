@@ -13,8 +13,8 @@ Pabi is a modern chess engine that is currently under development.
 
 ## Goals
 
-Pabi is inspired by existing Chess and Go engines (mainly [Stockfish], [lc0],
-and [KataGo]). It strives to be a high-quality modern engine.
+Pabi is inspired by existing Chess and Go engines (mainly [lc0] and [KataGo]).
+It strives to be a high-quality modern engine.
 
 **Modern**: Pabi should use up-to-date [Rust] toolchain, is targeting modern
 processor architectures, uses latest developments in the domains of programming
@@ -109,8 +109,7 @@ and predicts how good the position is for the player to move.
 
 ##### [`src/search/`](/src/search/)
 
-Implements Minimax [search] with a number of extensions for efficiently reducing
-the search space (Alpha-Beta pruning and its improvements).
+Implements Monte Carlo Tree Search ([MCTS]) and its extensions.
 
 ##### [`src/engine/`](/src/engine/)
 
@@ -149,26 +148,25 @@ fuzzers: writing and running them is highly encouraged.
 - [ ] [Stable]
 - [ ] [Strong]
 
-[Proof of Concept]: https://github.com/kirillbobyrev/pabi/milestone/1
-[Stable]: https://github.com/kirillbobyrev/pabi/milestone/2
-[Strong]: https://github.com/kirillbobyrev/pabi/milestone/3
+[Bitboard]: https://www.chessprogramming.org/Bitboards
+[CCRL rules]: https://computerchess.org.uk/ccrl/404/about.html
 [Computer Chess Championship]: https://www.chess.com/computer-chess-championship
 [Dependabot]: https://github.com/dependabot
+[Fuzzers]: https://en.wikipedia.org/wiki/Fuzzing
 [Fuzzing]: https://en.wikipedia.org/wiki/Fuzzing
 [GitHub Actions]: https://github.com/features/actions
 [KataGo]: https://github.com/lightvector/KataGo
-[Milestones]: https://github.com/kirillbobyrev/pabi/milestones
-[Rust]: https://www.rust-lang.org/
-[Stockfish]: https://stockfishchess.org/
-[TCEC]: https://tcec-chess.com/
-[lc0]: https://lczero.org/
-[rustdoc]: https://doc.rust-lang.org/rustdoc
-[Bitboard]: https://www.chessprogramming.org/Bitboards
-[search]: https://www.chessprogramming.org/Search
-[position evaluation]: https://www.chessprogramming.org/Evaluation
-[Fuzzers]: https://en.wikipedia.org/wiki/Fuzzing
-[Universal Chess Interface]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
+[MCTS]: https://en.wikipedia.org/wiki/Monte_Carlo_tree_search
 [Magic Bitboards]: https://www.chessprogramming.org/Magic_Bitboards
-[vector attacks]: https://www.chessprogramming.org/Vector_Attacks
-[CCRL rules]: https://computerchess.org.uk/ccrl/404/about.html
+[Milestones]: https://github.com/kirillbobyrev/pabi/milestones
+[Proof of Concept]: https://github.com/kirillbobyrev/pabi/milestone/1
+[Rust]: https://www.rust-lang.org/
+[Stable]: https://github.com/kirillbobyrev/pabi/milestone/2
+[Strong]: https://github.com/kirillbobyrev/pabi/milestone/3
+[TCEC]: https://tcec-chess.com/
+[Universal Chess Interface]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
 [Zobrist hashing]: https://www.chessprogramming.org/Zobrist_Hashing
+[lc0]: https://lczero.org/
+[position evaluation]: https://www.chessprogramming.org/Evaluation
+[rustdoc]: https://doc.rust-lang.org/rustdoc
+[vector attacks]: https://www.chessprogramming.org/Vector_Attacks

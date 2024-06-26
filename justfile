@@ -48,6 +48,10 @@ fuzz target:
   cd fuzz
   {{ compile_flags }} cargo +nightly --profile=release fuzz run {{ target }}
 
+# Build developer documentation.
+doc:
+  cargo doc --document-private-items --no-deps
+
 # Play a single game between two engine versions in 2'+1'' format and save the
 # game PGN.
 play engine1_cmd engine2_cmd outfile:

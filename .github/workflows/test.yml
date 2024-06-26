@@ -36,4 +36,4 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: just
-      - run: just test
+      - run: just test_all
