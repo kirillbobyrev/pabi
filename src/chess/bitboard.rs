@@ -37,7 +37,7 @@ use crate::chess::core::{Direction, PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 /// Bitboard is a thin wrapper around [u64]:
 ///
 /// ```
-/// use crate::chess::bitboard::Bitboard;
+/// use pabi::chess::bitboard::Bitboard;
 /// use std::mem::size_of;
 ///
 /// assert_eq!(size_of::<Bitboard>(), 8);
