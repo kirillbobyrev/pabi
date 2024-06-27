@@ -1,43 +1,10 @@
-//! Criterion benchmarks measure time of the clearly separated pieces of code.
+//! Criterion benchmarks measure time of move generation and perft calculation.
 
 use std::fs;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pabi::chess::position::Position;
 use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
-
-// TODO: Add Throughput.
-fn parse(c: &mut Criterion) {
-    let positions = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/data/positions.fen"
-    ))
-    .unwrap()
-    .lines()
-    .map(ToString::to_string)
-    .collect::<Vec<_>>();
-    c.bench_with_input(
-        BenchmarkId::new(
-            "stockfish books",
-            format!("{} arbitrary positions", positions.len()),
-        ),
-        &positions,
-        |b, positions| {
-            b.iter(|| {
-                for position in positions {
-                    let pos = Position::try_from(position.as_str());
-                    assert!(pos.is_ok());
-                }
-            });
-        },
-    );
-}
-
-criterion_group! {
-    name = position_parsing;
-    config = Criterion::default().sample_size(10);
-    targets = parse
-}
 
 fn generate_moves(positions: &[Position]) {
     for position in positions {
@@ -182,4 +149,4 @@ criterion_group! {
     targets = perft_bench
 }
 
-criterion_main!(position_parsing, movegen, perft);
+criterion_main!(movegen, perft);

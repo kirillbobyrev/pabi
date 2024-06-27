@@ -8,5 +8,4 @@
 pub(crate) mod brain;
 pub(crate) mod features;
 
-mod score;
-pub use score::Score;
+pub type QValue = f32;

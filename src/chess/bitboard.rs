@@ -24,7 +24,7 @@ use std::{fmt, mem};
 
 use itertools::Itertools;
 
-use super::core::Player;
+use super::core::Color;
 use crate::chess::core::{Direction, PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
@@ -34,7 +34,13 @@ use crate::chess::core::{Direction, PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 /// Mirroring [`Square`] semantics, the least significant bit corresponds to
 /// [`Square::A1`], and the most significant bit - to [`Square::H8`].
 ///
-/// Bitboard is a thin wrapper around [u64].
+/// Bitboard is a thin wrapper around [u64]:
+///
+/// ```
+/// use mem::size_of;
+///
+/// assert_eq!(size_of::<Bitboard>(), 8);
+/// ```
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Bitboard {
     bits: u64,
@@ -253,11 +259,6 @@ impl From<Square> for Bitboard {
 /// [bitscan] forward operation.
 ///
 /// [bitscan]: https://www.chessprogramming.org/BitScan
-// TODO: Try De Brujin Multiplication and see if it's faster (via benchmarks)
-// than trailing zeros as reported by some developers (even though intuitively
-// trailing zeros should be much faster because it would compile to a processor
-// instruction):
-// https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication
 pub(super) struct BitboardIterator {
     bits: u64,
 }
@@ -271,10 +272,11 @@ impl Iterator for BitboardIterator {
         }
         // Get the LS1B and consume it from the iterator.
         let next_index = self.bits.trailing_zeros();
-        self.bits ^= 1 << next_index;
+        // Clear LS1B.
+        self.bits &= self.bits - 1;
         // For performance reasons, it's better to convert directly: the
         // conversion is safe because trailing_zeros() will return a number in
-        // 0..64 range.
+        // the 0..64 range.
         Some(unsafe { mem::transmute(next_index as u8) })
     }
 }
@@ -303,14 +305,12 @@ impl TryInto<Square> for Bitboard {
 /// [Bitboard] to store a set of squares occupied by each piece. The main user
 /// is [`crate::chess::position::Position`], [Bitboard] is not very useful on
 /// its own.
-// TODO: Implement iterator over all pieces.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Pieces {
     pub(super) king: Bitboard,
     pub(super) queens: Bitboard,
     pub(super) rooks: Bitboard,
     pub(super) bishops: Bitboard,
-    // TODO: Store "all" instead?
     pub(super) knights: Bitboard,
     pub(super) pawns: Bitboard,
 }
@@ -327,9 +327,9 @@ impl Pieces {
         }
     }
 
-    pub(super) fn starting(player: Player) -> Self {
-        match player {
-            Player::White => Self {
+    pub(super) fn starting(color: Color) -> Self {
+        match color {
+            Color::White => Self {
                 king: Square::E1.into(),
                 queens: Square::D1.into(),
                 rooks: Bitboard::from_squares(&[Square::A1, Square::H1]),
@@ -346,7 +346,7 @@ impl Pieces {
                     Square::H2,
                 ]),
             },
-            Player::Black => Self {
+            Color::Black => Self {
                 king: Square::E8.into(),
                 queens: Square::D8.into(),
                 rooks: Bitboard::from_squares(&[Square::A8, Square::H8]),
@@ -403,20 +403,10 @@ impl Pieces {
         }
         None
     }
-
-    pub(super) fn clear(&mut self, square: Square) {
-        self.king.clear(square);
-        self.queens.clear(square);
-        self.rooks.clear(square);
-        self.bishops.clear(square);
-        self.knights.clear(square);
-        self.pawns.clear(square);
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use mem::size_of;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -424,7 +414,6 @@ mod tests {
 
     #[test]
     fn basics() {
-        assert_eq!(size_of::<Bitboard>(), 8);
         assert_eq!(Bitboard::full().bits, u64::MAX);
         assert_eq!(Bitboard::empty().bits, u64::MIN);
 
@@ -442,10 +431,10 @@ mod tests {
     #[test]
     fn set_basics() {
         // Create a starting position.
-        let white = Pieces::starting(Player::White);
-        let black = Pieces::starting(Player::Black);
+        let white = Pieces::starting(Color::White);
+        let black = Pieces::starting(Color::Black);
 
-        // Check that each player has 16 pieces.
+        // Check that each color has 16 pieces.
         assert_eq!(white.all().bits.count_ones(), 16);
         assert_eq!(black.all().bits.count_ones(), 16);
         // Check that each player has correct number of pieces (previous check
@@ -477,7 +466,7 @@ mod tests {
 
     #[test]
     fn bitboard_iterator() {
-        let white = Pieces::starting(Player::White);
+        let white = Pieces::starting(Color::White);
 
         let mut it = white.king.iter();
         assert_eq!(it.next(), Some(Square::E1));
@@ -624,8 +613,8 @@ mod tests {
 
     #[test]
     fn set_dump() {
-        let white = Pieces::starting(Player::White);
-        let black = Pieces::starting(Player::Black);
+        let white = Pieces::starting(Color::White);
+        let black = Pieces::starting(Color::Black);
 
         assert_eq!(
             format!("{:?}", black.all()),

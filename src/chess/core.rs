@@ -20,9 +20,7 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 /// representation. The moves can also be indexed and fed as an input to the
 /// Neural Network evaluators that would be able assess their potential without
 /// evaluating post-states.
-// TODO: Implement bijection for a move and a numeric index for lc0 purposes.
-// TODO: Switch this to an enum representation (regular, en passant, castling) or add flag.
-// TODO: Switch to a more compact representation so that Transposition Table can grow larger.
+// TODO: Compress the representation to reduce memory footprint.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Move {
     pub(super) from: Square,
@@ -52,22 +50,19 @@ impl TryFrom<&str> for Move {
     type Error = anyhow::Error;
 
     fn try_from(uci: &str) -> anyhow::Result<Self> {
-        if uci.len() < 4 || uci.len() > 5 {
-            bail!("UCI move should be 4 or 5 characters long, got {uci}");
+        match uci.len() {
+            4 => Ok(Self::new(
+                Square::try_from(&uci[..2])?,
+                Square::try_from(&uci[2..4])?,
+                None,
+            )),
+            5 => Ok(Self::new(
+                Square::try_from(&uci[..2])?,
+                Square::try_from(&uci[2..4])?,
+                Some(Promotion::from(uci.chars().nth(4).unwrap())),
+            )),
+            _ => bail!("UCI move should be 4 or 5 characters long, got {uci}"),
         }
-        let from = Square::try_from(&uci[..2])?;
-        let to = Square::try_from(&uci[2..4])?;
-        let promotion = match uci.len() {
-            5 => Some(match &uci[4..5] {
-                "q" => Promotion::Queen,
-                "r" => Promotion::Rook,
-                "b" => Promotion::Bishop,
-                "n" => Promotion::Knight,
-                _ => bail!("unknown promotion piece, has to be in 'qrbn': {uci}"),
-            }),
-            _ => None,
-        };
-        Ok(Self::new(from, to, promotion))
     }
 }
 
@@ -276,8 +271,6 @@ impl fmt::Display for File {
     }
 }
 
-// TODO: Here and in Rank: implement From<u8> and see whether/how much faster it
-// is than the safe checked version.
 impl TryFrom<char> for File {
     type Error = anyhow::Error;
 
@@ -333,17 +326,17 @@ impl Rank {
         }
     }
 
-    pub(super) const fn backrank(player: Player) -> Self {
-        match player {
-            Player::White => Self::One,
-            Player::Black => Self::Eight,
+    pub(super) const fn backrank(color: Color) -> Self {
+        match color {
+            Color::White => Self::One,
+            Color::Black => Self::Eight,
         }
     }
 
-    pub(super) const fn pawns_starting(player: Player) -> Self {
-        match player {
-            Player::White => Self::Two,
-            Player::Black => Self::Seven,
+    pub(super) const fn pawns_starting(color: Color) -> Self {
+        match color {
+            Color::White => Self::Two,
+            Color::Black => Self::Seven,
         }
     }
 }
@@ -380,12 +373,12 @@ impl fmt::Display for Rank {
 /// advantage of the first turn) and Black.
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Player {
+pub enum Color {
     White,
     Black,
 }
 
-impl Player {
+impl Color {
     /// "Flips" the color.
     #[must_use]
     pub const fn opponent(self) -> Self {
@@ -403,19 +396,19 @@ impl Player {
     }
 }
 
-impl TryFrom<&str> for Player {
+impl TryFrom<&str> for Color {
     type Error = anyhow::Error;
 
-    fn try_from(player: &str) -> anyhow::Result<Self> {
-        match player {
+    fn try_from(color: &str) -> anyhow::Result<Self> {
+        match color {
             "w" => Ok(Self::White),
             "b" => Ok(Self::Black),
-            _ => bail!("player should be 'w' or 'b', got '{player}'"),
+            _ => bail!("color should be 'w' or 'b', got '{color}'"),
         }
     }
 }
 
-impl fmt::Display for Player {
+impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -469,7 +462,7 @@ impl fmt::Display for PieceKind {
 /// Represents a specific piece owned by a player.
 pub struct Piece {
     #[allow(missing_docs)]
-    pub owner: Player,
+    pub owner: Color,
     #[allow(missing_docs)]
     pub kind: PieceKind,
 }
@@ -487,51 +480,51 @@ impl TryFrom<char> for Piece {
     fn try_from(symbol: char) -> anyhow::Result<Self> {
         match symbol {
             'K' => Ok(Self {
-                owner: Player::White,
+                owner: Color::White,
                 kind: PieceKind::King,
             }),
             'Q' => Ok(Self {
-                owner: Player::White,
+                owner: Color::White,
                 kind: PieceKind::Queen,
             }),
             'R' => Ok(Self {
-                owner: Player::White,
+                owner: Color::White,
                 kind: PieceKind::Rook,
             }),
             'B' => Ok(Self {
-                owner: Player::White,
+                owner: Color::White,
                 kind: PieceKind::Bishop,
             }),
             'N' => Ok(Self {
-                owner: Player::White,
+                owner: Color::White,
                 kind: PieceKind::Knight,
             }),
             'P' => Ok(Self {
-                owner: Player::White,
+                owner: Color::White,
                 kind: PieceKind::Pawn,
             }),
             'k' => Ok(Self {
-                owner: Player::Black,
+                owner: Color::Black,
                 kind: PieceKind::King,
             }),
             'q' => Ok(Self {
-                owner: Player::Black,
+                owner: Color::Black,
                 kind: PieceKind::Queen,
             }),
             'r' => Ok(Self {
-                owner: Player::Black,
+                owner: Color::Black,
                 kind: PieceKind::Rook,
             }),
             'b' => Ok(Self {
-                owner: Player::Black,
+                owner: Color::Black,
                 kind: PieceKind::Bishop,
             }),
             'n' => Ok(Self {
-                owner: Player::Black,
+                owner: Color::Black,
                 kind: PieceKind::Knight,
             }),
             'p' => Ok(Self {
-                owner: Player::Black,
+                owner: Color::Black,
                 kind: PieceKind::Pawn,
             }),
             _ => bail!("piece symbol should be within \"KQRBNPkqrbnp\", got '{symbol}'"),
@@ -542,20 +535,20 @@ impl TryFrom<char> for Piece {
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_char(match (&self.owner, &self.kind) {
-            // White player: uppercase symbols.
-            (Player::White, PieceKind::King) => 'K',
-            (Player::White, PieceKind::Queen) => 'Q',
-            (Player::White, PieceKind::Rook) => 'R',
-            (Player::White, PieceKind::Bishop) => 'B',
-            (Player::White, PieceKind::Knight) => 'N',
-            (Player::White, PieceKind::Pawn) => 'P',
-            // Black player: lowercase symbols.
-            (Player::Black, PieceKind::King) => 'k',
-            (Player::Black, PieceKind::Queen) => 'q',
-            (Player::Black, PieceKind::Rook) => 'r',
-            (Player::Black, PieceKind::Bishop) => 'b',
-            (Player::Black, PieceKind::Knight) => 'n',
-            (Player::Black, PieceKind::Pawn) => 'p',
+            // White: uppercase symbols.
+            (Color::White, PieceKind::King) => 'K',
+            (Color::White, PieceKind::Queen) => 'Q',
+            (Color::White, PieceKind::Rook) => 'R',
+            (Color::White, PieceKind::Bishop) => 'B',
+            (Color::White, PieceKind::Knight) => 'N',
+            (Color::White, PieceKind::Pawn) => 'P',
+            // Black: lowercase symbols.
+            (Color::Black, PieceKind::King) => 'k',
+            (Color::Black, PieceKind::Queen) => 'q',
+            (Color::Black, PieceKind::Rook) => 'r',
+            (Color::Black, PieceKind::Bishop) => 'b',
+            (Color::Black, PieceKind::Knight) => 'n',
+            (Color::Black, PieceKind::Pawn) => 'p',
         })
     }
 }
@@ -694,6 +687,18 @@ pub(crate) enum Promotion {
     Rook,
     Bishop,
     Knight,
+}
+
+impl From<char> for Promotion {
+    fn from(c: char) -> Self {
+        match c {
+            'q' => Self::Queen,
+            'r' => Self::Rook,
+            'b' => Self::Bishop,
+            'n' => Self::Knight,
+            _ => unreachable!("unknown promotion piece, has to be in 'qrbn': {c}"),
+        }
+    }
 }
 
 /// Directions on the board from a perspective of White player.

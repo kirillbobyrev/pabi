@@ -13,7 +13,7 @@ use anyhow::{bail, Context};
 
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights, File, Move, MoveList, Piece, Player, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights, File, Move, MoveList, Piece, Color, Promotion, Rank, Square, BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 
@@ -48,7 +48,7 @@ pub struct Position {
     white_pieces: Pieces,
     black_pieces: Pieces,
     castling: CastleRights,
-    side_to_move: Player,
+    side_to_move: Color,
     /// [Halfmove Clock][^ply] keeps track of the number of halfmoves since the
     /// last capture or pawn move and is used to enforce fifty[^fifty]-move draw
     /// rule.
@@ -79,10 +79,10 @@ impl Position {
     #[must_use]
     pub fn starting() -> Self {
         let mut result = Self {
-            white_pieces: Pieces::starting(Player::White),
-            black_pieces: Pieces::starting(Player::Black),
+            white_pieces: Pieces::starting(Color::White),
+            black_pieces: Pieces::starting(Color::Black),
             castling: CastleRights::ALL,
-            side_to_move: Player::White,
+            side_to_move: Color::White,
             halfmove_clock: 0,
             fullmove_counter: 1,
             en_passant_square: None,
@@ -92,18 +92,18 @@ impl Position {
         result
     }
 
-    pub(crate) const fn us(&self) -> Player {
+    pub(crate) const fn us(&self) -> Color {
         self.side_to_move
     }
 
-    pub(crate) fn them(&self) -> Player {
+    pub(crate) fn them(&self) -> Color {
         self.us().opponent()
     }
 
-    pub(crate) fn pieces(&self, player: Player) -> &Pieces {
-        match player {
-            Player::White => &self.white_pieces,
-            Player::Black => &self.black_pieces,
+    pub(crate) fn pieces(&self, color : Color) -> &Pieces {
+        match color {
+            Color::White => &self.white_pieces,
+            Color::Black => &self.black_pieces,
         }
     }
 
@@ -113,8 +113,8 @@ impl Position {
         self.hash
     }
 
-    fn occupancy(&self, player: Player) -> Bitboard {
-        self.pieces(player).all()
+    fn occupancy(&self, color: Color) -> Bitboard {
+        self.pieces(color).all()
     }
 
     fn occupied_squares(&self) -> Bitboard {
@@ -186,8 +186,8 @@ impl Position {
                 match Piece::try_from(symbol) {
                     Ok(piece) => {
                         let pieces = match piece.owner {
-                            Player::White => &mut white_pieces,
-                            Player::Black => &mut black_pieces,
+                            Color::White => &mut white_pieces,
+                            Color::Black => &mut black_pieces,
                         };
                         let square = Square::new(file.try_into()?, rank);
                         *pieces.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
@@ -317,7 +317,6 @@ impl Position {
     // TODO: Check movegen comparison (https://github.com/Gigantua/Chess_Movegen).
     // TODO: Use monomorphization to generate code for calculating attacks for both sides to reduce
     // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
-    // TODO: Split into subroutines so that it's easier to tune performance.
     #[must_use]
     pub fn generate_moves(&self) -> MoveList {
         let mut moves = MoveList::new();
@@ -431,7 +430,7 @@ impl Position {
         self.make_king_move(next_move);
         self.make_regular_move(next_move);
 
-        if self.side_to_move == Player::Black {
+        if self.side_to_move == Color::Black {
             self.fullmove_counter += 1;
         }
 
@@ -479,8 +478,8 @@ impl Position {
 
     fn handle_capture(&mut self, next_move: &Move) {
         let their_pieces = match self.side_to_move.opponent() {
-            Player::White => &mut self.white_pieces,
-            Player::Black => &mut self.black_pieces,
+            Color::White => &mut self.white_pieces,
+            Color::Black => &mut self.black_pieces,
         };
 
         // TODO: Update the hash.
@@ -514,8 +513,8 @@ impl Position {
 
     fn make_pawn_move(&mut self, next_move: &Move) -> bool {
         let (our_pieces, their_pieces) = match self.side_to_move {
-            Player::White => (&mut self.white_pieces, &mut self.black_pieces),
-            Player::Black => (&mut self.black_pieces, &mut self.white_pieces),
+            Color::White => (&mut self.white_pieces, &mut self.black_pieces),
+            Color::Black => (&mut self.black_pieces, &mut self.white_pieces),
         };
 
         let previous_en_passant = self.en_passant_square;
@@ -632,8 +631,8 @@ impl Position {
     // TODO: Merge with the other castling rights handler.
     fn make_king_move(self: &mut Self, next_move: &Move) -> bool {
         let our_pieces = match self.side_to_move {
-            Player::White => &mut self.white_pieces,
-            Player::Black => &mut self.black_pieces,
+            Color::White => &mut self.white_pieces,
+            Color::Black => &mut self.black_pieces,
         };
 
         if !our_pieces.king.contains(next_move.from) {
@@ -710,8 +709,8 @@ impl Position {
 
     fn make_regular_move(self: &mut Self, next_move: &Move) {
         let our_pieces = match self.side_to_move {
-            Player::White => &mut self.white_pieces,
-            Player::Black => &mut self.black_pieces,
+            Color::White => &mut self.white_pieces,
+            Color::Black => &mut self.black_pieces,
         };
 
         for (bitboard, kind) in [
@@ -780,13 +779,13 @@ impl Position {
     pub(crate) fn at(&self, square: Square) -> Option<Piece> {
         if let Some(kind) = self.white_pieces.at(square) {
             return Some(Piece {
-                owner: Player::White,
+                owner: Color::White,
                 kind,
             });
         }
         if let Some(kind) = self.black_pieces.at(square) {
             return Some(Piece {
-                owner: Player::Black,
+                owner: Color::Black,
                 kind,
             });
         }
@@ -802,7 +801,7 @@ impl Position {
     fn compute_hash(&self) -> zobrist::Key {
         let mut key = 0;
 
-        if self.side_to_move == Player::Black {
+        if self.side_to_move == Color::Black {
             key ^= generated::BLACK_TO_MOVE;
         }
 
@@ -999,8 +998,8 @@ fn validate(position: &Position) -> anyhow::Result<()> {
     }
     if let Some(en_passant_square) = position.en_passant_square {
         let expected_rank = match position.side_to_move {
-            Player::White => Rank::Six,
-            Player::Black => Rank::Three,
+            Color::White => Rank::Six,
+            Color::Black => Rank::Three,
         };
         if en_passant_square.rank() != expected_rank {
             bail!(
@@ -1129,8 +1128,8 @@ fn generate_bishop_moves(
 
 fn generate_pawn_moves(
     pawns: Bitboard,
-    us: Player,
-    them: Player,
+    us: Color,
+    them: Color,
     their_pieces: &Pieces,
     their_occupancy: Bitboard,
     their_or_empty: Bitboard,
@@ -1248,7 +1247,7 @@ fn generate_pawn_moves(
 }
 
 fn generate_castle_moves(
-    us: Player,
+    us: Color,
     checkers: Bitboard,
     castling: CastleRights,
     attacks: Bitboard,
@@ -1259,7 +1258,7 @@ fn generate_castle_moves(
     // TODO: In FCR we should check if the rook is pinned or not.
     if checkers.is_empty() {
         match us {
-            Player::White => {
+            Color::White => {
                 if castling.contains(CastleRights::WHITE_SHORT)
                     && (attacks & attacks::WHITE_SHORT_CASTLE_KING_WALK).is_empty()
                     && (occupied_squares
@@ -1283,7 +1282,7 @@ fn generate_castle_moves(
                     }
                 }
             },
-            Player::Black => {
+            Color::Black => {
                 if castling.contains(CastleRights::BLACK_SHORT)
                     && (attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
                     && (occupied_squares

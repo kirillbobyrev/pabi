@@ -9,6 +9,7 @@ pub mod evaluation;
 pub mod mcts;
 
 pub use engine::Engine;
+use shadow_rs;
 use shadow_rs::shadow;
 
 shadow!(build);
@@ -27,7 +28,7 @@ fn engine_version() -> String {
     )
 }
 
-/// Prints informations about the engine version, author and GitHub repository
+/// Prints information about the engine version, author and GitHub repository
 /// on engine startup.
 pub fn print_engine_info() {
     println!("Pabi chess engine {}", engine_version());

@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use anyhow::bail;
 
-use crate::chess::core::{Move, Player};
+use crate::chess::core::{Move, Color};
 use crate::chess::position::Position;
 use crate::engine::uci::Command;
 use crate::mcts::{find_best_move, Depth};
@@ -174,8 +174,8 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
             bail!("Movetime is set, but wtime or btime is also set");
         }
         let (time, increment) = match self.position.us() {
-            Player::White => (wtime, winc),
-            Player::Black => (btime, binc),
+            Color::White => (wtime, winc),
+            Color::Black => (btime, binc),
         };
         let next_move = find_best_move(self.position.clone(), max_depth, time, self.out);
         writeln!(self.out, "bestmove {next_move}")?;

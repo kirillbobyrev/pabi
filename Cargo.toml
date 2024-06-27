@@ -77,7 +77,6 @@ criterion = { version = "0.5.1", features = [
   "csv_output",
   "html_reports",
 ] }
-iai = "0.1.1"
 predicates = "3.1.0"
 pretty_assertions = "1.1.0"
 shadow-rs = "0.29.0"
@@ -86,11 +85,7 @@ shakmaty = "0.27.0"
 
 [[bench]]
 harness = false
-name = "cycles"
-
-[[bench]]
-harness = false
-name = "time"
+name = "perft"
 
 # TODO: Test this out once the benchmarks are available and tweak specific
 # values. So far, this gives around -8% on parsing FEN/EPD positions.
