@@ -6,7 +6,7 @@ build:
 
 # Runs the engine and enters UCI mode.
 run:
-  cargo run --profile=release
+  cargo run --profile=release --bin=pabi
 
 # Format all code.
 fmt:

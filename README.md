@@ -13,8 +13,9 @@ Pabi is a modern chess engine that is currently under development.
 
 ## Goals
 
-Pabi is inspired by existing Chess and Go engines (mainly [lc0] and [KataGo]).
-It strives to be a high-quality modern engine.
+Pabi is inspired by existing Chess and Go engines (mainly [lc0] and [KataGo]),
+and the research that they are based on ([AlphaZero], [MuZero] and [MCTS]). Pabi
+strives to be a high-quality modern engine.
 
 **Modern**: Pabi should use up-to-date [Rust] toolchain, is targeting modern
 processor architectures, uses latest developments in the domains of programming

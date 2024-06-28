@@ -18,6 +18,6 @@ pub trait Action: Sized {
 /// Standard gym-like Reinforcement Learning environment interface.
 pub trait Environment<A: Action, O: Observation>: Sized {
     fn actions(&self) -> &[A];
-    fn apply(&mut self, action: impl Action) -> O;
+    fn apply(&mut self, action: &A) -> &O;
     fn result(&self) -> Option<GameResult>;
 }

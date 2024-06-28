@@ -1,5 +1,7 @@
+use crate::{environment::Action, evaluation::QValue};
+
 struct Tree {
-    root: Node,
+    nodes: Vec<Node>,
 }
 
 type NodeIndex = usize;
@@ -11,6 +13,22 @@ const TOMBSTONE_PARENT: NodeIndex = usize::MAX;
 struct Node {
     parent: NodeIndex,
     children: Vec<NodeIndex>,
-    wins: u32,
+    // Use Win-Draw-Loss evaluation, similar to lc0:
+    // https://lczero.org/blog/2020/04/wdl-head/
+    w_count: u32,
+    d_count: u32,
+    l_count: u32,
     visits: u32,
+}
+
+impl Node {
+    #[must_use]
+    const fn visited(&self) -> bool {
+        self.visits > 0
+    }
+
+    #[must_use]
+    const fn q_value(action: impl Action) -> QValue {
+        todo!()
+    }
 }

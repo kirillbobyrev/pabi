@@ -3,6 +3,12 @@ use crate::chess::position::Position;
 use crate::chess::zobrist::RepetitionTable;
 use crate::environment::{Action, Environment, GameResult, Observation};
 
+impl Action for Move {
+    fn get_index(&self) -> u16 {
+        todo!();
+    }
+}
+
 impl Observation for Position {}
 
 pub struct Game {
@@ -10,6 +16,7 @@ pub struct Game {
     perspective: Color,
     repetitions: RepetitionTable,
     moves: MoveList,
+    outcome: Option<GameResult>,
 }
 
 impl Game {
@@ -25,6 +32,7 @@ impl Game {
             perspective,
             repetitions,
             moves,
+            outcome: None,
         }
     }
 }
@@ -34,8 +42,11 @@ impl Environment<Move, Position> for Game {
         &self.moves
     }
 
-    fn apply(&mut self, action: impl Action) -> Position {
-        todo!();
+    fn apply(&mut self, action: &Move) -> &Position {
+        self.position.make_move(action);
+        let _ = self.repetitions.record(self.position.hash());
+        self.moves = self.position.generate_moves();
+        &self.position
     }
 
     fn result(&self) -> Option<GameResult> {
@@ -43,12 +54,6 @@ impl Environment<Move, Position> for Game {
         // TODO: Check threefold repetition.
         // TODO: Check checkmate.
         // TODO: Check Syzygy tablebases.
-        todo!();
-    }
-}
-
-impl Action for Move {
-    fn get_index(&self) -> u16 {
         todo!();
     }
 }
