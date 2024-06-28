@@ -11,10 +11,10 @@ use std::time::Duration;
 
 use anyhow::bail;
 
-use crate::chess::core::{Move, Color};
+use crate::chess::core::{Color, Move};
 use crate::chess::position::Position;
 use crate::engine::uci::Command;
-use crate::mcts::{find_best_move, Depth};
+use crate::mcts::Depth;
 
 mod time_manager;
 mod uci;
@@ -99,9 +99,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                     binc,
                     movetime,
                     infinite,
-                } => self.go(
-                    max_depth, wtime, btime, winc, binc, movetime, infinite,
-                )?,
+                } => self.go(max_depth, wtime, btime, winc, binc, movetime, infinite)?,
                 Command::Stop => self.stop_search()?,
                 Command::Quit => {
                     self.stop_search()?;
@@ -177,9 +175,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
             Color::White => (wtime, winc),
             Color::Black => (btime, binc),
         };
-        let next_move = find_best_move(self.position.clone(), max_depth, time, self.out);
-        writeln!(self.out, "bestmove {next_move}")?;
-        Ok(())
+        let next_move = todo!();
     }
 
     /// Stops the search immediately.
@@ -189,6 +185,21 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
         // TODO: Implement this method.
         Ok(())
     }
+}
+
+/// Runs search on a small set of positions to provide an estimate of engine's
+/// performance.
+///
+/// Implementing `bench` CLI command is a [requirement for OpenBench].
+///
+/// NOTE: This function **has to run less than 60 seconds**.
+///
+/// See <https://github.com/AndyGrant/OpenBench/blob/master/Client/bench.py> for
+/// more details.
+///
+/// [requirement for OpenBench]: https://github.com/AndyGrant/OpenBench/wiki/Requirements-For-Public-Engines#basic-requirements
+pub fn openbench() {
+    todo!()
 }
 
 // TODO: Add extensive test suite for the UCI protocol implementation.

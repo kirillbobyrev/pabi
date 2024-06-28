@@ -11,7 +11,7 @@ name = "pabi"
 readme = "README.md"
 repository = "https://github.com/kirillbobyrev/pabi"
 rust-version = "1.79"
-version = "2024.6.16"
+version = "2024.6.27"
 include = [
   "/src/",
   "/generated/",
@@ -63,7 +63,11 @@ perf = "deny"
 anyhow = "1.0.83"
 arrayvec = "0.7.2"
 bitflags = "2.2.1"
+clap = { version = "4.5.7", features = ["derive", "wrap_help"] }
 itertools = "0.13.0"
+# Use SmallRng for performance.
+rand = { version = "0.8.5", features = ["small_rng"] }
+rand_distr = "0.4.3"
 shadow-rs = "0.29.0"
 
 [build-dependencies]

@@ -458,10 +458,10 @@ mod tests {
         assert_eq!(black.queens.bits, 1 << (3 + 8 * 7));
 
         // Rank masks.
-        assert_eq!(Rank::One.mask() << u32::from(BOARD_WIDTH), Rank::Two.mask());
+        assert_eq!(Rank::Rank1.mask() << u32::from(BOARD_WIDTH), Rank::Rank2.mask());
         assert_eq!(
-            Rank::Five.mask() >> u32::from(BOARD_WIDTH),
-            Rank::Four.mask()
+            Rank::Rank5.mask() >> u32::from(BOARD_WIDTH),
+            Rank::Rank4.mask()
         );
     }
 

@@ -94,24 +94,24 @@ See [justfile](/justfile) for a complete list of frequently used commands.
 Rustdoc developer documentation is pushed at each commit to
 <https://kirillbobyrev.github.io/pabi/docs/pabi/>.
 
-##### [`src/chess/`](/src/chess/)
+#### [`src/chess/`](/src/chess/)
 
 Contains implementation of the chess environment and rules: [Bitboard]-based
 board representation, move generation, [Zobrist hashing]. This is the core of
 the engine: a fast move generator and convenient board implementation are
 crucial for engine's performance.
 
-##### [`src/evaluation/`](/src/evaluation/)
+#### [`src/evaluation/`](/src/evaluation/)
 
 Contains code that extracts features from a given position and runs "static"
 [position evaluation]: a Neural Network that considers just a single position
 and predicts how good the position is for the player to move.
 
-##### [`src/search/`](/src/search/)
+#### [`src/search/`](/src/search/)
 
 Implements Monte Carlo Tree Search ([MCTS]) and its extensions.
 
-##### [`src/engine/`](/src/engine/)
+#### [`src/engine/`](/src/engine/)
 
 Assembles all pieces together and manages resources to search effieciently under
 given time constraints. It also communicates back and forth with the tournament
@@ -163,6 +163,7 @@ fuzzers: writing and running them is highly encouraged.
 [Rust]: https://www.rust-lang.org/
 [Stable]: https://github.com/kirillbobyrev/pabi/milestone/2
 [Strong]: https://github.com/kirillbobyrev/pabi/milestone/3
+[TCEC rules]: https://wiki.chessdom.org/Rules
 [TCEC]: https://tcec-chess.com/
 [Universal Chess Interface]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
 [Zobrist hashing]: https://www.chessprogramming.org/Zobrist_Hashing

@@ -20,22 +20,46 @@ pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 /// representation. The moves can also be indexed and fed as an input to the
 /// Neural Network evaluators that would be able assess their potential without
 /// evaluating post-states.
-// TODO: Compress the representation to reduce memory footprint.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Move {
-    pub(super) from: Square,
-    pub(super) to: Square,
-    pub(super) promotion: Option<Promotion>,
-}
+pub struct Move(u16);
 
 impl Move {
+    // First 6 bits are reserved for the `from` square.
+    const FROM_MASK: u16 = 0b0000_0000_0011_1111;
+
+    // Next 6 bits are reserved for the `to` square.
+    const TO_OFFSET: u8 = 6;
+    const TO_MASK: u16 = 0b0000_1111_1100_0000;
+
+    // Next 3 bits are reserved for the promotion (if any).
+    const PROMOTION_MASK: u16 = 0b0111_0000_0000_0000;
+    const PROMOTION_OFFSET: u8 = 12;
+
     #[must_use]
-    pub(super) const fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
-        Self {
-            from,
-            to,
-            promotion,
+    pub(super) fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
+        let mut packed = from as u16 | ((to as u16) << Self::TO_OFFSET);
+        if let Some(promo) = promotion {
+            packed |= (promo as u16) << Self::PROMOTION_OFFSET;
         }
+        Self(packed)
+    }
+
+    #[must_use]
+    pub(super) fn from(&self) -> Square {
+        let square = self.0 & Self::FROM_MASK;
+        Square::try_from(square as u8).unwrap()
+    }
+
+    #[must_use]
+    pub(super) fn to(&self) -> Square {
+        let square = (self.0 & Self::TO_MASK) >> Self::TO_OFFSET;
+        Square::try_from(square as u8).unwrap()
+    }
+
+    #[must_use]
+    pub(super) fn promotion(&self) -> Option<Promotion> {
+        let promo = (self.0 & Self::PROMOTION_MASK) >> Self::PROMOTION_OFFSET;
+        unsafe { std::mem::transmute(promo as u8) }
     }
 
     /// Converts the move from UCI format to the internal representation. This
@@ -43,6 +67,11 @@ impl Move {
     /// `position` command.
     pub fn from_uci(uci: &str) -> anyhow::Result<Self> {
         Self::try_from(uci)
+    }
+
+    #[must_use]
+    pub(super) fn as_packed_int(&self) -> u16 {
+        self.0
     }
 }
 
@@ -69,8 +98,8 @@ impl TryFrom<&str> for Move {
 impl fmt::Display for Move {
     /// Serializes a move in UCI format (used by [`pabi::uci`]).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.from, self.to)?;
-        if let Some(promotion) = self.promotion {
+        write!(f, "{}{}", self.from(), self.to())?;
+        if let Some(promotion) = self.promotion() {
             write!(f, "{}", PieceKind::from(promotion))?;
         }
         Ok(())
@@ -300,14 +329,14 @@ impl TryFrom<u8> for File {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(missing_docs)]
 pub enum Rank {
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-    Eight,
+    Rank1,
+    Rank2,
+    Rank3,
+    Rank4,
+    Rank5,
+    Rank6,
+    Rank7,
+    Rank8,
 }
 
 impl Rank {
@@ -315,28 +344,28 @@ impl Rank {
     /// given rank.
     pub(super) const fn mask(self) -> Bitboard {
         match self {
-            Self::One => Bitboard::from_bits(0x0000_0000_0000_00FF),
-            Self::Two => Bitboard::from_bits(0x0000_0000_0000_FF00),
-            Self::Three => Bitboard::from_bits(0x0000_0000_00FF_0000),
-            Self::Four => Bitboard::from_bits(0x0000_0000_FF00_0000),
-            Self::Five => Bitboard::from_bits(0x0000_00FF_0000_0000),
-            Self::Six => Bitboard::from_bits(0x0000_FF00_0000_0000),
-            Self::Seven => Bitboard::from_bits(0x00FF_0000_0000_0000),
-            Self::Eight => Bitboard::from_bits(0xFF00_0000_0000_0000),
+            Self::Rank1 => Bitboard::from_bits(0x0000_0000_0000_00FF),
+            Self::Rank2 => Bitboard::from_bits(0x0000_0000_0000_FF00),
+            Self::Rank3 => Bitboard::from_bits(0x0000_0000_00FF_0000),
+            Self::Rank4 => Bitboard::from_bits(0x0000_0000_FF00_0000),
+            Self::Rank5 => Bitboard::from_bits(0x0000_00FF_0000_0000),
+            Self::Rank6 => Bitboard::from_bits(0x0000_FF00_0000_0000),
+            Self::Rank7 => Bitboard::from_bits(0x00FF_0000_0000_0000),
+            Self::Rank8 => Bitboard::from_bits(0xFF00_0000_0000_0000),
         }
     }
 
     pub(super) const fn backrank(color: Color) -> Self {
         match color {
-            Color::White => Self::One,
-            Color::Black => Self::Eight,
+            Color::White => Self::Rank1,
+            Color::Black => Self::Rank8,
         }
     }
 
     pub(super) const fn pawns_starting(color: Color) -> Self {
         match color {
-            Color::White => Self::Two,
-            Color::Black => Self::Seven,
+            Color::White => Self::Rank2,
+            Color::Black => Self::Rank7,
         }
     }
 }
@@ -427,21 +456,21 @@ impl fmt::Display for Color {
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub enum PieceKind {
-    King,
-    Queen,
-    Rook,
-    Bishop,
-    Knight,
     Pawn,
+    Knight,
+    Bishop,
+    Rook,
+    Queen,
+    King,
 }
 
 impl From<Promotion> for PieceKind {
     fn from(promotion: Promotion) -> Self {
         match promotion {
-            Promotion::Queen => Self::Queen,
-            Promotion::Rook => Self::Rook,
-            Promotion::Bishop => Self::Bishop,
             Promotion::Knight => Self::Knight,
+            Promotion::Bishop => Self::Bishop,
+            Promotion::Rook => Self::Rook,
+            Promotion::Queen => Self::Queen,
         }
     }
 }
@@ -449,12 +478,12 @@ impl From<Promotion> for PieceKind {
 impl fmt::Display for PieceKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_char(match &self {
-            Self::King => 'k',
-            Self::Queen => 'q',
-            Self::Rook => 'r',
-            Self::Bishop => 'b',
-            Self::Knight => 'n',
             Self::Pawn => 'p',
+            Self::Knight => 'n',
+            Self::Bishop => 'b',
+            Self::Rook => 'r',
+            Self::Queen => 'q',
+            Self::King => 'k',
         })
     }
 }
@@ -462,7 +491,7 @@ impl fmt::Display for PieceKind {
 /// Represents a specific piece owned by a player.
 pub struct Piece {
     #[allow(missing_docs)]
-    pub owner: Color,
+    pub color: Color,
     #[allow(missing_docs)]
     pub kind: PieceKind,
 }
@@ -470,7 +499,7 @@ pub struct Piece {
 impl Piece {
     #[must_use]
     pub const fn plane(&self) -> usize {
-        self.owner as usize * 6 + self.kind as usize
+        self.color as usize * 6 + self.kind as usize
     }
 }
 
@@ -479,76 +508,76 @@ impl TryFrom<char> for Piece {
 
     fn try_from(symbol: char) -> anyhow::Result<Self> {
         match symbol {
-            'K' => Ok(Self {
-                owner: Color::White,
-                kind: PieceKind::King,
-            }),
-            'Q' => Ok(Self {
-                owner: Color::White,
-                kind: PieceKind::Queen,
-            }),
-            'R' => Ok(Self {
-                owner: Color::White,
-                kind: PieceKind::Rook,
-            }),
-            'B' => Ok(Self {
-                owner: Color::White,
-                kind: PieceKind::Bishop,
-            }),
-            'N' => Ok(Self {
-                owner: Color::White,
-                kind: PieceKind::Knight,
-            }),
             'P' => Ok(Self {
-                owner: Color::White,
+                color: Color::White,
                 kind: PieceKind::Pawn,
             }),
+            'N' => Ok(Self {
+                color: Color::White,
+                kind: PieceKind::Knight,
+            }),
+            'B' => Ok(Self {
+                color: Color::White,
+                kind: PieceKind::Bishop,
+            }),
+            'R' => Ok(Self {
+                color: Color::White,
+                kind: PieceKind::Rook,
+            }),
+            'Q' => Ok(Self {
+                color: Color::White,
+                kind: PieceKind::Queen,
+            }),
+            'K' => Ok(Self {
+                color: Color::White,
+                kind: PieceKind::King,
+            }),
+            'p' => Ok(Self {
+                color: Color::Black,
+                kind: PieceKind::Pawn,
+            }),
+            'n' => Ok(Self {
+                color: Color::Black,
+                kind: PieceKind::Knight,
+            }),
+            'b' => Ok(Self {
+                color: Color::Black,
+                kind: PieceKind::Bishop,
+            }),
+            'r' => Ok(Self {
+                color: Color::Black,
+                kind: PieceKind::Rook,
+            }),
             'k' => Ok(Self {
-                owner: Color::Black,
+                color: Color::Black,
                 kind: PieceKind::King,
             }),
             'q' => Ok(Self {
-                owner: Color::Black,
+                color: Color::Black,
                 kind: PieceKind::Queen,
             }),
-            'r' => Ok(Self {
-                owner: Color::Black,
-                kind: PieceKind::Rook,
-            }),
-            'b' => Ok(Self {
-                owner: Color::Black,
-                kind: PieceKind::Bishop,
-            }),
-            'n' => Ok(Self {
-                owner: Color::Black,
-                kind: PieceKind::Knight,
-            }),
-            'p' => Ok(Self {
-                owner: Color::Black,
-                kind: PieceKind::Pawn,
-            }),
-            _ => bail!("piece symbol should be within \"KQRBNPkqrbnp\", got '{symbol}'"),
+            _ => bail!("piece symbol should be in \"PNBRQKpnbrqk\", got '{symbol}'"),
         }
     }
 }
 
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_char(match (&self.owner, &self.kind) {
+        f.write_char(match (&self.color, &self.kind) {
             // White: uppercase symbols.
-            (Color::White, PieceKind::King) => 'K',
-            (Color::White, PieceKind::Queen) => 'Q',
-            (Color::White, PieceKind::Rook) => 'R',
-            (Color::White, PieceKind::Bishop) => 'B',
-            (Color::White, PieceKind::Knight) => 'N',
             (Color::White, PieceKind::Pawn) => 'P',
+            (Color::White, PieceKind::Knight) => 'N',
+            (Color::White, PieceKind::Bishop) => 'B',
+            (Color::White, PieceKind::Rook) => 'R',
+            (Color::White, PieceKind::Queen) => 'Q',
+            (Color::White, PieceKind::King) => 'K',
             // Black: lowercase symbols.
-            (Color::Black, PieceKind::King) => 'k',
-            (Color::Black, PieceKind::Queen) => 'q',
-            (Color::Black, PieceKind::Rook) => 'r',
-            (Color::Black, PieceKind::Bishop) => 'b',
-            (Color::Black, PieceKind::Knight) => 'n',
             (Color::Black, PieceKind::Pawn) => 'p',
+            (Color::Black, PieceKind::Knight) => 'n',
+            (Color::Black, PieceKind::Bishop) => 'b',
+            (Color::Black, PieceKind::Rook) => 'r',
+            (Color::Black, PieceKind::Queen) => 'q',
+            (Color::Black, PieceKind::King) => 'k',
         })
     }
 }
@@ -683,20 +712,20 @@ impl fmt::Display for CastleRights {
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub(crate) enum Promotion {
-    Queen,
-    Rook,
-    Bishop,
-    Knight,
+    Knight = 1,
+    Bishop = 2,
+    Rook = 3,
+    Queen = 4,
 }
 
 impl From<char> for Promotion {
     fn from(c: char) -> Self {
         match c {
-            'q' => Self::Queen,
-            'r' => Self::Rook,
-            'b' => Self::Bishop,
             'n' => Self::Knight,
-            _ => unreachable!("unknown promotion piece, has to be in 'qrbn': {c}"),
+            'b' => Self::Bishop,
+            'r' => Self::Rook,
+            'q' => Self::Queen,
+            _ => unreachable!("unknown promotion piece, has to be in 'kbrq': {c}"),
         }
     }
 }
@@ -738,14 +767,14 @@ mod tests {
                 .filter_map(|ch| Rank::try_from(ch).ok())
                 .collect::<Vec<Rank>>(),
             vec![
-                Rank::One,
-                Rank::Two,
-                Rank::Three,
-                Rank::Four,
-                Rank::Five,
-                Rank::Six,
-                Rank::Seven,
-                Rank::Eight,
+                Rank::Rank1,
+                Rank::Rank2,
+                Rank::Rank3,
+                Rank::Rank4,
+                Rank::Rank5,
+                Rank::Rank6,
+                Rank::Rank7,
+                Rank::Rank8,
             ]
         );
         assert_eq!(
@@ -753,14 +782,14 @@ mod tests {
                 .filter_map(|idx| Rank::try_from(idx).ok())
                 .collect::<Vec<Rank>>(),
             vec![
-                Rank::One,
-                Rank::Two,
-                Rank::Three,
-                Rank::Four,
-                Rank::Five,
-                Rank::Six,
-                Rank::Seven,
-                Rank::Eight,
+                Rank::Rank1,
+                Rank::Rank2,
+                Rank::Rank3,
+                Rank::Rank4,
+                Rank::Rank5,
+                Rank::Rank6,
+                Rank::Rank7,
+                Rank::Rank8,
             ]
         );
     }
@@ -847,10 +876,10 @@ mod tests {
             vec![Square::A1, Square::H8, Square::H1, Square::A2, Square::F3,]
         );
         let squares: Vec<_> = [
-            (File::B, Rank::Three),
-            (File::F, Rank::Five),
-            (File::H, Rank::Eight),
-            (File::E, Rank::Four),
+            (File::B, Rank::Rank3),
+            (File::F, Rank::Rank5),
+            (File::H, Rank::Rank8),
+            (File::E, Rank::Rank4),
         ]
         .iter()
         .map(|(file, rank)| Square::new(*file, *rank))

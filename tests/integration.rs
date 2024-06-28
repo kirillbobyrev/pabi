@@ -1,6 +1,6 @@
 use assert_cmd::Command;
 use predicates::boolean::PredicateBooleanExt;
-use predicates::str::{contains, is_match};
+use predicates::str::contains;
 
 const BINARY_NAME: &str = "pabi";
 
@@ -20,15 +20,15 @@ fn uci_setup() {
     );
 }
 
-#[test]
-#[ignore]
-fn openbench_output() {
-    let mut cmd = Command::cargo_bin(BINARY_NAME).expect("Binary should be built");
-    let _ = cmd.arg("bench");
+// #[test]
+// #[ignore]
+// fn openbench_output() {
+//     let mut cmd = Command::cargo_bin(BINARY_NAME).expect("Binary should be built");
+//     let _ = cmd.arg("bench");
 
-    drop(
-        cmd.assert()
-            .stdout(is_match(r"^\d+ nodes \d+ nps$").unwrap())
-            .success(),
-    );
-}
+//     drop(
+//         cmd.assert()
+//             .stdout(is_match(r"^\d+ nodes \d+ nps$").unwrap())
+//             .success(),
+//     );
+// }

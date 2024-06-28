@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn pawn() {
         // Pawns can not be on the back ranks, hence the attack maps are empty.
-        for square in Rank::One.mask().iter().chain(Rank::Eight.mask().iter()) {
+        for square in Rank::Rank1.mask().iter().chain(Rank::Rank8.mask().iter()) {
             assert!(pawn_attacks(square, Color::White).is_empty());
             assert!(pawn_attacks(square, Color::Black).is_empty());
         }

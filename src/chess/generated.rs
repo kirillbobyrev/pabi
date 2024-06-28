@@ -19,7 +19,7 @@ const PIECES_ZOBRIST_KEYS: [Key; 768] = include!(concat!(env!("OUT_DIR"), "/piec
 
 pub(super) fn get_piece_key(piece: Piece, square: Square) -> Key {
     const NUM_PIECES: usize = 6;
-    PIECES_ZOBRIST_KEYS[piece.owner as usize * NUM_PIECES * BOARD_SIZE as usize
+    PIECES_ZOBRIST_KEYS[piece.color as usize * NUM_PIECES * BOARD_SIZE as usize
         + piece.kind as usize * BOARD_SIZE as usize
         + square as usize]
 }

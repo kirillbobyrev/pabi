@@ -1,5 +1,5 @@
 # This is a collection of commonly used recipes for development. Most of them
-# are wrappers around Cargo and Cargo extensions with certain setup.
+# are wrappers around Cargo with the right flags and settings.
 
 build:
   cargo build --profile=release
@@ -21,7 +21,7 @@ fix:
   cargo +nightly fmt --all
   cargo +nightly clippy --all-targets --all-features --fix --allow-staged
 
-# Run most tests in debug mode to (potentially) cat more errors with
+# Run most tests in debug mode to (potentially) catch more errors with
 # debug_assert.
 test:
   cargo test
@@ -48,8 +48,3 @@ fuzz target:
 # Build developer documentation.
 doc:
   cargo doc --document-private-items --no-deps
-
-# Play a single game between two engine versions in 2'+1'' format and save the
-# game PGN.
-play engine1_cmd engine2_cmd outfile:
-  cutechess-cli -engine cmd={{ engine1_cmd }} -engine cmd={{ engine2_cmd }} -each proto=uci tc=120+1 -pgnout file min

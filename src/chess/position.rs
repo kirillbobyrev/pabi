@@ -13,7 +13,7 @@ use anyhow::{bail, Context};
 
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights, File, Move, MoveList, Piece, Color, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights, Color, File, Move, MoveList, Piece, Promotion, Rank, Square, BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 
@@ -100,7 +100,7 @@ impl Position {
         self.us().opponent()
     }
 
-    pub(crate) fn pieces(&self, color : Color) -> &Pieces {
+    pub(crate) fn pieces(&self, color: Color) -> &Pieces {
         match color {
             Color::White => &self.white_pieces,
             Color::Black => &self.black_pieces,
@@ -185,7 +185,7 @@ impl Position {
                 }
                 match Piece::try_from(symbol) {
                     Ok(piece) => {
-                        let pieces = match piece.owner {
+                        let pieces = match piece.color {
                             Color::White => &mut white_pieces,
                             Color::Black => &mut black_pieces,
                         };
@@ -439,36 +439,36 @@ impl Position {
 
     fn update_castling_rights(&mut self, next_move: &Move) {
         if self.castling.contains(CastleRights::WHITE_SHORT) {
-            if next_move.from == Square::E1
-                || next_move.from == Square::H1
-                || next_move.to == Square::H1
+            if next_move.from() == Square::E1
+                || next_move.from() == Square::H1
+                || next_move.to() == Square::H1
             {
                 self.castling.remove(CastleRights::WHITE_SHORT);
                 self.hash ^= generated::WHITE_CAN_CASTLE_SHORT;
             }
         }
         if self.castling.contains(CastleRights::WHITE_LONG) {
-            if next_move.from == Square::E1
-                || next_move.from == Square::A1
-                || next_move.to == Square::A1
+            if next_move.from() == Square::E1
+                || next_move.from() == Square::A1
+                || next_move.to() == Square::A1
             {
                 self.castling.remove(CastleRights::WHITE_LONG);
                 self.hash ^= generated::WHITE_CAN_CASTLE_LONG;
             }
         }
         if self.castling.contains(CastleRights::BLACK_SHORT) {
-            if next_move.from == Square::E8
-                || next_move.from == Square::H8
-                || next_move.to == Square::H8
+            if next_move.from() == Square::E8
+                || next_move.from() == Square::H8
+                || next_move.to() == Square::H8
             {
                 self.castling.remove(CastleRights::BLACK_SHORT);
                 self.hash ^= generated::BLACK_CAN_CASTLE_SHORT;
             }
         }
         if self.castling.contains(CastleRights::BLACK_LONG) {
-            if next_move.from == Square::E8
-                || next_move.from == Square::A8
-                || next_move.to == Square::A8
+            if next_move.from() == Square::E8
+                || next_move.from() == Square::A8
+                || next_move.to() == Square::A8
             {
                 self.castling.remove(CastleRights::BLACK_LONG);
                 self.hash ^= generated::BLACK_CAN_CASTLE_LONG;
@@ -483,11 +483,11 @@ impl Position {
         };
 
         // TODO: Update the hash.
-        if their_pieces.all().contains(next_move.to) {
+        if their_pieces.all().contains(next_move.to()) {
             // Capturing a piece resets the clock.
             self.halfmove_clock = 0;
 
-            let square = next_move.to;
+            let square = next_move.to();
 
             for (piece, kind) in [
                 (&mut their_pieces.queens, PieceKind::Queen),
@@ -500,7 +500,7 @@ impl Position {
                     piece.clear(square);
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            owner: self.side_to_move.opponent(),
+                            color: self.side_to_move.opponent(),
                             kind,
                         },
                         square,
@@ -520,7 +520,7 @@ impl Position {
         let previous_en_passant = self.en_passant_square;
         self.en_passant_square = None;
 
-        if !our_pieces.pawns.contains(next_move.from) {
+        if !our_pieces.pawns.contains(next_move.from()) {
             return false;
         }
 
@@ -529,12 +529,12 @@ impl Position {
 
         // Check en passant.
         if let Some(en_passant_square) = previous_en_passant {
-            if next_move.to == en_passant_square {
-                let captured_pawn = Square::new(next_move.to.file(), next_move.from.rank());
+            if next_move.to() == en_passant_square {
+                let captured_pawn = Square::new(next_move.to().file(), next_move.from().rank());
                 their_pieces.pawns.clear(captured_pawn);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        owner: self.side_to_move.opponent(),
+                        color: self.side_to_move.opponent(),
                         kind: PieceKind::Pawn,
                     },
                     captured_pawn,
@@ -542,81 +542,81 @@ impl Position {
             }
         }
 
-        our_pieces.pawns.clear(next_move.from);
+        our_pieces.pawns.clear(next_move.from());
         self.hash ^= generated::get_piece_key(
             Piece {
-                owner: self.side_to_move,
+                color: self.side_to_move,
                 kind: PieceKind::Pawn,
             },
-            next_move.from,
+            next_move.from(),
         );
 
         // Check promotions.
         // TODO: Debug assertions to make sure the promotion is valid.
-        if let Some(promotion) = next_move.promotion {
+        if let Some(promotion) = next_move.promotion() {
             match promotion {
                 Promotion::Queen => {
-                    our_pieces.queens.extend(next_move.to);
+                    our_pieces.queens.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            owner: self.side_to_move,
+                            color: self.side_to_move,
                             kind: PieceKind::Queen,
                         },
-                        next_move.to,
+                        next_move.to(),
                     );
                 },
                 Promotion::Rook => {
-                    our_pieces.rooks.extend(next_move.to);
+                    our_pieces.rooks.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            owner: self.side_to_move,
+                            color: self.side_to_move,
                             kind: PieceKind::Rook,
                         },
-                        next_move.to,
+                        next_move.to(),
                     );
                 },
                 Promotion::Bishop => {
-                    our_pieces.bishops.extend(next_move.to);
+                    our_pieces.bishops.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            owner: self.side_to_move,
+                            color: self.side_to_move,
                             kind: PieceKind::Bishop,
                         },
-                        next_move.to,
+                        next_move.to(),
                     );
                 },
                 Promotion::Knight => {
-                    our_pieces.knights.extend(next_move.to);
+                    our_pieces.knights.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            owner: self.side_to_move,
+                            color: self.side_to_move,
                             kind: PieceKind::Knight,
                         },
-                        next_move.to,
+                        next_move.to(),
                     );
                 },
             };
             return true;
         }
 
-        our_pieces.pawns.extend(next_move.to);
+        our_pieces.pawns.extend(next_move.to());
         self.hash ^= generated::get_piece_key(
             Piece {
-                owner: self.side_to_move,
+                color: self.side_to_move,
                 kind: PieceKind::Pawn,
             },
-            next_move.to,
+            next_move.to(),
         );
 
         let single_push_square = next_move
-            .from
+            .from()
             .shift(self.side_to_move.pawn_push_direction())
             .unwrap();
 
         // Double push creates en passant square.
-        if next_move.from.rank() == Rank::pawns_starting(self.side_to_move)
-                && next_move.from.file() == next_move.to.file()
-                && single_push_square != next_move.to
+        if next_move.from().rank() == Rank::pawns_starting(self.side_to_move)
+                && next_move.from().file() == next_move.to().file()
+                && single_push_square != next_move.to()
                 // Technically, this is not correct: https://github.com/jhlywa/chess.js/issues/294
                 && (their_pieces.pawns & attacks::pawn_attacks(single_push_square, self.side_to_move)).has_any()
         {
@@ -635,23 +635,23 @@ impl Position {
             Color::Black => &mut self.black_pieces,
         };
 
-        if !our_pieces.king.contains(next_move.from) {
+        if !our_pieces.king.contains(next_move.from()) {
             return false;
         }
 
         let backrank = Rank::backrank(self.side_to_move);
 
         // Check if the move is castling.
-        if next_move.from.rank() == backrank
-            && next_move.to.rank() == backrank
-            && next_move.from.file() == File::E
+        if next_move.from().rank() == backrank
+            && next_move.to().rank() == backrank
+            && next_move.from().file() == File::E
         {
-            if next_move.to.file() == File::G {
+            if next_move.to().file() == File::G {
                 let from = Square::new(File::H, backrank);
                 our_pieces.rooks.clear(from);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        owner: self.side_to_move,
+                        color: self.side_to_move,
                         kind: PieceKind::Rook,
                     },
                     from,
@@ -660,17 +660,17 @@ impl Position {
                 our_pieces.rooks.extend(to);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        owner: self.side_to_move,
+                        color: self.side_to_move,
                         kind: PieceKind::Rook,
                     },
                     to,
                 );
-            } else if next_move.to.file() == File::C {
+            } else if next_move.to().file() == File::C {
                 let from = Square::new(File::A, backrank);
                 our_pieces.rooks.clear(from);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        owner: self.side_to_move,
+                        color: self.side_to_move,
                         kind: PieceKind::Rook,
                     },
                     from,
@@ -679,7 +679,7 @@ impl Position {
                 our_pieces.rooks.extend(to);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        owner: self.side_to_move,
+                        color: self.side_to_move,
                         kind: PieceKind::Rook,
                     },
                     to,
@@ -687,21 +687,21 @@ impl Position {
             }
         }
 
-        our_pieces.king.clear(next_move.from);
+        our_pieces.king.clear(next_move.from());
         self.hash ^= generated::get_piece_key(
             Piece {
-                owner: self.side_to_move,
+                color: self.side_to_move,
                 kind: PieceKind::King,
             },
-            next_move.from,
+            next_move.from(),
         );
-        our_pieces.king.extend(next_move.to);
+        our_pieces.king.extend(next_move.to());
         self.hash ^= generated::get_piece_key(
             Piece {
-                owner: self.side_to_move,
+                color: self.side_to_move,
                 kind: PieceKind::King,
             },
-            next_move.to,
+            next_move.to(),
         );
 
         true
@@ -719,73 +719,52 @@ impl Position {
             (&mut our_pieces.bishops, PieceKind::Bishop),
             (&mut our_pieces.knights, PieceKind::Knight),
         ] {
-            if bitboard.contains(next_move.from) {
-                bitboard.clear(next_move.from);
+            if bitboard.contains(next_move.from()) {
+                bitboard.clear(next_move.from());
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        owner: self.side_to_move,
+                        color: self.side_to_move,
                         kind,
                     },
-                    next_move.from,
+                    next_move.from(),
                 );
-                bitboard.extend(next_move.to);
+                bitboard.extend(next_move.to());
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        owner: self.side_to_move,
+                        color: self.side_to_move,
                         kind,
                     },
-                    next_move.to,
+                    next_move.to(),
                 );
                 return;
             }
         }
     }
 
-    /// Returns true if the player to move is in check.
+    // TODO: Figuring out if the king is in check is relatively easy: try all
+    // attacks on the king square.
     #[must_use]
     pub fn in_check(&self) -> bool {
-        // TODO: This is very expensive and is likely to be a bottleneck.
-        // Cache the attack info and/or whether the king is in check.
-        self.attack_info().checkers.has_any()
+        todo!()
     }
 
-    /// Returns true if the game is over.
+    /// Returns true if 50-move rule draw is in effect.
     #[must_use]
-    pub fn is_checkmate(&self) -> bool {
-        self.in_check() && self.generate_moves().is_empty()
+    pub fn halfmove_clock_expired(&self) -> bool {
+        self.halfmove_clock >= 100
     }
-
-    /// Returns true if the player to move has no legal moves and is not
-    /// checkmated (i.e. the game is a draw) or if 50-move rule is in effect.
-    ///
-    /// Note that because position does not keep track of the 3-fold repetition
-    /// it is not taken into account.
-    #[must_use]
-    pub fn is_draw_on_board(&self) -> bool {
-        self.halfmove_clock >= 100 || (!self.in_check() && self.generate_moves().is_empty())
-    }
-
-    // #[must_use]
-    // pub fn is_capture(&self, next_move: &Move) -> bool {
-    //     todo!()
-    // }
-
-    // #[must_use]
-    // pub fn gives_check(&self, next_move: &Move) -> bool {
-    //     todo!()
-    // }
 
     #[must_use]
     pub(crate) fn at(&self, square: Square) -> Option<Piece> {
         if let Some(kind) = self.white_pieces.at(square) {
             return Some(Piece {
-                owner: Color::White,
+                color: Color::White,
                 kind,
             });
         }
         if let Some(kind) = self.black_pieces.at(square) {
             return Some(Piece {
-                owner: Color::Black,
+                color: Color::Black,
                 kind,
             });
         }
@@ -868,7 +847,7 @@ impl fmt::Display for Position {
             if empty_squares != 0 {
                 write!(f, "{empty_squares}")?;
             }
-            if rank != Rank::One {
+            if rank != Rank::Rank1 {
                 const RANK_SEPARATOR: char = '/';
                 write!(f, "{RANK_SEPARATOR}")?;
             }
@@ -986,7 +965,7 @@ fn validate(position: &Position) -> anyhow::Result<()> {
         )
     }
     if ((position.white_pieces.pawns | position.black_pieces.pawns)
-        & (Rank::One.mask() | Rank::Eight.mask()))
+        & (Rank::Rank1.mask() | Rank::Rank8.mask()))
     .has_any()
     {
         bail!("pawns can not be placed on backranks")
@@ -998,8 +977,8 @@ fn validate(position: &Position) -> anyhow::Result<()> {
     }
     if let Some(en_passant_square) = position.en_passant_square {
         let expected_rank = match position.side_to_move {
-            Color::White => Rank::Six,
-            Color::Black => Rank::Three,
+            Color::White => Rank::Rank6,
+            Color::Black => Rank::Rank3,
         };
         if en_passant_square.rank() != expected_rank {
             bail!(
@@ -1153,7 +1132,7 @@ fn generate_pawn_moves(
                 continue;
             }
             match to.rank() {
-                Rank::One | Rank::Eight => unsafe {
+                Rank::Rank1 | Rank::Rank8 => unsafe {
                     moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
                     moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
                     moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
@@ -1207,7 +1186,7 @@ fn generate_pawn_moves(
         // TODO: This is probably better with self.side_to_move.opponent().backrank()
         // but might be slower.
         match to.rank() {
-            Rank::Eight | Rank::One => unsafe {
+            Rank::Rank8 | Rank::Rank1 => unsafe {
                 moves.push_unchecked(Move::new(from, to, Some(Promotion::Queen)));
                 moves.push_unchecked(Move::new(from, to, Some(Promotion::Rook)));
                 moves.push_unchecked(Move::new(from, to, Some(Promotion::Bishop)));
@@ -1339,11 +1318,11 @@ mod tests {
         );
         assert_eq!(
             position.white_pieces.all() | position.black_pieces.all(),
-            Rank::One.mask() | Rank::Two.mask() | Rank::Seven.mask() | Rank::Eight.mask()
+            Rank::Rank1.mask() | Rank::Rank2.mask() | Rank::Rank7.mask() | Rank::Rank8.mask()
         );
         assert_eq!(
             !(position.white_pieces.all() | position.black_pieces.all()),
-            Rank::Three.mask() | Rank::Four.mask() | Rank::Five.mask() | Rank::Six.mask()
+            Rank::Rank3.mask() | Rank::Rank4.mask() | Rank::Rank5.mask() | Rank::Rank6.mask()
         );
     }
 }

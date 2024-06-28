@@ -16,3 +16,7 @@
 
 # tarpaulin test coverage reports
 cobertura.xml
+
+# Makefile-generated symlinks.
+/pabi
+/pabi-*
