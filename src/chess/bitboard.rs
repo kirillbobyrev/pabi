@@ -37,8 +37,9 @@ use crate::chess::core::{Direction, PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
 /// Bitboard is a thin wrapper around [u64]:
 ///
 /// ```
-/// use pabi::chess::bitboard::Bitboard;
 /// use std::mem::size_of;
+///
+/// use pabi::chess::bitboard::Bitboard;
 ///
 /// assert_eq!(size_of::<Bitboard>(), 8);
 /// ```
@@ -458,7 +459,10 @@ mod tests {
         assert_eq!(black.queens.bits, 1 << (3 + 8 * 7));
 
         // Rank masks.
-        assert_eq!(Rank::Rank1.mask() << u32::from(BOARD_WIDTH), Rank::Rank2.mask());
+        assert_eq!(
+            Rank::Rank1.mask() << u32::from(BOARD_WIDTH),
+            Rank::Rank2.mask()
+        );
         assert_eq!(
             Rank::Rank5.mask() >> u32::from(BOARD_WIDTH),
             Rank::Rank4.mask()

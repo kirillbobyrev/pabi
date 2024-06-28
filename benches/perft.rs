@@ -8,7 +8,7 @@ use shakmaty::{CastlingMode, Chess, Position as ShakmatyPosition};
 
 fn generate_moves(positions: &[Position]) {
     for position in positions {
-        criterion::black_box(position.generate_moves());
+        std::hint::black_box(position.generate_moves());
     }
 }
 
@@ -68,7 +68,7 @@ fn movegen_bench(c: &mut Criterion) {
         |b, positions| {
             b.iter(|| {
                 for position in positions {
-                    criterion::black_box(position.legal_moves());
+                    std::hint::black_box(position.legal_moves());
                 }
             });
         },

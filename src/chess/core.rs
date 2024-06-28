@@ -26,14 +26,12 @@ pub struct Move(u16);
 impl Move {
     // First 6 bits are reserved for the `from` square.
     const FROM_MASK: u16 = 0b0000_0000_0011_1111;
-
-    // Next 6 bits are reserved for the `to` square.
-    const TO_OFFSET: u8 = 6;
-    const TO_MASK: u16 = 0b0000_1111_1100_0000;
-
     // Next 3 bits are reserved for the promotion (if any).
     const PROMOTION_MASK: u16 = 0b0111_0000_0000_0000;
     const PROMOTION_OFFSET: u8 = 12;
+    const TO_MASK: u16 = 0b0000_1111_1100_0000;
+    // Next 6 bits are reserved for the `to` square.
+    const TO_OFFSET: u8 = 6;
 
     #[must_use]
     pub(super) fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {

@@ -5,7 +5,7 @@
 //!
 //! [evaluation]: https://www.chessprogramming.org/Evaluation
 
-pub(crate) mod brain;
 pub(crate) mod features;
+pub(crate) mod network;
 
 pub type QValue = f32;

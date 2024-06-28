@@ -11,13 +11,21 @@ use std::fmt::{self, Write};
 
 use anyhow::{bail, Context};
 
+use super::core::PieceKind;
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights, Color, File, Move, MoveList, Piece, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    Color,
+    File,
+    Move,
+    MoveList,
+    Piece,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
-
-use super::core::PieceKind;
 
 /// Piece-centric implementation of the chess position, which includes all
 /// pieces and their placement, information about the castling rights, side to
@@ -438,41 +446,37 @@ impl Position {
     }
 
     fn update_castling_rights(&mut self, next_move: &Move) {
-        if self.castling.contains(CastleRights::WHITE_SHORT) {
-            if next_move.from() == Square::E1
+        if self.castling.contains(CastleRights::WHITE_SHORT)
+            && (next_move.from() == Square::E1
                 || next_move.from() == Square::H1
-                || next_move.to() == Square::H1
-            {
-                self.castling.remove(CastleRights::WHITE_SHORT);
-                self.hash ^= generated::WHITE_CAN_CASTLE_SHORT;
-            }
+                || next_move.to() == Square::H1)
+        {
+            self.castling.remove(CastleRights::WHITE_SHORT);
+            self.hash ^= generated::WHITE_CAN_CASTLE_SHORT;
         }
-        if self.castling.contains(CastleRights::WHITE_LONG) {
-            if next_move.from() == Square::E1
+        if self.castling.contains(CastleRights::WHITE_LONG)
+            && (next_move.from() == Square::E1
                 || next_move.from() == Square::A1
-                || next_move.to() == Square::A1
-            {
-                self.castling.remove(CastleRights::WHITE_LONG);
-                self.hash ^= generated::WHITE_CAN_CASTLE_LONG;
-            }
+                || next_move.to() == Square::A1)
+        {
+            self.castling.remove(CastleRights::WHITE_LONG);
+            self.hash ^= generated::WHITE_CAN_CASTLE_LONG;
         }
-        if self.castling.contains(CastleRights::BLACK_SHORT) {
-            if next_move.from() == Square::E8
+        if self.castling.contains(CastleRights::BLACK_SHORT)
+            && (next_move.from() == Square::E8
                 || next_move.from() == Square::H8
-                || next_move.to() == Square::H8
-            {
-                self.castling.remove(CastleRights::BLACK_SHORT);
-                self.hash ^= generated::BLACK_CAN_CASTLE_SHORT;
-            }
+                || next_move.to() == Square::H8)
+        {
+            self.castling.remove(CastleRights::BLACK_SHORT);
+            self.hash ^= generated::BLACK_CAN_CASTLE_SHORT;
         }
-        if self.castling.contains(CastleRights::BLACK_LONG) {
-            if next_move.from() == Square::E8
+        if self.castling.contains(CastleRights::BLACK_LONG)
+            && (next_move.from() == Square::E8
                 || next_move.from() == Square::A8
-                || next_move.to() == Square::A8
-            {
-                self.castling.remove(CastleRights::BLACK_LONG);
-                self.hash ^= generated::BLACK_CAN_CASTLE_LONG;
-            }
+                || next_move.to() == Square::A8)
+        {
+            self.castling.remove(CastleRights::BLACK_LONG);
+            self.hash ^= generated::BLACK_CAN_CASTLE_LONG;
         }
     }
 
@@ -629,7 +633,7 @@ impl Position {
 
     /// Castle or regular king move.
     // TODO: Merge with the other castling rights handler.
-    fn make_king_move(self: &mut Self, next_move: &Move) -> bool {
+    fn make_king_move(&mut self, next_move: &Move) -> bool {
         let our_pieces = match self.side_to_move {
             Color::White => &mut self.white_pieces,
             Color::Black => &mut self.black_pieces,
@@ -707,7 +711,7 @@ impl Position {
         true
     }
 
-    fn make_regular_move(self: &mut Self, next_move: &Move) {
+    fn make_regular_move(&mut self, next_move: &Move) {
         let our_pieces = match self.side_to_move {
             Color::White => &mut self.white_pieces,
             Color::Black => &mut self.black_pieces,
@@ -915,6 +919,9 @@ pub fn perft(position: &Position, depth: u8) -> u64 {
     debug_assert!(position.is_legal());
     if depth == 0 {
         return 1;
+    }
+    if depth == 1 {
+        return position.generate_moves().len() as u64;
     }
     let mut nodes = 0;
     for next_move in position.generate_moves() {

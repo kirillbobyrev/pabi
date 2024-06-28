@@ -8,18 +8,18 @@ build:
 run:
   cargo run --profile=release
 
+# Format all code.
 fmt:
   cargo +nightly fmt --all
 
 # Checks the code for bad formatting, errors and warnings.
 lint:
   cargo +nightly fmt --all -- --check
-  cargo +nightly clippy --all-targets --all-features
+  cargo clippy --all-targets --all-features
 
 # Runs the linters and tries to apply automatic fixes.
-fix:
-  cargo +nightly fmt --all
-  cargo +nightly clippy --all-targets --all-features --fix --allow-staged
+fix: fmt
+  cargo clippy --all-targets --all-features --fix --allow-staged
 
 # Run most tests in debug mode to (potentially) catch more errors with
 # debug_assert.

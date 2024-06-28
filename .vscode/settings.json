@@ -57,6 +57,7 @@
     "rustfmt",
     "rustyline",
     "setoption",
+    "setposition",
     "shakmaty",
     "startpos",
     "sysinfo",

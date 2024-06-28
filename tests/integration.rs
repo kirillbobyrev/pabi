@@ -23,8 +23,8 @@ fn uci_setup() {
 // #[test]
 // #[ignore]
 // fn openbench_output() {
-//     let mut cmd = Command::cargo_bin(BINARY_NAME).expect("Binary should be built");
-//     let _ = cmd.arg("bench");
+//     let mut cmd = Command::cargo_bin(BINARY_NAME).expect("Binary should be
+// built");     let _ = cmd.arg("bench");
 
 //     drop(
 //         cmd.assert()

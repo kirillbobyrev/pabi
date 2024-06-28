@@ -5,16 +5,16 @@
 // TODO: Re-export types for convenience.
 pub mod chess;
 pub mod engine;
+pub mod environment;
 pub mod evaluation;
 pub mod mcts;
 
 pub use engine::Engine;
-use shadow_rs;
-use shadow_rs::shadow;
 
-shadow!(build);
+shadow_rs::shadow!(build);
 
-/// Features the engine is built with (e.g. build type and target). Produced by `build.rs`.
+/// Features the engine is built with (e.g. build type and target). Produced by
+/// `build.rs`.
 const BUILD_FEATURES: &str = include_str!(concat!(env!("OUT_DIR"), "/features"));
 
 /// Returns the full engine version that can be used to identify how it was

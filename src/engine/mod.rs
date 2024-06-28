@@ -175,7 +175,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
             Color::White => (wtime, winc),
             Color::Black => (btime, binc),
         };
-        let next_move = todo!();
+        todo!();
     }
 
     /// Stops the search immediately.
