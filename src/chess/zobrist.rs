@@ -23,14 +23,6 @@ impl RepetitionTable {
         self.table.clear();
     }
 
-    /// Checks whether the repetition table has no entries.
-    ///
-    /// This is mostly used for debugging purposes.
-    #[must_use]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.table.is_empty()
-    }
-
     /// Returns true if the position has occurred 3 times.
     ///
     /// In the tournament setting 3-fold repetition is a draw.

@@ -95,70 +95,19 @@ See [justfile](/justfile) for a complete list of frequently used commands.
 Rustdoc developer documentation is pushed at each commit to
 <https://kirillbobyrev.github.io/pabi/docs/pabi/>.
 
-#### [`src/chess/`](/src/chess/)
-
-Contains implementation of the chess environment and rules: [Bitboard]-based
-board representation, move generation, [Zobrist hashing]. This is the core of
-the engine: a fast move generator and convenient board implementation are
-crucial for engine's performance.
-
-#### [`src/evaluation/`](/src/evaluation/)
-
-Contains code that extracts features from a given position and runs "static"
-[position evaluation]: a Neural Network that considers just a single position
-and predicts how good the position is for the player to move.
-
-#### [`src/search/`](/src/search/)
-
-Implements Monte Carlo Tree Search ([MCTS]) and its extensions.
-
-#### [`src/engine/`](/src/engine/)
-
-Assembles all pieces together and manages resources to search effieciently under
-given time constraints. It also communicates back and forth with the tournament
-manager/server through [Universal Chess Interface] (UCI) protocol
-implementation.
-
-#### [`generated/`](/generated/)
-
-Pre-computed constants (such as [Magic Bitboards], [Vector Attacks]) speed up
-move generation and search.
-
-#### [`tests/`](/tests/)
-
-Tests the engine through public interfaces. Most tests should go here, unit
-tests are only valuable for testing private functions that aren't exposed but
-are still not trivial.
-
-#### [`benches/`](/benches/)
-
-Performance is crucial for a chess engine. This directory contains a number of
-performance regression tests that should be frequently run to ensure that the
-engine is not becoming slower. Patches affecting performance should have
-benchmark result deltas in the description.
-
-#### [`fuzz/`](/fuzz/)
-
-[Fuzzers] complement the existing tests by generating random inputs and trying
-to increase the coverage. Plenty of bugs can be caught by even relatively simply
-fuzzers: writing and running them is highly encouraged.
-
 ## [Milestones]
 
 - [ ] [Proof of Concept]
 - [ ] [Stable]
 - [ ] [Strong]
 
-[Bitboard]: https://www.chessprogramming.org/Bitboards
 [CCRL rules]: https://computerchess.org.uk/ccrl/404/about.html
 [Computer Chess Championship]: https://www.chess.com/computer-chess-championship
 [Dependabot]: https://github.com/dependabot
-[Fuzzers]: https://en.wikipedia.org/wiki/Fuzzing
 [Fuzzing]: https://en.wikipedia.org/wiki/Fuzzing
 [GitHub Actions]: https://github.com/features/actions
 [KataGo]: https://github.com/lightvector/KataGo
 [MCTS]: https://en.wikipedia.org/wiki/Monte_Carlo_tree_search
-[Magic Bitboards]: https://www.chessprogramming.org/Magic_Bitboards
 [Milestones]: https://github.com/kirillbobyrev/pabi/milestones
 [Proof of Concept]: https://github.com/kirillbobyrev/pabi/milestone/1
 [Rust]: https://www.rust-lang.org/
@@ -166,9 +115,5 @@ fuzzers: writing and running them is highly encouraged.
 [Strong]: https://github.com/kirillbobyrev/pabi/milestone/3
 [TCEC rules]: https://wiki.chessdom.org/Rules
 [TCEC]: https://tcec-chess.com/
-[Universal Chess Interface]: http://wbec-ridderkerk.nl/html/UCIProtocol.html
-[Zobrist hashing]: https://www.chessprogramming.org/Zobrist_Hashing
 [lc0]: https://lczero.org/
-[position evaluation]: https://www.chessprogramming.org/Evaluation
 [rustdoc]: https://doc.rust-lang.org/rustdoc
-[vector attacks]: https://www.chessprogramming.org/Vector_Attacks

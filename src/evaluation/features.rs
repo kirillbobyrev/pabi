@@ -1,1 +1,1 @@
-//! Extracts features from the
+//! Extracts features from the position.

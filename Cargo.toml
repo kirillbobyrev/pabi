@@ -22,42 +22,6 @@ include = [
   "README.md",
 ] # Reduce the package size by only including things necessary for building it.
 
-[lints.rust]
-# Warn
-# absolute_paths_not_starting_with_crate = "warn"
-# let_underscore_drop = "warn"
-# macro_use_extern_crate = "warn"
-# missing_docs = "warn"
-# unused_extern_crates = "warn"
-# unused_import_braces = "warn"
-# unused_lifetimes = "warn"
-# unused_qualifications = "warn"
-# Deny
-# keyword_idents_2018 = "deny"
-# keyword_idents_2024 = "deny"
-# trivial_casts = "deny"
-# trivial_numeric_casts = "deny"
-# unreachable_pub = "deny"
-# unused_results = "deny"
-
-[lints.clippy]
-# TODO: Gradually enable more and more warnings.
-# Warn
-# cargo = "warn"
-# complexity = "warn"
-# correctness = "warn"
-# nursery = "warn"
-# pedantic = "warn"
-# style = "warn"
-# suspicious = "warn"
-# Deny
-missing_transmute_annotations = { level = "allow", priority = -1 }
-perf = "deny"
-
-[lints.rustdoc]
-# broken_intra_doc_links = "deny"
-# invalid_rust_codeblocks = "deny"
-# unescaped_backticks = "deny"
 
 [features]
 mkl = ["candle-core/mkl", "candle-nn/mkl"]
@@ -66,8 +30,8 @@ mkl = ["candle-core/mkl", "candle-nn/mkl"]
 anyhow = "1.0.83"
 arrayvec = "0.7.2"
 bitflags = "2.2.1"
-candle-core = "0.5.1"
-candle-nn = "0.5.1"
+candle-core = "0.6.0"
+candle-nn = "0.6.0"
 clap = { version = "4.5.7", features = ["derive", "wrap_help"] }
 itertools = "0.13.0"
 # Use SmallRng for performance.
@@ -106,3 +70,41 @@ panic = "abort"
 strip = true
 # TODO: Tweak inline-threshold.
 # TODO: Set profile-generate and profile-use (https://github.com/kirillbobyrev/pabi/issues/9).
+
+[lints.rust]
+# Warn
+# absolute_paths_not_starting_with_crate = "warn"
+# let_underscore_drop = "warn"
+# macro_use_extern_crate = "warn"
+# missing_docs = "warn"
+# unused_extern_crates = "warn"
+# unused_import_braces = "warn"
+# unused_lifetimes = "warn"
+# unused_qualifications = "warn"
+# Deny
+# keyword_idents_2018 = "deny"
+# keyword_idents_2024 = "deny"
+# trivial_casts = "deny"
+# trivial_numeric_casts = "deny"
+# unreachable_pub = "deny"
+# unused_results = "deny"
+
+[lints.clippy]
+missing_transmute_annotations = "allow"
+# TODO: Gradually enable more and more warnings.
+# Warn
+# cargo = "warn"
+# complexity = "warn"
+# correctness = "warn"
+# nursery = "warn"
+# pedantic = "warn"
+# style = "warn"
+# suspicious = "warn"
+# Deny
+perf = "deny"
+allow_attributes_without_reason = "deny"
+
+[lints.rustdoc]
+# broken_intra_doc_links = "deny"
+# invalid_rust_codeblocks = "deny"
+# unescaped_backticks = "deny"

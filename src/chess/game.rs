@@ -4,6 +4,8 @@ use crate::chess::zobrist::RepetitionTable;
 use crate::environment::{Action, Environment, GameResult, Observation};
 
 impl Action for Move {
+    // The action space is actually smaller than 64 * 64 * 4 for chess:
+    // https://github.com/LeelaChessZero/lc0/blob/master/src/chess/bitboard.cc
     fn get_index(&self) -> u16 {
         todo!();
     }

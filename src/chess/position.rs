@@ -14,16 +14,7 @@ use anyhow::{bail, Context};
 use super::core::PieceKind;
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    Color,
-    File,
-    Move,
-    MoveList,
-    Piece,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, Color, File, Move, MoveList, Piece, Promotion, Rank, Square, BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 
@@ -168,13 +159,13 @@ impl Position {
         // Parse Piece Placement.
         let pieces_placement = match parts.next() {
             Some(placement) => placement,
-            None => bail!("incorrect FEN: missing pieces placement"),
+            None => bail!("missing pieces placement"),
         };
         let ranks = pieces_placement.split('/');
         let mut rank_id = 8;
         for rank_fen in ranks {
             if rank_id == 0 {
-                bail!("incorrect FEN: expected 8 ranks, got {pieces_placement}");
+                bail!("expected 8 ranks, got {pieces_placement}");
             }
             rank_id -= 1;
             let rank = Rank::try_from(rank_id)?;
@@ -206,34 +197,33 @@ impl Position {
             }
             if file != BOARD_WIDTH {
                 bail!(
-                    "incorrect FEN: rank size should be exactly {BOARD_WIDTH},
+                    "rank size should be exactly {BOARD_WIDTH},
                      got {rank_fen} of length {file}"
                 );
             }
         }
         if rank_id != 0 {
-            bail!("incorrect FEN: there should be 8 ranks, got {pieces_placement}");
+            bail!("there should be 8 ranks, got {pieces_placement}");
         }
         let side_to_move = match parts.next() {
             Some(value) => value.try_into()?,
-            None => bail!("incorrect FEN: missing side to move"),
+            None => bail!("missing side to move"),
         };
         let castling = match parts.next() {
             Some(value) => value.try_into()?,
-            None => bail!("incorrect FEN: missing castling rights"),
+            None => bail!("missing castling rights"),
         };
         let en_passant_square = match parts.next() {
             Some("-") => None,
             Some(value) => Some(value.try_into()?),
-            None => bail!("incorrect FEN: missing en passant square"),
+            None => bail!("missing en passant square"),
         };
         let halfmove_clock = match parts.next() {
             Some(value) => match value.parse::<u8>() {
                 Ok(num) => Some(num),
                 Err(e) => {
-                    return Err(e).with_context(|| {
-                        format!("incorrect FEN: halfmove clock can not be parsed {value}")
-                    });
+                    return Err(e)
+                        .with_context(|| format!("halfmove clock can not be parsed {value}"));
                 },
             },
             // This is a correct EPD: exit early.
@@ -246,13 +236,12 @@ impl Position {
                 },
                 Ok(num) => Some(num),
                 Err(e) => {
-                    return Err(e).with_context(|| {
-                        format!("incorrect FEN: fullmove counter can not be parsed {value}")
-                    });
+                    return Err(e)
+                        .with_context(|| format!("fullmove counter can not be parsed {value}"));
                 },
             },
             None => match halfmove_clock {
-                Some(_) => bail!("incorrect FEN: missing halfmove clock"),
+                Some(_) => bail!("missing halfmove clock"),
                 None => None,
             },
         };
@@ -316,15 +305,11 @@ impl Position {
     /// [BMI Instruction Set]: https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set
     /// [PEXT]: https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set#Parallel_bit_deposit_and_extract
     // TODO: Look at and compare speed with https://github.com/jordanbray/chess
-    // TODO: Another source for comparison:
-    // https://github.com/sfleischman105/Pleco/blob/b825cecc258ad25cba65919208727994f38a06fb/pleco/src/board/movegen.rs#L68-L85
     // TODO: Maybe use python-chess testset of perft moves:
     // https://github.com/niklasf/python-chess/blob/master/examples/perft/random.perft
     // TODO: Compare with other engines and perft generators
     // (https://github.com/jniemann66/juddperft).
     // TODO: Check movegen comparison (https://github.com/Gigantua/Chess_Movegen).
-    // TODO: Use monomorphization to generate code for calculating attacks for both sides to reduce
-    // branching? https://rustc-dev-guide.rust-lang.org/backend/monomorph.html
     #[must_use]
     pub fn generate_moves(&self) -> MoveList {
         let mut moves = MoveList::new();
