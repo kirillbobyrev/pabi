@@ -2,6 +2,7 @@
 
 use std::fmt::{self, Write};
 use std::mem;
+use std::ops::Not;
 
 use anyhow::bail;
 use itertools::Itertools;
@@ -34,7 +35,7 @@ impl Move {
     const TO_OFFSET: u8 = 6;
 
     #[must_use]
-    pub(super) fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
+    pub fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
         let mut packed = from as u16 | ((to as u16) << Self::TO_OFFSET);
         if let Some(promo) = promotion {
             packed |= (promo as u16) << Self::PROMOTION_OFFSET;
@@ -65,6 +66,30 @@ impl Move {
     /// `position` command.
     pub fn from_uci(uci: &str) -> anyhow::Result<Self> {
         Self::try_from(uci)
+    }
+
+    /// Converts the move from the perspective of one player to the other, as if
+    /// the other player's backrank is rank 1.
+    ///
+    /// This is very useful for encoding the moves to reduce the action space
+    /// and pass them as actions to the policy network.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pabi::chess::core::{Move, Square};
+    ///
+    /// assert_eq!(
+    ///     Move::new(Square::E1, Square::E8, None).flip_perspective(),
+    ///     Move::new(Square::E8, Square::E1, None)
+    /// );
+    /// ```
+    pub fn flip_perspective(&self) -> Self {
+        Self::new(
+            self.from().flip_perspective(),
+            self.to().flip_perspective(),
+            self.promotion(),
+        )
     }
 
     #[must_use]
@@ -181,6 +206,26 @@ impl Square {
             Ok(square) => Some(square),
             Err(_) => None,
         }
+    }
+
+    /// "Flips" the square vertically, i.e. returns the square as if the board
+    /// is rotated 180° (POV of other player) and ranks are mirrored (rank 8
+    /// becomes rank 1, rank 7 becomes rank 2 and so on).
+    ///
+    /// This is useful for encoding the moves from the perspective of the other
+    /// player to compress action space.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pabi::chess::core::Square;
+    ///
+    /// assert_eq!(Square::E1.flip_perspective(), Square::E8);
+    /// assert_eq!(Square::D4.flip_perspective(), Square::D5);
+    /// ```
+    #[must_use]
+    pub fn flip_perspective(self) -> Self {
+        unsafe { mem::transmute(56 ^ self as u8) }
     }
 
     fn next(self) -> Option<Self> {
@@ -406,19 +451,21 @@ pub enum Color {
 }
 
 impl Color {
-    /// "Flips" the color.
-    #[must_use]
-    pub const fn opponent(self) -> Self {
-        match self {
-            Self::White => Self::Black,
-            Self::Black => Self::White,
-        }
-    }
-
     pub(super) const fn pawn_push_direction(self) -> Direction {
         match self {
             Self::White => Direction::Up,
             Self::Black => Direction::Down,
+        }
+    }
+}
+
+impl Not for Color {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Self::White => Self::Black,
+            Self::Black => Self::White,
         }
     }
 }
@@ -607,21 +654,20 @@ bitflags::bitflags! {
     ///   vacant except for the king and castling rook.
     ///
     /// [castle]: https://www.chessprogramming.org/Castling
-    // TODO: Update with castling squares for Chess960.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct CastleRights : u8 {
         #[allow(missing_docs)]
         const NONE = 0;
         #[allow(missing_docs)]
-        const WHITE_SHORT = 0b1000;
+        const WHITE_SHORT = 0b0001;
         #[allow(missing_docs)]
-        const WHITE_LONG = 0b0100;
+        const WHITE_LONG = 0b0010;
         #[allow(missing_docs)]
         const WHITE_BOTH = Self::WHITE_SHORT.bits() | Self::WHITE_LONG.bits();
         #[allow(missing_docs)]
-        const BLACK_SHORT = 0b0010;
+        const BLACK_SHORT = 0b0100;
         #[allow(missing_docs)]
-        const BLACK_LONG = 0b0001;
+        const BLACK_LONG = 0b1000;
         #[allow(missing_docs)]
         const BLACK_BOTH = Self::BLACK_SHORT.bits() | Self::BLACK_LONG.bits();
         #[allow(missing_docs)]
@@ -709,7 +755,7 @@ impl fmt::Display for CastleRights {
 /// A pawn can be promoted to a queen, rook, bishop or a knight.
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
-pub(crate) enum Promotion {
+pub enum Promotion {
     Knight = 1,
     Bishop = 2,
     Rook = 3,
@@ -899,9 +945,7 @@ mod tests {
 
     #[test]
     fn primitive_size() {
-        assert_eq!(size_of::<Square>(), 1);
-        // Primitives will have small size thanks to the niche optimizations:
-        // https://rust-lang.github.io/unsafe-code-guidelines/layout/enums.html#layout-of-a-data-carrying-enums-without-a-repr-annotation
+        // Primitives will have small size thanks to the niche optimizations.
         assert_eq!(size_of::<PieceKind>(), 1);
         assert_eq!(size_of::<Option<PieceKind>>(), 1);
         let square_to_pieces: [Option<PieceKind>; BOARD_SIZE as usize] =

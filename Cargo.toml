@@ -11,7 +11,7 @@ name = "pabi"
 readme = "README.md"
 repository = "https://github.com/kirillbobyrev/pabi"
 rust-version = "1.79"
-version = "2024.6.27"
+version = "2024.7.1"
 include = [
   "/src/",
   "/generated/",
@@ -82,8 +82,8 @@ strip = true
 # unused_lifetimes = "warn"
 # unused_qualifications = "warn"
 # Deny
-# keyword_idents_2018 = "deny"
-# keyword_idents_2024 = "deny"
+keyword_idents_2018 = "deny"
+keyword_idents_2024 = "deny"
 # trivial_casts = "deny"
 # trivial_numeric_casts = "deny"
 # unreachable_pub = "deny"

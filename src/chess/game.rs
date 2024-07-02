@@ -63,13 +63,13 @@ impl Environment<Move, Position> for Game {
 #[cfg(test)]
 mod tests {
 
-    #[test]
-    fn detect_repetition() {
-        todo!();
-    }
+    // #[test]
+    // fn detect_repetition() {
+    //     todo!();
+    // }
 
-    #[test]
-    fn game_result() {
-        todo!();
-    }
+    // #[test]
+    // fn game_result() {
+    //     todo!();
+    // }
 }

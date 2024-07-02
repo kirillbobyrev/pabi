@@ -7,5 +7,3 @@
 
 pub(crate) mod features;
 pub(crate) mod network;
-
-pub type QValue = f32;

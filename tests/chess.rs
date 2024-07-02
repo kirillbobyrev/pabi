@@ -1,3 +1,6 @@
+// Many integration tests are slow and are marked as ignored. Use `just
+// test_all` to include them in the test suite run.
+
 use std::fs;
 
 use itertools::Itertools;
@@ -170,7 +173,6 @@ fn no_crash() {
     .is_err());
 }
 
-// This test is very expensive in the Debug setting (could take 200+ seconds).
 #[test]
 #[ignore]
 fn arbitrary_positions() {
@@ -517,17 +519,30 @@ fn make_moves() {
     );
 }
 
-// This test is very expensive in the Debug setting (could take 200+ seconds).
 #[test]
 #[ignore]
-fn random_positions() {
-    for serialized_position in fs::read_to_string(concat!(
+fn arbitrary_positions_book() {
+    let positions = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/data/positions.fen"
     ))
-    .unwrap()
-    .lines()
-    {
+    .unwrap();
+    check_movegen_for_positions(positions);
+}
+
+#[test]
+#[ignore]
+fn ccrl_uho_positions() {
+    let positions = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/books/Chess324_xxl_big_+090_+119.epd"
+    ))
+    .unwrap();
+    check_movegen_for_positions(positions);
+}
+
+fn check_movegen_for_positions(positions: String) {
+    for serialized_position in positions.lines() {
         let position = Position::from_fen(serialized_position).unwrap();
         let shakmaty_setup: shakmaty::fen::Fen = serialized_position.parse().unwrap();
         let shakmaty_position: shakmaty::Chess = shakmaty_setup

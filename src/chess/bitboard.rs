@@ -51,7 +51,7 @@ pub struct Bitboard {
 impl Bitboard {
     /// Constructs Bitboard from pre-calculated bits.
     #[must_use]
-    pub(super) const fn from_bits(bits: u64) -> Self {
+    pub const fn from_bits(bits: u64) -> Self {
         Self { bits }
     }
 
@@ -75,7 +75,7 @@ impl Bitboard {
     }
 
     #[must_use]
-    pub(super) fn from_squares(squares: &[Square]) -> Self {
+    pub fn from_squares(squares: &[Square]) -> Self {
         let mut result = Self::empty();
         for square in squares {
             result |= Self::from(*square);
@@ -126,6 +126,45 @@ impl Bitboard {
             Direction::Up => self << u32::from(BOARD_WIDTH),
             Direction::Down => self >> u32::from(BOARD_WIDTH),
         }
+    }
+
+    /// Flips the bitboard vertically.
+    ///
+    /// This is useful when we want to switch between the board point of view of
+    /// White and Black.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pabi::chess::bitboard::Bitboard;
+    ///
+    /// let bb = Bitboard::from_bits(0x1e2222120e0a1222);
+    /// assert_eq!(
+    ///     format!("{:?}", bb),
+    ///     ". 1 1 1 1 . . .\n\
+    ///      . 1 . . . 1 . .\n\
+    ///      . 1 . . . 1 . .\n\
+    ///      . 1 . . 1 . . .\n\
+    ///      . 1 1 1 . . . .\n\
+    ///      . 1 . 1 . . . .\n\
+    ///      . 1 . . 1 . . .\n\
+    ///      . 1 . . . 1 . ."
+    /// );
+    /// assert_eq!(
+    ///     format!("{:?}", bb.flip_perspective()),
+    ///     ". 1 . . . 1 . .\n\
+    ///      . 1 . . 1 . . .\n\
+    ///      . 1 . 1 . . . .\n\
+    ///      . 1 1 1 . . . .\n\
+    ///      . 1 . . 1 . . .\n\
+    ///      . 1 . . . 1 . .\n\
+    ///      . 1 . . . 1 . .\n\
+    ///      . 1 1 1 1 . . ."
+    /// );
+    /// ```
+    #[must_use]
+    pub fn flip_perspective(&self) -> Self {
+        Self::from_bits(self.bits.swap_bytes())
     }
 
     /// An efficient way to iterate over the set squares.
@@ -501,7 +540,7 @@ mod tests {
 
     #[test]
     fn set_ops() {
-        let bitboard = Bitboard::from_squares(&[
+        let bb = Bitboard::from_squares(&[
             Square::A1,
             Square::B1,
             Square::C1,
@@ -536,7 +575,7 @@ mod tests {
             Square::H8,
         ]);
         assert_eq!(
-            format!("{:?}", bitboard),
+            format!("{:?}", bb),
             "1 . 1 1 1 1 1 1\n\
             1 1 1 1 . 1 1 1\n\
             . . 1 . . . . .\n\
@@ -547,7 +586,7 @@ mod tests {
             1 1 1 1 1 1 . 1"
         );
         assert_eq!(
-            format!("{:?}", !bitboard),
+            format!("{:?}", !bb),
             ". 1 . . . . . .\n\
             . . . . 1 . . .\n\
             1 1 . 1 1 1 1 1\n\
@@ -560,7 +599,7 @@ mod tests {
         assert_eq!(
             format!(
                 "{:?}",
-                bitboard - Bitboard::from_squares(&[Square::A1, Square::E4, Square::G8])
+                bb - Bitboard::from_squares(&[Square::A1, Square::E4, Square::G8])
             ),
             "1 . 1 1 1 1 . 1\n\
             1 1 1 1 . 1 1 1\n\
@@ -571,8 +610,8 @@ mod tests {
             1 1 1 1 . 1 1 1\n\
             . 1 1 1 1 1 . 1"
         );
-        assert_eq!(!!bitboard, bitboard);
-        assert_eq!(bitboard - !bitboard, bitboard);
+        assert_eq!(!!bb, bb);
+        assert_eq!(bb - !bb, bb);
     }
 
     #[test]
@@ -678,4 +717,7 @@ mod tests {
              . . . . . . . ."
         );
     }
+
+    #[test]
+    fn flip_perspective() {}
 }

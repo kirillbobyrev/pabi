@@ -9,7 +9,6 @@ struct Args {
     // TODO: Tablebase path.
 }
 
-
-fn main () {
+fn main() {
     todo!()
 }

@@ -14,7 +14,16 @@ use anyhow::{bail, Context};
 use super::core::PieceKind;
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights, Color, File, Move, MoveList, Piece, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    Color,
+    File,
+    Move,
+    MoveList,
+    Piece,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 
@@ -41,7 +50,6 @@ use crate::chess::{attacks, generated, zobrist};
 /// [Forsyth-Edwards Notation]: https://www.chessprogramming.org/Forsyth-Edwards_Notation
 /// [Extended Position Description]: https://www.chessprogramming.org/Extended_Position_Description
 /// [Operations]: https://www.chessprogramming.org/Extended_Position_Description#Operations
-// TODO: Make the fields private, expose appropriate assessors.
 #[derive(Clone)]
 pub struct Position {
     white_pieces: Pieces,
@@ -62,7 +70,6 @@ pub struct Position {
     hash: zobrist::Key,
 }
 
-// TODO: Mark more functions as const.
 impl Position {
     /// Creates the starting position of the standard chess.
     ///
@@ -96,7 +103,7 @@ impl Position {
     }
 
     pub(crate) fn them(&self) -> Color {
-        self.us().opponent()
+        !self.us()
     }
 
     pub(crate) fn pieces(&self, color: Color) -> &Pieces {
@@ -427,7 +434,7 @@ impl Position {
             self.fullmove_counter += 1;
         }
 
-        self.side_to_move = self.side_to_move.opponent();
+        self.side_to_move = !self.side_to_move;
     }
 
     fn update_castling_rights(&mut self, next_move: &Move) {
@@ -466,9 +473,9 @@ impl Position {
     }
 
     fn handle_capture(&mut self, next_move: &Move) {
-        let their_pieces = match self.side_to_move.opponent() {
-            Color::White => &mut self.white_pieces,
-            Color::Black => &mut self.black_pieces,
+        let their_pieces = match self.side_to_move {
+            Color::White => &mut self.black_pieces,
+            Color::Black => &mut self.white_pieces,
         };
 
         // TODO: Update the hash.
@@ -489,7 +496,7 @@ impl Position {
                     piece.clear(square);
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            color: self.side_to_move.opponent(),
+                            color: !self.side_to_move,
                             kind,
                         },
                         square,
@@ -523,7 +530,7 @@ impl Position {
                 their_pieces.pawns.clear(captured_pawn);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        color: self.side_to_move.opponent(),
+                        color: !self.side_to_move,
                         kind: PieceKind::Pawn,
                     },
                     captured_pawn,
