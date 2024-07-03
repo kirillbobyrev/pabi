@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::mcts::Depth;
+use crate::search::Depth;
 
 #[derive(Debug, PartialEq)]
 pub(super) enum Command {

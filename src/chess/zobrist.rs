@@ -6,6 +6,7 @@ use std::collections::HashMap;
 /// created and updated whenever a move is made.
 pub type Key = u64;
 
+#[derive(Debug)]
 pub(crate) struct RepetitionTable {
     table: HashMap<Key, u8>,
 }

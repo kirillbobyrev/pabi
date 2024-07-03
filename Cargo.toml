@@ -39,6 +39,9 @@ rand = { version = "0.8.5", features = ["small_rng"] }
 rand_distr = "0.4.3"
 rayon = "1.10.0"
 shadow-rs = "0.29.0"
+# Used for probing tablebases.
+shakmaty = "0.27.0"
+shakmaty-syzygy = "0.25.0"
 
 [build-dependencies]
 rand = "0.8.5"
@@ -72,7 +75,6 @@ strip = true
 # TODO: Set profile-generate and profile-use (https://github.com/kirillbobyrev/pabi/issues/9).
 
 [lints.rust]
-# Warn
 # absolute_paths_not_starting_with_crate = "warn"
 # let_underscore_drop = "warn"
 # macro_use_extern_crate = "warn"
@@ -81,30 +83,28 @@ strip = true
 # unused_import_braces = "warn"
 # unused_lifetimes = "warn"
 # unused_qualifications = "warn"
-# Deny
 keyword_idents_2018 = "deny"
 keyword_idents_2024 = "deny"
-# trivial_casts = "deny"
+trivial_casts = "deny"
 # trivial_numeric_casts = "deny"
 # unreachable_pub = "deny"
 # unused_results = "deny"
 
 [lints.clippy]
 missing_transmute_annotations = "allow"
-# TODO: Gradually enable more and more warnings.
-# Warn
 # cargo = "warn"
 # complexity = "warn"
 # correctness = "warn"
 # nursery = "warn"
 # pedantic = "warn"
 # style = "warn"
-# suspicious = "warn"
-# Deny
+suspicious = "deny"
+redundant_pattern_matching = "deny"
 perf = "deny"
 allow_attributes_without_reason = "deny"
+derivable_impls = "deny"
 
 [lints.rustdoc]
-# broken_intra_doc_links = "deny"
-# invalid_rust_codeblocks = "deny"
-# unescaped_backticks = "deny"
+broken_intra_doc_links = "deny"
+invalid_rust_codeblocks = "deny"
+unescaped_backticks = "deny"

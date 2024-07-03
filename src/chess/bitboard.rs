@@ -138,7 +138,7 @@ impl Bitboard {
     /// ```
     /// use pabi::chess::bitboard::Bitboard;
     ///
-    /// let bb = Bitboard::from_bits(0x1e2222120e0a1222);
+    /// let bb = Bitboard::from_bits(0x1E2222120E0A1222);
     /// assert_eq!(
     ///     format!("{:?}", bb),
     ///     ". 1 1 1 1 . . .\n\
@@ -514,12 +514,12 @@ mod tests {
 
         let mut it = white.king.iter();
         assert_eq!(it.next(), Some(Square::E1));
-        assert_eq!(it.next(), None);
+        assert!(it.next().is_none());
 
         let mut it = white.bishops.iter();
         assert_eq!(it.next(), Some(Square::C1));
         assert_eq!(it.next(), Some(Square::F1));
-        assert_eq!(it.next(), None);
+        assert!(it.next().is_none());
 
         // The order is important here: we are iterating from least significant
         // bits to most significant bits.

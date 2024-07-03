@@ -127,6 +127,10 @@ impl Position {
         self.occupancy(self.us()) | self.occupancy(self.them())
     }
 
+    pub fn num_pieces(&self) -> usize {
+        self.occupied_squares().count() as usize
+    }
+
     /// Parses board from Forsyth-Edwards Notation and checks its correctness.
     /// The parser will accept trimmed full FEN and trimmed FEN (4 first parts).
     ///
@@ -737,11 +741,18 @@ impl Position {
         }
     }
 
-    // TODO: Figuring out if the king is in check is relatively easy: try all
-    // attacks on the king square.
     #[must_use]
     pub fn in_check(&self) -> bool {
-        todo!()
+        // TODO: Computing this is expensive. Cache/check for attacks on king
+        // separately?
+        let attack_info = attacks::AttackInfo::new(
+            self.them(),
+            self.pieces(self.them()),
+            self.pieces(self.us()).king.as_square(),
+            self.occupancy(self.us()),
+            self.occupied_squares(),
+        );
+        attack_info.checkers.has_any()
     }
 
     /// Returns true if 50-move rule draw is in effect.

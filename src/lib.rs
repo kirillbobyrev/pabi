@@ -7,7 +7,7 @@ pub mod chess;
 pub mod engine;
 pub mod environment;
 pub mod evaluation;
-pub mod mcts;
+pub mod search;
 
 pub use engine::Engine;
 

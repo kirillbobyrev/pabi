@@ -14,7 +14,7 @@ use anyhow::bail;
 use crate::chess::core::{Color, Move};
 use crate::chess::position::Position;
 use crate::engine::uci::Command;
-use crate::mcts::Depth;
+use crate::search::Depth;
 
 mod time_manager;
 mod uci;
