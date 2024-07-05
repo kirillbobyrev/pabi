@@ -4,6 +4,7 @@
 
 // TODO: Re-export types for convenience.
 pub mod chess;
+pub mod datagen;
 pub mod engine;
 pub mod environment;
 pub mod evaluation;

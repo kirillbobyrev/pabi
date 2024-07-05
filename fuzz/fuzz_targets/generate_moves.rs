@@ -37,4 +37,5 @@ fuzz_target!(|data: &[u8]| {
             .sorted()
             .collect::<Vec<_>>()
     );
+    assert_eq!(position.in_check(), shakmaty_position.is_check());
 });

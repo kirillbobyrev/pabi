@@ -12,6 +12,8 @@ pub(super) const WHITE_CAN_CASTLE_LONG: Key = 0x41D8_B55B_A5FE_B78B;
 pub(super) const BLACK_CAN_CASTLE_SHORT: Key = 0x6809_8878_7A43_D289;
 pub(super) const BLACK_CAN_CASTLE_LONG: Key = 0x2F94_1F8D_FD3E_3D1F;
 
+// NOTE: The following keys are randomly generated in build.rs and are not
+// stable even between different builds of the same version.
 pub(super) const EN_PASSANT_FILES: [Key; 8] =
     include!(concat!(env!("OUT_DIR"), "/en_passant_zobrist_keys"));
 
@@ -24,6 +26,7 @@ pub(super) fn get_piece_key(piece: Piece, square: Square) -> Key {
         + square as usize]
 }
 
+// Move generation-related precomputed bitboards.
 const BISHOP_ATTACKS_COUNT: usize = 5248;
 pub(super) const BISHOP_ATTACKS: [Bitboard; BISHOP_ATTACKS_COUNT] = include!(concat!(
     env!("CARGO_MANIFEST_DIR"),

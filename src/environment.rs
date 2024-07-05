@@ -54,9 +54,9 @@ impl fmt::Display for Player {
 /// Result of the game from the perspective of the player to move at root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameResult {
-    WhiteWin,
+    Win,
     Draw,
-    BlackWin,
+    Loss,
 }
 
 // TODO: Require features tensor?

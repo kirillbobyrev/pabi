@@ -7,6 +7,7 @@ use itertools::Itertools;
 use pabi::chess::core::Move;
 use pabi::chess::position::{perft, Position};
 use pretty_assertions::assert_eq;
+use shakmaty::Position as ShakmatyPosition;
 
 #[must_use]
 pub fn sanitize_fen(position: &str) -> String {
@@ -562,6 +563,7 @@ fn check_movegen_for_positions(positions: String) {
                 .collect::<Vec<_>>(),
             "position: {serialized_position}"
         );
+        assert_eq!(position.in_check(), shakmaty_position.is_check());
     }
 }
 

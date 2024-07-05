@@ -8,6 +8,10 @@ build:
 run:
   cargo run --profile=release --bin=pabi
 
+# Starts self-play games for data generation.
+datagen:
+  cargo run --profile=release --bin=datagen
+
 # Format all code.
 fmt:
   cargo +nightly fmt --all
@@ -43,7 +47,7 @@ list_fuzz_targets:
 
 fuzz target:
   cd fuzz
-  cargo +nightly --profile=release fuzz run {{ target }}
+  cargo +nightly fuzz run {{ target }} -- --profile=release
 
 # Build developer documentation.
 doc:
