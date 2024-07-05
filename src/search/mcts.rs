@@ -1,6 +1,4 @@
-use super::Depth;
-
-fn search(num_simulations: usize, max_depth: Depth) {
+fn search(num_simulations: usize) {
     for _ in 0..num_simulations {
         todo!()
     }

@@ -2,12 +2,12 @@
 
 use std::fmt::{self, Write};
 use std::mem;
-use std::ops::Not;
 
 use anyhow::bail;
 use itertools::Itertools;
 
 use crate::chess::bitboard::Bitboard;
+use crate::environment::Player;
 
 #[allow(missing_docs)]
 pub const BOARD_WIDTH: u8 = 8;
@@ -119,7 +119,7 @@ impl TryFrom<&str> for Move {
 }
 
 impl fmt::Display for Move {
-    /// Serializes a move in UCI format (used by [`pabi::uci`]).
+    /// Serializes a move to UCI-compatible representation.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.from(), self.to())?;
         if let Some(promotion) = self.promotion() {
@@ -398,17 +398,17 @@ impl Rank {
         }
     }
 
-    pub(super) const fn backrank(color: Color) -> Self {
-        match color {
-            Color::White => Self::Rank1,
-            Color::Black => Self::Rank8,
+    pub(super) const fn backrank(player: Player) -> Self {
+        match player {
+            Player::White => Self::Rank1,
+            Player::Black => Self::Rank8,
         }
     }
 
-    pub(super) const fn pawns_starting(color: Color) -> Self {
-        match color {
-            Color::White => Self::Rank2,
-            Color::Black => Self::Rank7,
+    pub(super) const fn pawns_starting(player: Player) -> Self {
+        match player {
+            Player::White => Self::Rank2,
+            Player::Black => Self::Rank7,
         }
     }
 }
@@ -438,60 +438,6 @@ impl TryFrom<u8> for Rank {
 impl fmt::Display for Rank {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", *self as u8 + 1)
-    }
-}
-
-/// A standard game of chess is played between two players: White (having the
-/// advantage of the first turn) and Black.
-#[allow(missing_docs)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Color {
-    White,
-    Black,
-}
-
-impl Color {
-    pub(super) const fn pawn_push_direction(self) -> Direction {
-        match self {
-            Self::White => Direction::Up,
-            Self::Black => Direction::Down,
-        }
-    }
-}
-
-impl Not for Color {
-    type Output = Self;
-
-    fn not(self) -> Self::Output {
-        match self {
-            Self::White => Self::Black,
-            Self::Black => Self::White,
-        }
-    }
-}
-
-impl TryFrom<&str> for Color {
-    type Error = anyhow::Error;
-
-    fn try_from(color: &str) -> anyhow::Result<Self> {
-        match color {
-            "w" => Ok(Self::White),
-            "b" => Ok(Self::Black),
-            _ => bail!("color should be 'w' or 'b', got '{color}'"),
-        }
-    }
-}
-
-impl fmt::Display for Color {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match &self {
-                Self::White => 'w',
-                Self::Black => 'b',
-            }
-        )
     }
 }
 
@@ -536,7 +482,7 @@ impl fmt::Display for PieceKind {
 /// Represents a specific piece owned by a player.
 pub struct Piece {
     #[allow(missing_docs)]
-    pub color: Color,
+    pub player: Player,
     #[allow(missing_docs)]
     pub kind: PieceKind,
 }
@@ -544,7 +490,7 @@ pub struct Piece {
 impl Piece {
     #[must_use]
     pub const fn plane(&self) -> usize {
-        self.color as usize * 6 + self.kind as usize
+        self.player as usize * 6 + self.kind as usize
     }
 }
 
@@ -554,51 +500,51 @@ impl TryFrom<char> for Piece {
     fn try_from(symbol: char) -> anyhow::Result<Self> {
         match symbol {
             'P' => Ok(Self {
-                color: Color::White,
+                player: Player::White,
                 kind: PieceKind::Pawn,
             }),
             'N' => Ok(Self {
-                color: Color::White,
+                player: Player::White,
                 kind: PieceKind::Knight,
             }),
             'B' => Ok(Self {
-                color: Color::White,
+                player: Player::White,
                 kind: PieceKind::Bishop,
             }),
             'R' => Ok(Self {
-                color: Color::White,
+                player: Player::White,
                 kind: PieceKind::Rook,
             }),
             'Q' => Ok(Self {
-                color: Color::White,
+                player: Player::White,
                 kind: PieceKind::Queen,
             }),
             'K' => Ok(Self {
-                color: Color::White,
+                player: Player::White,
                 kind: PieceKind::King,
             }),
             'p' => Ok(Self {
-                color: Color::Black,
+                player: Player::Black,
                 kind: PieceKind::Pawn,
             }),
             'n' => Ok(Self {
-                color: Color::Black,
+                player: Player::Black,
                 kind: PieceKind::Knight,
             }),
             'b' => Ok(Self {
-                color: Color::Black,
+                player: Player::Black,
                 kind: PieceKind::Bishop,
             }),
             'r' => Ok(Self {
-                color: Color::Black,
+                player: Player::Black,
                 kind: PieceKind::Rook,
             }),
             'k' => Ok(Self {
-                color: Color::Black,
+                player: Player::Black,
                 kind: PieceKind::King,
             }),
             'q' => Ok(Self {
-                color: Color::Black,
+                player: Player::Black,
                 kind: PieceKind::Queen,
             }),
             _ => bail!("piece symbol should be in \"PNBRQKpnbrqk\", got '{symbol}'"),
@@ -608,21 +554,21 @@ impl TryFrom<char> for Piece {
 
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_char(match (&self.color, &self.kind) {
+        f.write_char(match (&self.player, &self.kind) {
             // White: uppercase symbols.
-            (Color::White, PieceKind::Pawn) => 'P',
-            (Color::White, PieceKind::Knight) => 'N',
-            (Color::White, PieceKind::Bishop) => 'B',
-            (Color::White, PieceKind::Rook) => 'R',
-            (Color::White, PieceKind::Queen) => 'Q',
-            (Color::White, PieceKind::King) => 'K',
+            (Player::White, PieceKind::Pawn) => 'P',
+            (Player::White, PieceKind::Knight) => 'N',
+            (Player::White, PieceKind::Bishop) => 'B',
+            (Player::White, PieceKind::Rook) => 'R',
+            (Player::White, PieceKind::Queen) => 'Q',
+            (Player::White, PieceKind::King) => 'K',
             // Black: lowercase symbols.
-            (Color::Black, PieceKind::Pawn) => 'p',
-            (Color::Black, PieceKind::Knight) => 'n',
-            (Color::Black, PieceKind::Bishop) => 'b',
-            (Color::Black, PieceKind::Rook) => 'r',
-            (Color::Black, PieceKind::Queen) => 'q',
-            (Color::Black, PieceKind::King) => 'k',
+            (Player::Black, PieceKind::Pawn) => 'p',
+            (Player::Black, PieceKind::Knight) => 'n',
+            (Player::Black, PieceKind::Bishop) => 'b',
+            (Player::Black, PieceKind::Rook) => 'r',
+            (Player::Black, PieceKind::Queen) => 'q',
+            (Player::Black, PieceKind::King) => 'k',
         })
     }
 }

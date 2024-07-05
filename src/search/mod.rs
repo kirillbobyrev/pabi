@@ -5,6 +5,3 @@
 mod mcts;
 mod policy;
 mod tree;
-
-/// Search depth in plies.
-pub type Depth = u8;

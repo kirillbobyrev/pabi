@@ -3,10 +3,10 @@ use std::path::Path;
 use shakmaty::Chess;
 use shakmaty_syzygy::{AmbiguousWdl, Tablebase};
 
-use super::core::{Color, Move, MoveList};
+use super::core::{Move, MoveList};
 use crate::chess::position::Position;
 use crate::chess::zobrist::RepetitionTable;
-use crate::environment::{Action, Environment, GameResult, Observation};
+use crate::environment::{Action, Environment, GameResult, Observation, Player};
 
 impl Action for Move {
     // The action space is actually smaller than 64 * 64 * 4 for chess:
@@ -20,7 +20,7 @@ impl Observation for Position {}
 
 pub struct Game {
     position: Position,
-    perspective: Color,
+    perspective: Player,
     repetitions: RepetitionTable,
     moves: MoveList,
     tablebase: Tablebase<Chess>,
@@ -74,22 +74,16 @@ impl Environment<Move, Position> for Game {
                 .probe_wdl(&to_shakmaty_position(&self.position))
                 .unwrap();
             match wdl {
-                AmbiguousWdl::Win | AmbiguousWdl::MaybeWin => {
-                    return if self.perspective == self.position.us() {
-                        Some(GameResult::Win)
-                    } else {
-                        Some(GameResult::Loss)
-                    }
+                AmbiguousWdl::Win | AmbiguousWdl::MaybeWin => match self.position.us() {
+                    Player::White => return Some(GameResult::WhiteWin),
+                    Player::Black => return Some(GameResult::BlackWin),
                 },
                 AmbiguousWdl::Draw | AmbiguousWdl::BlessedLoss | AmbiguousWdl::CursedWin => {
                     return Some(GameResult::Draw)
                 },
-                AmbiguousWdl::Loss | AmbiguousWdl::MaybeLoss => {
-                    return if self.perspective == self.position.us() {
-                        Some(GameResult::Loss)
-                    } else {
-                        Some(GameResult::Win)
-                    }
+                AmbiguousWdl::Loss | AmbiguousWdl::MaybeLoss => match self.position.us() {
+                    Player::White => return Some(GameResult::BlackWin),
+                    Player::Black => return Some(GameResult::WhiteWin),
                 },
             }
         }
@@ -97,11 +91,10 @@ impl Environment<Move, Position> for Game {
             if !self.position.in_check() {
                 return Some(GameResult::Draw);
             }
-            return if self.perspective == self.position.us() {
-                Some(GameResult::Loss)
-            } else {
-                Some(GameResult::Win)
-            };
+            match self.position.us() {
+                Player::White => return Some(GameResult::BlackWin),
+                Player::Black => return Some(GameResult::WhiteWin),
+            }
         }
         None
     }
@@ -171,12 +164,10 @@ mod tests {
     //     todo!();
     // }
 
-
     // #[test]
     // fn stalemate() {
     //     todo!();
     // }
-
 
     // #[test]
     // fn fifty_move_rule() {

@@ -11,11 +11,10 @@ use std::fmt::{self, Write};
 
 use anyhow::{bail, Context};
 
-use super::core::PieceKind;
+use super::core::{Direction, PieceKind};
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
     CastleRights,
-    Color,
     File,
     Move,
     MoveList,
@@ -26,6 +25,7 @@ use crate::chess::core::{
     BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
+use crate::environment::Player;
 
 /// Piece-centric implementation of the chess position, which includes all
 /// pieces and their placement, information about the castling rights, side to
@@ -55,7 +55,7 @@ pub struct Position {
     white_pieces: Pieces,
     black_pieces: Pieces,
     castling: CastleRights,
-    side_to_move: Color,
+    side_to_move: Player,
     /// [Halfmove Clock][^ply] keeps track of the number of halfmoves since the
     /// last capture or pawn move and is used to enforce fifty[^fifty]-move draw
     /// rule.
@@ -85,10 +85,10 @@ impl Position {
     #[must_use]
     pub fn starting() -> Self {
         let mut result = Self {
-            white_pieces: Pieces::starting(Color::White),
-            black_pieces: Pieces::starting(Color::Black),
+            white_pieces: Pieces::starting(Player::White),
+            black_pieces: Pieces::starting(Player::Black),
             castling: CastleRights::ALL,
-            side_to_move: Color::White,
+            side_to_move: Player::White,
             halfmove_clock: 0,
             fullmove_counter: 1,
             en_passant_square: None,
@@ -98,18 +98,18 @@ impl Position {
         result
     }
 
-    pub(crate) const fn us(&self) -> Color {
+    pub(crate) const fn us(&self) -> Player {
         self.side_to_move
     }
 
-    pub(crate) fn them(&self) -> Color {
+    pub(crate) fn them(&self) -> Player {
         !self.us()
     }
 
-    pub(crate) fn pieces(&self, color: Color) -> &Pieces {
-        match color {
-            Color::White => &self.white_pieces,
-            Color::Black => &self.black_pieces,
+    pub(crate) fn pieces(&self, player: Player) -> &Pieces {
+        match player {
+            Player::White => &self.white_pieces,
+            Player::Black => &self.black_pieces,
         }
     }
 
@@ -119,8 +119,8 @@ impl Position {
         self.hash
     }
 
-    fn occupancy(&self, color: Color) -> Bitboard {
-        self.pieces(color).all()
+    fn occupancy(&self, player: Player) -> Bitboard {
+        self.pieces(player).all()
     }
 
     fn occupied_squares(&self) -> Bitboard {
@@ -195,9 +195,9 @@ impl Position {
                 }
                 match Piece::try_from(symbol) {
                     Ok(piece) => {
-                        let pieces = match piece.color {
-                            Color::White => &mut white_pieces,
-                            Color::Black => &mut black_pieces,
+                        let pieces = match piece.player {
+                            Player::White => &mut white_pieces,
+                            Player::Black => &mut black_pieces,
                         };
                         let square = Square::new(file.try_into()?, rank);
                         *pieces.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
@@ -434,7 +434,7 @@ impl Position {
         self.make_king_move(next_move);
         self.make_regular_move(next_move);
 
-        if self.side_to_move == Color::Black {
+        if self.side_to_move == Player::Black {
             self.fullmove_counter += 1;
         }
 
@@ -478,8 +478,8 @@ impl Position {
 
     fn handle_capture(&mut self, next_move: &Move) {
         let their_pieces = match self.side_to_move {
-            Color::White => &mut self.black_pieces,
-            Color::Black => &mut self.white_pieces,
+            Player::White => &mut self.black_pieces,
+            Player::Black => &mut self.white_pieces,
         };
 
         // TODO: Update the hash.
@@ -500,7 +500,7 @@ impl Position {
                     piece.clear(square);
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            color: !self.side_to_move,
+                            player: !self.side_to_move,
                             kind,
                         },
                         square,
@@ -513,8 +513,8 @@ impl Position {
 
     fn make_pawn_move(&mut self, next_move: &Move) -> bool {
         let (our_pieces, their_pieces) = match self.side_to_move {
-            Color::White => (&mut self.white_pieces, &mut self.black_pieces),
-            Color::Black => (&mut self.black_pieces, &mut self.white_pieces),
+            Player::White => (&mut self.white_pieces, &mut self.black_pieces),
+            Player::Black => (&mut self.black_pieces, &mut self.white_pieces),
         };
 
         let previous_en_passant = self.en_passant_square;
@@ -534,7 +534,7 @@ impl Position {
                 their_pieces.pawns.clear(captured_pawn);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        color: !self.side_to_move,
+                        player: !self.side_to_move,
                         kind: PieceKind::Pawn,
                     },
                     captured_pawn,
@@ -545,7 +545,7 @@ impl Position {
         our_pieces.pawns.clear(next_move.from());
         self.hash ^= generated::get_piece_key(
             Piece {
-                color: self.side_to_move,
+                player: self.side_to_move,
                 kind: PieceKind::Pawn,
             },
             next_move.from(),
@@ -559,7 +559,7 @@ impl Position {
                     our_pieces.queens.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            color: self.side_to_move,
+                            player: self.side_to_move,
                             kind: PieceKind::Queen,
                         },
                         next_move.to(),
@@ -569,7 +569,7 @@ impl Position {
                     our_pieces.rooks.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            color: self.side_to_move,
+                            player: self.side_to_move,
                             kind: PieceKind::Rook,
                         },
                         next_move.to(),
@@ -579,7 +579,7 @@ impl Position {
                     our_pieces.bishops.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            color: self.side_to_move,
+                            player: self.side_to_move,
                             kind: PieceKind::Bishop,
                         },
                         next_move.to(),
@@ -589,7 +589,7 @@ impl Position {
                     our_pieces.knights.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
                         Piece {
-                            color: self.side_to_move,
+                            player: self.side_to_move,
                             kind: PieceKind::Knight,
                         },
                         next_move.to(),
@@ -602,7 +602,7 @@ impl Position {
         our_pieces.pawns.extend(next_move.to());
         self.hash ^= generated::get_piece_key(
             Piece {
-                color: self.side_to_move,
+                player: self.side_to_move,
                 kind: PieceKind::Pawn,
             },
             next_move.to(),
@@ -610,7 +610,7 @@ impl Position {
 
         let single_push_square = next_move
             .from()
-            .shift(self.side_to_move.pawn_push_direction())
+            .shift(pawn_push_direction(self.side_to_move))
             .unwrap();
 
         // Double push creates en passant square.
@@ -631,8 +631,8 @@ impl Position {
     // TODO: Merge with the other castling rights handler.
     fn make_king_move(&mut self, next_move: &Move) -> bool {
         let our_pieces = match self.side_to_move {
-            Color::White => &mut self.white_pieces,
-            Color::Black => &mut self.black_pieces,
+            Player::White => &mut self.white_pieces,
+            Player::Black => &mut self.black_pieces,
         };
 
         if !our_pieces.king.contains(next_move.from()) {
@@ -651,7 +651,7 @@ impl Position {
                 our_pieces.rooks.clear(from);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        color: self.side_to_move,
+                        player: self.side_to_move,
                         kind: PieceKind::Rook,
                     },
                     from,
@@ -660,7 +660,7 @@ impl Position {
                 our_pieces.rooks.extend(to);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        color: self.side_to_move,
+                        player: self.side_to_move,
                         kind: PieceKind::Rook,
                     },
                     to,
@@ -670,7 +670,7 @@ impl Position {
                 our_pieces.rooks.clear(from);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        color: self.side_to_move,
+                        player: self.side_to_move,
                         kind: PieceKind::Rook,
                     },
                     from,
@@ -679,7 +679,7 @@ impl Position {
                 our_pieces.rooks.extend(to);
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        color: self.side_to_move,
+                        player: self.side_to_move,
                         kind: PieceKind::Rook,
                     },
                     to,
@@ -690,7 +690,7 @@ impl Position {
         our_pieces.king.clear(next_move.from());
         self.hash ^= generated::get_piece_key(
             Piece {
-                color: self.side_to_move,
+                player: self.side_to_move,
                 kind: PieceKind::King,
             },
             next_move.from(),
@@ -698,7 +698,7 @@ impl Position {
         our_pieces.king.extend(next_move.to());
         self.hash ^= generated::get_piece_key(
             Piece {
-                color: self.side_to_move,
+                player: self.side_to_move,
                 kind: PieceKind::King,
             },
             next_move.to(),
@@ -709,8 +709,8 @@ impl Position {
 
     fn make_regular_move(&mut self, next_move: &Move) {
         let our_pieces = match self.side_to_move {
-            Color::White => &mut self.white_pieces,
-            Color::Black => &mut self.black_pieces,
+            Player::White => &mut self.white_pieces,
+            Player::Black => &mut self.black_pieces,
         };
 
         for (bitboard, kind) in [
@@ -723,7 +723,7 @@ impl Position {
                 bitboard.clear(next_move.from());
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        color: self.side_to_move,
+                        player: self.side_to_move,
                         kind,
                     },
                     next_move.from(),
@@ -731,7 +731,7 @@ impl Position {
                 bitboard.extend(next_move.to());
                 self.hash ^= generated::get_piece_key(
                     Piece {
-                        color: self.side_to_move,
+                        player: self.side_to_move,
                         kind,
                     },
                     next_move.to(),
@@ -765,13 +765,13 @@ impl Position {
     pub(crate) fn at(&self, square: Square) -> Option<Piece> {
         if let Some(kind) = self.white_pieces.at(square) {
             return Some(Piece {
-                color: Color::White,
+                player: Player::White,
                 kind,
             });
         }
         if let Some(kind) = self.black_pieces.at(square) {
             return Some(Piece {
-                color: Color::Black,
+                player: Player::Black,
                 kind,
             });
         }
@@ -787,7 +787,7 @@ impl Position {
     fn compute_hash(&self) -> zobrist::Key {
         let mut key = 0;
 
-        if self.side_to_move == Color::Black {
+        if self.side_to_move == Player::Black {
             key ^= generated::BLACK_TO_MOVE;
         }
 
@@ -987,8 +987,8 @@ fn validate(position: &Position) -> anyhow::Result<()> {
     }
     if let Some(en_passant_square) = position.en_passant_square {
         let expected_rank = match position.side_to_move {
-            Color::White => Rank::Rank6,
-            Color::Black => Rank::Rank3,
+            Player::White => Rank::Rank6,
+            Player::Black => Rank::Rank3,
         };
         if en_passant_square.rank() != expected_rank {
             bail!(
@@ -1000,7 +1000,7 @@ fn validate(position: &Position) -> anyhow::Result<()> {
         // A pawn that was just pushed by our opponent should be in front of
         // en_passant_square.
         let pushed_pawn = en_passant_square
-            .shift(position.them().pawn_push_direction())
+            .shift(pawn_push_direction(position.them()))
             .unwrap();
         if !position.pieces(position.them()).pawns.contains(pushed_pawn) {
             bail!("en passant square is not beyond pushed pawn")
@@ -1016,7 +1016,7 @@ fn validate(position: &Position) -> anyhow::Result<()> {
             if attack_info.checkers != Bitboard::from(pushed_pawn) {
                 let checker = attack_info.checkers.as_square();
                 let original_square = en_passant_square
-                    .shift(position.us().pawn_push_direction())
+                    .shift(pawn_push_direction(position.us()))
                     .unwrap();
                 if !(attacks::ray(checker, king).contains(original_square)) {
                     bail!(
@@ -1117,8 +1117,8 @@ fn generate_bishop_moves(
 
 fn generate_pawn_moves(
     pawns: Bitboard,
-    us: Color,
-    them: Color,
+    us: Player,
+    them: Player,
     their_pieces: &Pieces,
     their_occupancy: Bitboard,
     their_or_empty: Bitboard,
@@ -1154,7 +1154,7 @@ fn generate_pawn_moves(
     }
     // Generate en passant moves.
     if let Some(en_passant_square) = en_passant_square {
-        let en_passant_pawn = en_passant_square.shift(them.pawn_push_direction()).unwrap();
+        let en_passant_pawn = en_passant_square.shift(pawn_push_direction(them)).unwrap();
         // Check if capturing en passant resolves the check.
         let candidate_pawns = attacks::pawn_attacks(en_passant_square, them) & pawns;
         if checkers.contains(en_passant_pawn) {
@@ -1189,7 +1189,7 @@ fn generate_pawn_moves(
         }
     }
     // Regular pawn pushes.
-    let push_direction = us.pawn_push_direction();
+    let push_direction = pawn_push_direction(us);
     let pawn_pushes = pawns.shift(push_direction) - occupied_squares;
     let original_squares = pawn_pushes.shift(push_direction.opposite());
     let add_pawn_moves = |moves: &mut MoveList, from, to: Square| {
@@ -1236,7 +1236,7 @@ fn generate_pawn_moves(
 }
 
 fn generate_castle_moves(
-    us: Color,
+    us: Player,
     checkers: Bitboard,
     castling: CastleRights,
     attacks: Bitboard,
@@ -1247,7 +1247,7 @@ fn generate_castle_moves(
     // TODO: In FCR we should check if the rook is pinned or not.
     if checkers.is_empty() {
         match us {
-            Color::White => {
+            Player::White => {
                 if castling.contains(CastleRights::WHITE_SHORT)
                     && (attacks & attacks::WHITE_SHORT_CASTLE_KING_WALK).is_empty()
                     && (occupied_squares
@@ -1271,7 +1271,7 @@ fn generate_castle_moves(
                     }
                 }
             },
-            Color::Black => {
+            Player::Black => {
                 if castling.contains(CastleRights::BLACK_SHORT)
                     && (attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
                     && (occupied_squares
@@ -1296,6 +1296,13 @@ fn generate_castle_moves(
                 }
             },
         }
+    }
+}
+
+const fn pawn_push_direction(player: Player) -> Direction {
+    match player {
+        Player::White => Direction::Up,
+        Player::Black => Direction::Down,
     }
 }
 

@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use crate::search::Depth;
-
 #[derive(Debug, PartialEq)]
 pub(super) enum Command {
     Uci,
@@ -19,13 +17,10 @@ pub(super) enum Command {
     },
     NewGame,
     Go {
-        max_depth: Option<Depth>,
         wtime: Option<Duration>,
         btime: Option<Duration>,
         winc: Option<Duration>,
         binc: Option<Duration>,
-        movetime: Option<Duration>,
-        infinite: bool,
     },
     Stop,
     Quit,
@@ -51,19 +46,15 @@ pub(super) enum OptionValue {
 }
 
 fn parse_go(parts: &[&str]) -> Command {
-    let mut max_depth = None;
     let mut wtime = None;
     let mut btime = None;
     let mut winc = None;
     let mut binc = None;
-    let mut movetime = None;
-    let mut infinite = false;
 
     let mut i = 1;
 
     while i < parts.len() {
         match parts[i] {
-            "depth" if i + 1 < parts.len() => max_depth = parts[i + 1].parse().ok(),
             "wtime" if i + 1 < parts.len() => {
                 wtime = parts[i + 1].parse().map(Duration::from_micros).ok();
             },
@@ -76,10 +67,6 @@ fn parse_go(parts: &[&str]) -> Command {
             "binc" if i + 1 < parts.len() => {
                 binc = parts[i + 1].parse().map(Duration::from_micros).ok();
             },
-            "movetime" if i + 1 < parts.len() => {
-                movetime = parts[i + 1].parse().map(Duration::from_micros).ok();
-            },
-            "infinite" => infinite = true,
             _ => {},
         }
         if parts[i] == "infinite" {
@@ -90,13 +77,10 @@ fn parse_go(parts: &[&str]) -> Command {
     }
 
     Command::Go {
-        max_depth,
         wtime,
         btime,
         winc,
         binc,
-        movetime,
-        infinite,
     }
 }
 
@@ -252,56 +236,22 @@ mod tests {
     #[test]
     fn parse_go() {
         assert_eq!(
-            Command::parse(
-                "go depth 20 wtime 300000 btime 300000 winc 10000 binc 10000 movetime 5000"
-            ),
+            Command::parse("go wtime 300000 btime 300000 winc 10000 binc 10000"),
             Command::Go {
-                max_depth: Some(20),
                 wtime: Some(Duration::from_micros(300_000)),
                 btime: Some(Duration::from_micros(300_000)),
                 winc: Some(Duration::from_micros(10000)),
                 binc: Some(Duration::from_micros(10000)),
-                movetime: Some(Duration::from_micros(5000)),
-                infinite: false,
-            }
-        );
-
-        assert_eq!(
-            Command::parse("go depth 10"),
-            Command::Go {
-                max_depth: Some(10),
-                wtime: None,
-                btime: None,
-                winc: None,
-                binc: None,
-                movetime: None,
-                infinite: false,
             }
         );
 
         assert_eq!(
             Command::parse("go wtime 1000"),
             Command::Go {
-                max_depth: None,
                 wtime: Some(Duration::from_micros(1000)),
                 btime: None,
                 winc: None,
                 binc: None,
-                movetime: None,
-                infinite: false,
-            }
-        );
-
-        assert_eq!(
-            Command::parse("go infinite"),
-            Command::Go {
-                max_depth: None,
-                wtime: None,
-                btime: None,
-                winc: None,
-                binc: None,
-                movetime: None,
-                infinite: true,
             }
         );
     }

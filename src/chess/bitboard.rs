@@ -24,8 +24,8 @@ use std::{fmt, mem};
 
 use itertools::Itertools;
 
-use super::core::Color;
 use crate::chess::core::{Direction, PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
+use crate::environment::Player;
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
 /// XOR) over these sets. Each bit corresponds to one of 64 squares of the chess
@@ -368,9 +368,9 @@ impl Pieces {
         }
     }
 
-    pub(super) fn starting(color: Color) -> Self {
-        match color {
-            Color::White => Self {
+    pub(super) fn starting(player: Player) -> Self {
+        match player {
+            Player::White => Self {
                 king: Square::E1.into(),
                 queens: Square::D1.into(),
                 rooks: Bitboard::from_squares(&[Square::A1, Square::H1]),
@@ -387,7 +387,7 @@ impl Pieces {
                     Square::H2,
                 ]),
             },
-            Color::Black => Self {
+            Player::Black => Self {
                 king: Square::E8.into(),
                 queens: Square::D8.into(),
                 rooks: Bitboard::from_squares(&[Square::A8, Square::H8]),
@@ -472,10 +472,10 @@ mod tests {
     #[test]
     fn set_basics() {
         // Create a starting position.
-        let white = Pieces::starting(Color::White);
-        let black = Pieces::starting(Color::Black);
+        let white = Pieces::starting(Player::White);
+        let black = Pieces::starting(Player::Black);
 
-        // Check that each color has 16 pieces.
+        // Check that each player has 16 pieces.
         assert_eq!(white.all().bits.count_ones(), 16);
         assert_eq!(black.all().bits.count_ones(), 16);
         // Check that each player has correct number of pieces (previous check
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn bitboard_iterator() {
-        let white = Pieces::starting(Color::White);
+        let white = Pieces::starting(Player::White);
 
         let mut it = white.king.iter();
         assert_eq!(it.next(), Some(Square::E1));
@@ -657,8 +657,8 @@ mod tests {
 
     #[test]
     fn set_dump() {
-        let white = Pieces::starting(Color::White);
-        let black = Pieces::starting(Color::Black);
+        let white = Pieces::starting(Player::White);
+        let black = Pieces::starting(Player::Black);
 
         assert_eq!(
             format!("{:?}", black.all()),

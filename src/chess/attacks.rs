@@ -13,7 +13,8 @@
 
 use super::generated;
 use crate::chess::bitboard::{Bitboard, Pieces};
-use crate::chess::core::{Color, Square, BOARD_SIZE};
+use crate::chess::core::{Square, BOARD_SIZE};
+use crate::environment::Player;
 
 pub(super) fn king_attacks(from: Square) -> Bitboard {
     generated::KING_ATTACKS[from as usize]
@@ -43,10 +44,10 @@ pub(super) const fn knight_attacks(square: Square) -> Bitboard {
     generated::KNIGHT_ATTACKS[square as usize]
 }
 
-pub(super) const fn pawn_attacks(square: Square, color: Color) -> Bitboard {
-    match color {
-        Color::White => generated::WHITE_PAWN_ATTACKS[square as usize],
-        Color::Black => generated::BLACK_PAWN_ATTACKS[square as usize],
+pub(super) const fn pawn_attacks(square: Square, player: Player) -> Bitboard {
+    match player {
+        Player::White => generated::WHITE_PAWN_ATTACKS[square as usize],
+        Player::Black => generated::BLACK_PAWN_ATTACKS[square as usize],
     }
 }
 
@@ -98,7 +99,7 @@ pub(super) struct AttackInfo {
 impl AttackInfo {
     // TODO: Handle each piece separately.
     pub(super) fn new(
-        they: Color,
+        they: Player,
         their: &Pieces,
         king: Square,
         our_occupancy: Bitboard,
@@ -411,11 +412,11 @@ mod tests {
     fn pawn() {
         // Pawns can not be on the back ranks, hence the attack maps are empty.
         for square in Rank::Rank1.mask().iter().chain(Rank::Rank8.mask().iter()) {
-            assert!(pawn_attacks(square, Color::White).is_empty());
-            assert!(pawn_attacks(square, Color::Black).is_empty());
+            assert!(pawn_attacks(square, Player::White).is_empty());
+            assert!(pawn_attacks(square, Player::Black).is_empty());
         }
         assert_eq!(
-            format!("{:?}", pawn_attacks(Square::A2, Color::White)),
+            format!("{:?}", pawn_attacks(Square::A2, Player::White)),
             ". . . . . . . .\n\
             . . . . . . . .\n\
             . . . . . . . .\n\
@@ -426,7 +427,7 @@ mod tests {
             . . . . . . . ."
         );
         assert_eq!(
-            format!("{:?}", pawn_attacks(Square::A2, Color::Black)),
+            format!("{:?}", pawn_attacks(Square::A2, Player::Black)),
             ". . . . . . . .\n\
             . . . . . . . .\n\
             . . . . . . . .\n\
@@ -437,7 +438,7 @@ mod tests {
             . 1 . . . . . ."
         );
         assert_eq!(
-            format!("{:?}", pawn_attacks(Square::D4, Color::White)),
+            format!("{:?}", pawn_attacks(Square::D4, Player::White)),
             ". . . . . . . .\n\
             . . . . . . . .\n\
             . . . . . . . .\n\
@@ -448,7 +449,7 @@ mod tests {
             . . . . . . . ."
         );
         assert_eq!(
-            format!("{:?}", pawn_attacks(Square::D4, Color::Black)),
+            format!("{:?}", pawn_attacks(Square::D4, Player::Black)),
             ". . . . . . . .\n\
             . . . . . . . .\n\
             . . . . . . . .\n\
@@ -459,7 +460,7 @@ mod tests {
             . . . . . . . ."
         );
         assert_eq!(
-            format!("{:?}", pawn_attacks(Square::H5, Color::White)),
+            format!("{:?}", pawn_attacks(Square::H5, Player::White)),
             ". . . . . . . .\n\
             . . . . . . . .\n\
             . . . . . . 1 .\n\
@@ -470,7 +471,7 @@ mod tests {
             . . . . . . . ."
         );
         assert_eq!(
-            format!("{:?}", pawn_attacks(Square::H5, Color::Black)),
+            format!("{:?}", pawn_attacks(Square::H5, Player::Black)),
             ". . . . . . . .\n\
             . . . . . . . .\n\
             . . . . . . . .\n\

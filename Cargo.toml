@@ -98,9 +98,9 @@ missing_transmute_annotations = "allow"
 # nursery = "warn"
 # pedantic = "warn"
 # style = "warn"
-suspicious = "deny"
+suspicious = { level = "deny", priority = -1 }
 redundant_pattern_matching = "deny"
-perf = "deny"
+perf = { level = "deny", priority = -1 }
 allow_attributes_without_reason = "deny"
 derivable_impls = "deny"
 

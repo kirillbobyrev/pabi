@@ -9,12 +9,10 @@ use core::panic;
 use std::io::{BufRead, Write};
 use std::time::Duration;
 
-use anyhow::bail;
-
-use crate::chess::core::{Color, Move};
+use crate::chess::core::Move;
 use crate::chess::position::Position;
 use crate::engine::uci::Command;
-use crate::search::Depth;
+use crate::environment::Player;
 
 mod time_manager;
 mod uci;
@@ -92,14 +90,11 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                 Command::SetPosition { fen, moves } => self.set_position(fen, moves)?,
                 Command::NewGame => self.new_game()?,
                 Command::Go {
-                    max_depth,
                     wtime,
                     btime,
                     winc,
                     binc,
-                    movetime,
-                    infinite,
-                } => self.go(max_depth, wtime, btime, winc, binc, movetime, infinite)?,
+                } => self.go(wtime, btime, winc, binc)?,
                 Command::Stop => self.stop_search()?,
                 Command::Quit => {
                     self.stop_search()?;
@@ -157,23 +152,14 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
 
     fn go(
         &mut self,
-        max_depth: Option<Depth>,
         wtime: Option<Duration>,
         btime: Option<Duration>,
         winc: Option<Duration>,
         binc: Option<Duration>,
-        movetime: Option<Duration>,
-        infinite: bool,
     ) -> anyhow::Result<()> {
-        if infinite && (wtime.is_some() || btime.is_some() || movetime.is_some()) {
-            bail!("Infinite is set, but wtime, btime or movetime is also set");
-        }
-        if movetime.is_some() && (wtime.is_some() || btime.is_some()) {
-            bail!("Movetime is set, but wtime or btime is also set");
-        }
         let (time, increment) = match self.position.us() {
-            Color::White => (wtime, winc),
-            Color::Black => (btime, binc),
+            Player::White => (wtime, winc),
+            Player::Black => (btime, binc),
         };
         todo!();
     }
@@ -192,7 +178,8 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
 ///
 /// Implementing `bench` CLI command is a [requirement for OpenBench].
 ///
-/// NOTE: This function **has to run less than 60 seconds**.
+/// NOTE: This function **has to run less than 60 seconds**. Ideally, it should
+/// be just under 5 seconds.
 ///
 /// See <https://github.com/AndyGrant/OpenBench/blob/master/Client/bench.py> for
 /// more details.
