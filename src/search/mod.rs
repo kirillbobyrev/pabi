@@ -2,7 +2,6 @@
 //!
 //! [Monte Carlo Tree Search]: https://en.wikipedia.org/wiki/Monte_Carlo_tree_search
 
-pub mod config;
 pub mod mcts;
 mod policy;
 mod tree;
