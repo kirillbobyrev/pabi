@@ -14,15 +14,7 @@ use anyhow::{bail, Context};
 use super::core::{Direction, PieceKind};
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    File,
-    Move,
-    MoveList,
-    Piece,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    CastleRights, File, Move, MoveList, Piece, Promotion, Rank, Square, BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 use crate::environment::Player;
@@ -237,7 +229,6 @@ impl Position {
                         .with_context(|| format!("halfmove clock can not be parsed {value}"));
                 },
             },
-            // This is a correct EPD: exit early.
             None => None,
         };
         let fullmove_counter = match parts.next() {
@@ -252,13 +243,14 @@ impl Position {
                 },
             },
             None => match halfmove_clock {
-                Some(_) => bail!("missing halfmove clock"),
+                Some(_) => bail!("if halfmove clock is present, fullmove counter must be present"),
+                // This is a correct EPD position.
                 None => None,
             },
         };
 
         if parts.next().is_some() {
-            bail!("trailing symbols are not allowed in FEN");
+            bail!("trailing symbols");
         }
 
         let halfmove_clock = halfmove_clock.unwrap_or(0);
@@ -324,7 +316,7 @@ impl Position {
     #[must_use]
     pub fn generate_moves(&self) -> MoveList {
         let mut moves = MoveList::new();
-        // debug_assert!(validate(&self).is_ok(), "{}", self.fen());
+        debug_assert!(self.is_legal());
         // TODO: Try caching more e.g. all()s? Benchmark to confirm that this is an
         // improvement.
         let (us, them) = (self.us(), self.them());
@@ -421,7 +413,6 @@ impl Position {
     /// cached information (e.g. hash) is updated correctly.
     pub fn make_move(&mut self, next_move: &Move) {
         debug_assert!(self.is_legal());
-        // TODO: debug_assert!(self.is_legal_move(move));
 
         // Increment halfmove clock early: it will be reset on capture or pawn
         // push.
@@ -482,7 +473,6 @@ impl Position {
             Player::Black => &mut self.white_pieces,
         };
 
-        // TODO: Update the hash.
         if their_pieces.all().contains(next_move.to()) {
             // Capturing a piece resets the clock.
             self.halfmove_clock = 0;
@@ -781,9 +771,8 @@ impl Position {
     /// Computes standard Zobrist hash of the position using pseudo-random
     /// numbers generated during the build stage.
     ///
-    /// This is not very efficeint and should be only used when a position is
-    /// created. After that the hash should be updated incrementally whenever a
-    /// move is made.
+    /// This is not efficient and is only used when a position is created. The
+    /// hash is then cached and updated incrementally after each move.
     fn compute_hash(&self) -> zobrist::Key {
         let mut key = 0;
 
@@ -820,7 +809,6 @@ impl Position {
 impl TryFrom<&str> for Position {
     type Error = anyhow::Error;
 
-    // TODO: Parse UCI position move1 move2 ...
     fn try_from(input: &str) -> anyhow::Result<Self> {
         let input = input.trim();
         for prefix in ["fen ", "epd "] {

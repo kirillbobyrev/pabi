@@ -5,6 +5,7 @@ use std::env;
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
 
+    // OpenBench command for determining the relative speed of an engine.
     if args.len() == 2 && args[1] == "bench" {
         pabi::engine::openbench();
         return Ok(());

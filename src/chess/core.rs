@@ -36,6 +36,10 @@ impl Move {
 
     #[must_use]
     pub fn new(from: Square, to: Square, promotion: Option<Promotion>) -> Self {
+        debug_assert_ne!(
+            from, to,
+            "moves should have different source and target squares"
+        );
         let mut packed = from as u16 | ((to as u16) << Self::TO_OFFSET);
         if let Some(promo) = promotion {
             packed |= (promo as u16) << Self::PROMOTION_OFFSET;
