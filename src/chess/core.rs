@@ -579,21 +579,9 @@ impl fmt::Display for Piece {
 
 bitflags::bitflags! {
     /// Track the ability to [castle] each side (kingside is often referred to
-    /// as O-O or h-side castle, queenside -- O-O-O or a-side castle). When the
-    /// king moves, player loses ability to castle. When the rook moves, player
-    /// loses ability to castle to the side from which the rook moved.
+    /// as `O-O` castle, queenside -- `O-O-O`).
     ///
-    /// Castling is relatively straightforward in the Standard Chess but is
-    /// often misunderstood in Chess960 (also known as Fischer Random Chess). An
-    /// easy mnemonic is that the king and the rook end up on the same files for
-    /// both Standard and FRC:
-    ///
-    /// - When castling h-side (short), the king ends up on [`File::G`] and the
-    ///   rook on [`File::F`]
-    /// - When castling a-side (long), the king ends up on [`File::C`] and the
-    ///   rook on [`File::D`]
-    ///
-    /// The full rules are:
+    /// Castling is possible if the following conditions are met:
     ///
     /// - The king and the castling rook must not have previously moved.
     /// - No square from the king's initial square to its final square may be under
@@ -602,6 +590,15 @@ bitflags::bitflags! {
     ///   (including the final square), and all the squares between the castling
     ///   rook's initial and final squares (including the final square), must be
     ///   vacant except for the king and castling rook.
+    ///
+    /// Castling is relatively straightforward in the Standard Chess but is
+    /// often misunderstood in Chess960. An easy mnemonic is that the king and
+    /// the rook end up on the same files for both Standard and FRC:
+    ///
+    /// - When castling short (`O-O`), the king ends up on [`File::G`] and the
+    ///   rook on [`File::F`]
+    /// - When castling long (`O-O-O`), the king ends up on [`File::C`] and the
+    ///   rook on [`File::D`]
     ///
     /// [castle]: https://www.chessprogramming.org/Castling
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

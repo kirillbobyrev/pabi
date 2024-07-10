@@ -50,16 +50,17 @@ shadow-rs = "0.29.0"
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
-criterion = { version = "0.5.1", features = ["cargo_bench_support"] }
+criterion = "0.5.1"
 predicates = "3.1.0"
 pretty_assertions = "1.1.0"
+proptest = "1.5.0"
 shadow-rs = "0.29.0"
 # Used for testing and comparing against a reasonable baseline for correctness.
 shakmaty = "0.27.0"
 
 [[bench]]
 harness = false
-name = "perft"
+name = "chess"
 
 # TODO: Test this out once the benchmarks are available and tweak specific
 # values. So far, this gives around -8% on parsing FEN/EPD positions.

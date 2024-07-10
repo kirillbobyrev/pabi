@@ -11,6 +11,10 @@
 
 Pabi is a modern chess engine that is currently under development.
 
+> [!WARNING]
+> This engine is still very early in the development phase and is not in a
+> functional state yet.
+
 ## Goals
 
 Pabi is inspired by existing Chess and Go engines (mainly [lc0] and [KataGo]),
@@ -31,8 +35,8 @@ See [justfile](/justfile) for a complete list of frequently used commands.
 
 ## Code map
 
-Rustdoc developer documentation is pushed at each commit to
-<https://kirillbobyrev.github.io/pabi/docs/pabi/>.
+For easier code navigation, see
+<https://kirillbobyrev.github.io/pabi/docs/pabi/>
 
 ## [Milestones]
 

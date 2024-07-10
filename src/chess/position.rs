@@ -14,7 +14,15 @@ use anyhow::{bail, Context};
 use super::core::{Direction, PieceKind};
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights, File, Move, MoveList, Piece, Promotion, Rank, Square, BOARD_WIDTH,
+    CastleRights,
+    File,
+    Move,
+    MoveList,
+    Piece,
+    Promotion,
+    Rank,
+    Square,
+    BOARD_WIDTH,
 };
 use crate::chess::{attacks, generated, zobrist};
 use crate::environment::Player;
