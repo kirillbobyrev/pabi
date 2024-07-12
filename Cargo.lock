@@ -1217,6 +1217,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "nohash-hasher"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
+
+[[package]]
 name = "normalize-line-endings"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1892,13 +1898,14 @@ dependencies = [
 
 [[package]]
 name = "shakmaty"
-version = "0.27.0"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a2320d3932d5b410b2bdee568152b51f2373f018d3425dc7b424ab9b23a5d13"
+checksum = "8969aea589c3356aa6c0251dbd9c27d0586224f2cb1f068f33d756966f58fb7a"
 dependencies = [
  "arrayvec",
  "bitflags 2.6.0",
  "btoi",
+ "nohash-hasher",
 ]
 
 [[package]]
