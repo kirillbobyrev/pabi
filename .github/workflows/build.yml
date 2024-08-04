@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        toolchain: [stable, "1.79.0"]
+        toolchain: [stable, "1.80.0"]
         experimental: [false]
         include:
           - os: ubuntu-latest

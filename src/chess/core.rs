@@ -259,11 +259,8 @@ impl TryFrom<u8> for Square {
     ///
     /// If given square index is outside 0..[`BOARD_SIZE`] range.
     fn try_from(square_index: u8) -> anyhow::Result<Self> {
-        // Exclusive range patterns are not allowed until Rust 1.80.
-        // https://github.com/rust-lang/rust/issues/37854
-        const MAX_INDEX: u8 = BOARD_SIZE - 1;
         match square_index {
-            0..=MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
+            0..BOARD_SIZE => Ok(unsafe { mem::transmute(square_index) }),
             _ => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
         }
     }
@@ -278,11 +275,9 @@ impl TryFrom<i8> for Square {
     ///
     /// If given square index is outside 0..[`BOARD_SIZE`] range.
     fn try_from(square_index: i8) -> anyhow::Result<Self> {
-        // Exclusive range patterns are not allowed until Rust 1.80.
-        // https://github.com/rust-lang/rust/issues/37854
-        const MAX_INDEX: i8 = BOARD_SIZE as i8 - 1;
+        const MAX_INDEX: i8 = BOARD_SIZE as i8;
         match square_index {
-            0..=MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
+            0..MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
             _ => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
         }
     }
