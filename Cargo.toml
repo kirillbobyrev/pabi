@@ -39,14 +39,14 @@ itertools = "0.13.0"
 rand = { version = "0.8.5", features = ["small_rng"] }
 rand_distr = "0.4.3"
 rayon = "1.10.0"
-shadow-rs = "0.31.1"
+shadow-rs = "0.35.1"
 # Used for probing tablebases.
 shakmaty = "0.27.1"
 shakmaty-syzygy = "0.25.0"
 
 [build-dependencies]
 rand = "0.8.5"
-shadow-rs = "0.31.1"
+shadow-rs = "0.35.1"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"
@@ -54,7 +54,7 @@ criterion = "0.5.1"
 predicates = "3.1.2"
 pretty_assertions = "1.1.0"
 proptest = "1.5.0"
-shadow-rs = "0.31.1"
+shadow-rs = "0.35.1"
 # Used for testing and comparing against a reasonable baseline for correctness.
 shakmaty = "0.27.1"
 
