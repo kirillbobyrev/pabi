@@ -9,20 +9,12 @@
 
 use std::fmt::{self, Write};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 
 use super::core::{Direction, PieceKind};
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{
-    CastleRights,
-    File,
-    Move,
-    MoveList,
-    Piece,
-    Promotion,
-    Rank,
-    Square,
-    BOARD_WIDTH,
+    BOARD_WIDTH, CastleRights, File, Move, MoveList, Piece, Promotion, Rank, Square,
 };
 use crate::chess::{attacks, generated, zobrist};
 use crate::environment::Player;
@@ -190,7 +182,7 @@ impl Position {
                     '1'..='9' => {
                         file += symbol as u8 - b'0';
                         continue;
-                    },
+                    }
                     _ => (),
                 }
                 match Piece::try_from(symbol) {
@@ -201,7 +193,7 @@ impl Position {
                         };
                         let square = Square::new(file.try_into()?, rank);
                         *pieces.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
-                    },
+                    }
                     Err(e) => return Err(e),
                 }
                 file += 1;
@@ -235,7 +227,7 @@ impl Position {
                 Err(e) => {
                     return Err(e)
                         .with_context(|| format!("halfmove clock can not be parsed {value}"));
-                },
+                }
             },
             None => None,
         };
@@ -243,12 +235,12 @@ impl Position {
             Some(value) => match value.parse::<u16>() {
                 Ok(0) => {
                     bail!("fullmove counter can not be 0")
-                },
+                }
                 Ok(num) => Some(num),
                 Err(e) => {
                     return Err(e)
                         .with_context(|| format!("fullmove counter can not be parsed {value}"));
-                },
+                }
             },
             None => match halfmove_clock {
                 Some(_) => bail!("if halfmove clock is present, fullmove counter must be present"),
@@ -358,7 +350,7 @@ impl Position {
                     // resolves the check.
                     ray
                 }
-            },
+            }
             // Double checks can only be evaded by the king moves to safety: no
             // need to consider other moves.
             2 => return moves,
@@ -562,7 +554,7 @@ impl Position {
                         },
                         next_move.to(),
                     );
-                },
+                }
                 Promotion::Rook => {
                     our_pieces.rooks.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
@@ -572,7 +564,7 @@ impl Position {
                         },
                         next_move.to(),
                     );
-                },
+                }
                 Promotion::Bishop => {
                     our_pieces.bishops.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
@@ -582,7 +574,7 @@ impl Position {
                         },
                         next_move.to(),
                     );
-                },
+                }
                 Promotion::Knight => {
                     our_pieces.knights.extend(next_move.to());
                     self.hash ^= generated::get_piece_key(
@@ -592,7 +584,7 @@ impl Position {
                         },
                         next_move.to(),
                     );
-                },
+                }
             };
             return true;
         }
@@ -1266,7 +1258,7 @@ fn generate_castle_moves(
                         moves.push_unchecked(Move::new(Square::E1, Square::C1, None));
                     }
                 }
-            },
+            }
             Player::Black => {
                 if castling.contains(CastleRights::BLACK_SHORT)
                     && (attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
@@ -1290,7 +1282,7 @@ fn generate_castle_moves(
                         moves.push_unchecked(Move::new(Square::E8, Square::C8, None));
                     }
                 }
-            },
+            }
         }
     }
 }

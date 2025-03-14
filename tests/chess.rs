@@ -5,7 +5,7 @@ use std::fs;
 
 use itertools::Itertools;
 use pabi::chess::core::Move;
-use pabi::chess::position::{perft, Position};
+use pabi::chess::position::{Position, perft};
 use pretty_assertions::assert_eq;
 use shakmaty::Position as ShakmatyPosition;
 
@@ -132,15 +132,17 @@ fn double_push_blocks_existing_check() {
 #[test]
 fn clean_board_str() {
     // Prefix with "fen".
-    assert!(Position::try_from(
-        "fen rn1qkb1r/pp3ppp/2p1pn2/3p1b2/2PP4/5NP1/PP2PPBP/RNBQK2R w KQkq - 0 1"
-    )
-    .is_ok());
+    assert!(
+        Position::try_from(
+            "fen rn1qkb1r/pp3ppp/2p1pn2/3p1b2/2PP4/5NP1/PP2PPBP/RNBQK2R w KQkq - 0 1"
+        )
+        .is_ok()
+    );
     // Prefix with "epd".
-    assert!(Position::try_from(
-        "epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -"
-    )
-    .is_ok());
+    assert!(
+        Position::try_from("epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -")
+            .is_ok()
+    );
     // No prefix: infer EPD.
     assert!(Position::try_from("rnbqkbnr/pp2pppp/8/3p4/3P4/3B4/PPP2PPP/RNBQK1NR b KQkq -").is_ok());
     // No prefix: infer FEN.
@@ -151,14 +153,16 @@ fn clean_board_str() {
     assert!(Position::try_from("8/8/8/8/8/8/8/8 b 88 🔠 🔠 ").is_err());
     // Whitespaces at the start/end of the input are not accepted in from_fen but
     // will be cleaned up by try_from.
-    assert!(Position::try_from(
-        "rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
-    )
-    .is_ok());
-    assert!(Position::try_from(
-        "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -"
-    )
-    .is_ok());
+    assert!(
+        Position::try_from("rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n")
+            .is_ok()
+    );
+    assert!(
+        Position::try_from(
+            "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -"
+        )
+        .is_ok()
+    );
 }
 
 #[test]
@@ -168,10 +172,12 @@ fn no_crash() {
     assert!(Position::try_from("3kn3/R4N2/8/8/7B/6K1/3R4/8 b - - 0 48 b - - 0 4/8 b").is_err());
     assert!(Position::try_from("\tfen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
     assert!(Position::try_from("fen3kn3/R2p1N2/8/8/7B/6K1/3R4/8 b - - 0 23").is_err());
-    assert!(Position::from_fen(
-        "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
-    )
-    .is_err());
+    assert!(
+        Position::from_fen(
+            "\n epd rnbqkb1r/ppp1pp1p/5np1/3p4/3P1B2/5N2/PPP1PPPP/RN1QKB1R w KQkq -\n"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -337,11 +343,15 @@ fn fuzzing_artifact_moves() {
     );
     assert_eq!(
         get_moves(&setup("r3k3/r7/8/5pP1/5QKN/8/8/6RR w - f6 0 1")),
-        sorted_moves(&["f4f5", "h4f5", "g4f5", "g4f3", "g4g3", "g4h3", "g5f6", "g4h5"])
+        sorted_moves(&[
+            "f4f5", "h4f5", "g4f5", "g4f3", "g4g3", "g4h3", "g5f6", "g4h5"
+        ])
     );
     assert_eq!(
         get_moves(&setup("4k1r1/8/8/4PpP1/6K1/8/8/8 w - f6 0 1")),
-        sorted_moves(&["g4f4", "g4f3", "g4f5", "g4g3", "g4h3", "g4h4", "g4h5", "e5f6"])
+        sorted_moves(&[
+            "g4f4", "g4f3", "g4f5", "g4g3", "g4h3", "g4h4", "g4h5", "e5f6"
+        ])
     );
     assert_eq!(
         get_moves(&setup("8/2p5/3p4/1P5r/KR3p1k/8/4P1P1/8 b - - 1 1")),

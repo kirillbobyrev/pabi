@@ -24,7 +24,7 @@ use std::{fmt, mem};
 
 use itertools::Itertools;
 
-use crate::chess::core::{Direction, PieceKind, Square, BOARD_SIZE, BOARD_WIDTH};
+use crate::chess::core::{BOARD_SIZE, BOARD_WIDTH, Direction, PieceKind, Square};
 use crate::environment::Player;
 
 /// Represents a set of squares and provides common operations (e.g. AND, OR,
@@ -451,7 +451,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::chess::core::{Rank, Square, BOARD_WIDTH};
+    use crate::chess::core::{BOARD_WIDTH, Rank, Square};
 
     #[test]
     fn basics() {

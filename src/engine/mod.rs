@@ -67,10 +67,10 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
             let mut line = String::new();
             match self.input.read_line(&mut line) {
                 Ok(0) => break,
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     panic!("Error reading from input: {}", e);
-                },
+                }
             }
             match Command::parse(&line) {
                 Command::Uci => self.handshake()?,
@@ -99,11 +99,11 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
                 Command::Quit => {
                     self.stop_search()?;
                     break;
-                },
+                }
                 Command::State => todo!(),
                 Command::Unknown(command) => {
                     writeln!(self.out, "info string Unsupported command: {command}")?;
-                },
+                }
             }
         }
         Ok(())

@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use pabi::chess::position::Position;
 
 fn generate_moves(positions: &[Position]) {

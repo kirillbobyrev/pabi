@@ -238,5 +238,6 @@ fn main() {
     generate_build_info();
     shadow_rs::ShadowBuilder::builder()
         .build_pattern(shadow_rs::BuildPattern::RealTime)
-        .build().unwrap();
+        .build()
+        .unwrap();
 }

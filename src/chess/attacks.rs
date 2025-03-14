@@ -13,7 +13,7 @@
 
 use super::generated;
 use crate::chess::bitboard::{Bitboard, Pieces};
-use crate::chess::core::{Square, BOARD_SIZE};
+use crate::chess::core::{BOARD_SIZE, Square};
 use crate::environment::Player;
 
 pub(super) fn king_attacks(from: Square) -> Bitboard {

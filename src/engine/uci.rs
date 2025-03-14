@@ -57,17 +57,17 @@ fn parse_go(parts: &[&str]) -> Command {
         match parts[i] {
             "wtime" if i + 1 < parts.len() => {
                 wtime = parts[i + 1].parse().map(Duration::from_micros).ok();
-            },
+            }
             "btime" if i + 1 < parts.len() => {
                 btime = parts[i + 1].parse().map(Duration::from_micros).ok();
-            },
+            }
             "winc" if i + 1 < parts.len() => {
                 winc = parts[i + 1].parse().map(Duration::from_micros).ok();
-            },
+            }
             "binc" if i + 1 < parts.len() => {
                 binc = parts[i + 1].parse().map(Duration::from_micros).ok();
-            },
-            _ => {},
+            }
+            _ => {}
         }
         if parts[i] == "infinite" {
             i += 1;
@@ -105,7 +105,7 @@ fn parse_setoption(parts: &[&str]) -> Command {
                     .map(OptionValue::Integer),
                 EngineOption::SyzygyTablebase => {
                     Some(OptionValue::String(parts[name_end + 1..].join(" ")))
-                },
+                }
             }
         } else {
             None
@@ -220,7 +220,9 @@ mod tests {
             }
         );
         assert_eq!(
-            Command::parse("position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e4 e7e5"),
+            Command::parse(
+                "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e4 e7e5"
+            ),
             Command::SetPosition {
                 fen: Some("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string()),
                 moves: vec!["e2e4".to_string(), "e7e5".to_string()]

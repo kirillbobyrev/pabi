@@ -81,17 +81,17 @@ impl Environment<Move, Position> for Game {
                     } else {
                         Some(GameResult::Loss)
                     };
-                },
+                }
                 AmbiguousWdl::Draw | AmbiguousWdl::BlessedLoss | AmbiguousWdl::CursedWin => {
-                    return Some(GameResult::Draw)
-                },
+                    return Some(GameResult::Draw);
+                }
                 AmbiguousWdl::Loss | AmbiguousWdl::MaybeLoss => {
                     return if self.perspective == self.position.us() {
                         Some(GameResult::Loss)
                     } else {
                         Some(GameResult::Win)
                     };
-                },
+                }
             }
         }
         if self.moves.is_empty() {

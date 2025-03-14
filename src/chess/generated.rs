@@ -1,6 +1,6 @@
 /// Arrays and values generated at or before build time.
 use crate::chess::bitboard::Bitboard;
-use crate::chess::core::{Piece, Square, BOARD_SIZE};
+use crate::chess::core::{BOARD_SIZE, Piece, Square};
 use crate::chess::zobrist::Key;
 
 // All keys required for Zobrist hashing of a chess position.
