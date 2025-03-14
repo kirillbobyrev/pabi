@@ -22,23 +22,18 @@ include = [
   "README.md",
 ] # Reduce the package size by only including things necessary for building it.
 
-[features]
-mkl = ["candle-core/mkl", "candle-nn/mkl"]
-
 [dependencies]
 anyhow = "1.0.83"
 arrayvec = "0.7.2"
 bitflags = "2.2.1"
-candle-core = "0.8.3"
-candle-nn = "0.6.0"
 clap = { version = "4.5.15", features = ["derive", "wrap_help"] }
 indicatif = "0.17.8"
 itertools = "0.13.0"
 # Use SmallRng for performance.
 rand = { version = "0.9.0", features = ["small_rng"] }
-rand_distr = "0.4.3"
+rand_distr = "0.5.1"
 rayon = "1.10.0"
-shadow-rs = "0.31.1"
+shadow-rs = "1.0.1"
 # TODO: Potentially remove this dependency.
 # Used for probing tablebases.
 shakmaty = "0.27.1"
@@ -46,7 +41,7 @@ shakmaty-syzygy = "0.25.0"
 
 [build-dependencies]
 rand = "0.9.0"
-shadow-rs = "0.31.1"
+shadow-rs = "1.0.1"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"
@@ -54,7 +49,7 @@ criterion = "0.5.1"
 predicates = "3.1.2"
 pretty_assertions = "1.1.0"
 proptest = "1.5.0"
-shadow-rs = "0.31.1"
+shadow-rs = "1.0.1"
 # Used for testing and comparing against a reasonable baseline for correctness.
 shakmaty = "0.27.1"
 

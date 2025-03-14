@@ -28,13 +28,13 @@ fn generate_zobrist_keys() {
     const NUM_PIECES: usize = 6;
     const NUM_SQUARES: usize = 64;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let piece_keys: [ZobristKey; NUM_COLORS * NUM_PIECES * NUM_SQUARES] =
-        std::array::from_fn(|_| rand::Rng::r#gen(&mut rng));
+        std::array::from_fn(|_| rand::Rng::random(&mut rng));
     generate_file("pieces_zobrist_keys", &format!("{piece_keys:?}"));
 
-    let en_passant_keys: [ZobristKey; 8] = std::array::from_fn(|_| rand::Rng::r#gen(&mut rng));
+    let en_passant_keys: [ZobristKey; 8] = std::array::from_fn(|_| rand::Rng::random(&mut rng));
     generate_file("en_passant_zobrist_keys", &format!("{en_passant_keys:?}"));
 }
 
@@ -232,9 +232,11 @@ fn generate_pesto_tables() {
     generate_file("pesto_endgame_table", &format!("{endgame_table:?}"));
 }
 
-fn main() -> shadow_rs::SdResult<()> {
+fn main() {
     generate_zobrist_keys();
     generate_pesto_tables();
     generate_build_info();
-    shadow_rs::new()
+    shadow_rs::ShadowBuilder::builder()
+        .build_pattern(shadow_rs::BuildPattern::RealTime)
+        .build().unwrap();
 }
