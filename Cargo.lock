@@ -232,29 +232,6 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "candle-core"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5b18de020c2729dbf7ac390325312644808b6ba9b7962f1f724e9185b1d53c7"
-dependencies = [
- "byteorder",
- "gemm 0.17.1",
- "half",
- "intel-mkl-src",
- "libc",
- "memmap2",
- "num-traits",
- "num_cpus",
- "rand 0.8.5",
- "rand_distr 0.4.3",
- "rayon",
- "safetensors",
- "thiserror",
- "yoke",
- "zip",
-]
-
-[[package]]
-name = "candle-core"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef79e00300acaaa6b0b33168e2ed5050f06125d1add87e7103c40a119083581"
@@ -279,11 +256,11 @@ dependencies = [
 
 [[package]]
 name = "candle-nn"
-version = "0.6.0"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b006b30f66a0d94fc9cef0ac4de6ce510565f35ae2c6c35ce5d4aacfb0fc8eeb"
+checksum = "e56763529af17e3483297e40fddeb2992117485498ec56a7c410c8a7825b7fee"
 dependencies = [
- "candle-core 0.6.0",
+ "candle-core",
  "half",
  "intel-mkl-src",
  "num-traits",
@@ -1728,7 +1705,7 @@ dependencies = [
  "arrayvec",
  "assert_cmd",
  "bitflags 2.9.0",
- "candle-core 0.8.3",
+ "candle-core",
  "candle-nn",
  "clap",
  "criterion",
