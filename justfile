@@ -1,24 +1,19 @@
 # This is a collection of commonly used recipes for development. Most of them
 # are wrappers around Cargo with the right flags and settings.
 
-build:
-  cargo build --profile=release
+build: cargo build --profile=release
 
 # Runs the engine and enters UCI mode.
-run:
-  cargo run --profile=release --bin=pabi
+run: cargo run --profile=release --bin=pabi
 
 # Starts self-play games for data generation.
-datagen:
-  cargo run --profile=release --bin=datagen
+datagen: cargo run --profile=release --bin=datagen
 
 # Format all code.
-fmt:
-  cargo +nightly fmt --all
+fmt: cargo +nightly fmt --all
 
 # Checks the code for bad formatting, errors and warnings.
-lint:
-  cargo +nightly fmt --all -- --check
+lint: cargo +nightly fmt --all -- --check
   cargo clippy --all-targets --all-features
 
 # Runs the linters and tries to apply automatic fixes.
@@ -27,28 +22,19 @@ fix: fmt
 
 # Run most tests in debug mode to (potentially) catch more errors with
 # debug_assert.
-test:
-  cargo test
+test: cargo test
 
 # Run tests that are slow and are not run by default.
-test_slow:
-  cargo test --profile=release -- --ignored
+test_slow: cargo test --profile=release -- --ignored
 
 # Run all tests.
 test_all: test test_slow
 
-bench:
-  cargo bench --profile=release
+bench: cargo bench --profile=release
 
 # Lists all fuzzing targets that can be used as inputs for fuzz command.
-list_fuzz_targets:
-  cd fuzz
+list_fuzz_targets: cd fuzz
   cargo +nightly fuzz list
 
-fuzz target:
-  cd fuzz
+fuzz target: cd fuzz
   cargo +nightly fuzz run {{ target }} -- --profile=release
-
-# Build developer documentation.
-doc:
-  cargo doc --document-private-items --no-deps

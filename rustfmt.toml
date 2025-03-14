@@ -1,5 +1,5 @@
 # Some options here require nightly.
-edition = "2021"
+edition = "2024"
 format_code_in_doc_comments = true
 format_macro_matchers = true
 group_imports = "StdExternalCrate"

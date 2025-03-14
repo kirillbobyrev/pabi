@@ -3,15 +3,15 @@ authors = ["Kirill Bobyrev <kbobyrev.opensource@gmail.com>"]
 categories = ["command-line-interface"]
 description = "Chess engine"
 documentation = "https://docs.rs/pabi"
-edition = "2021"
+edition = "2024"
 homepage = "https://github.com/kirillbobyrev/pabi"
 keywords = ["chess", "engine", "machine-learning"]
 license = "Apache-2.0"
 name = "pabi"
 readme = "README.md"
 repository = "https://github.com/kirillbobyrev/pabi"
-rust-version = "1.80"
-version = "2024.7.1"
+rust-version = "1.85"
+version = "2025.3.13"
 include = [
   "/src/",
   "/generated/",
@@ -21,7 +21,6 @@ include = [
   "LICENSE",
   "README.md",
 ] # Reduce the package size by only including things necessary for building it.
-
 
 [features]
 mkl = ["candle-core/mkl", "candle-nn/mkl"]
@@ -40,6 +39,7 @@ rand = { version = "0.8.5", features = ["small_rng"] }
 rand_distr = "0.4.3"
 rayon = "1.10.0"
 shadow-rs = "0.31.1"
+# TODO: Potentially remove this dependency.
 # Used for probing tablebases.
 shakmaty = "0.27.1"
 shakmaty-syzygy = "0.25.0"
