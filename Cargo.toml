@@ -29,7 +29,7 @@ mkl = ["candle-core/mkl", "candle-nn/mkl"]
 anyhow = "1.0.83"
 arrayvec = "0.7.2"
 bitflags = "2.2.1"
-candle-core = "0.6.0"
+candle-core = "0.8.3"
 candle-nn = "0.6.0"
 clap = { version = "4.5.15", features = ["derive", "wrap_help"] }
 indicatif = "0.17.8"
