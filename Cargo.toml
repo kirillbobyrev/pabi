@@ -23,7 +23,7 @@ include = [
 ] # Reduce the package size by only including things necessary for building it.
 
 [dependencies]
-anyhow = "1.0.83"
+anyhow = "1.0.98"
 arrayvec = "0.7.2"
 bitflags = "2.2.1"
 clap = { version = "4.5.15", features = ["derive", "wrap_help"] }
