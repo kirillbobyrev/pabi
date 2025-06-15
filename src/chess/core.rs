@@ -9,9 +9,9 @@ use itertools::Itertools;
 use crate::chess::bitboard::Bitboard;
 use crate::environment::Player;
 
-#[allow(missing_docs)]
+#[allow(missing_docs, reason = "Self-explanatory constants")]
 pub const BOARD_WIDTH: u8 = 8;
-#[allow(missing_docs)]
+#[allow(missing_docs, reason = "Self-explanatory constants")]
 pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
 
 /// Represents any kind of a legal chess move. A move is the only way to mutate
@@ -95,11 +95,6 @@ impl Move {
             self.promotion(),
         )
     }
-
-    #[must_use]
-    pub(super) fn as_packed_int(&self) -> u16 {
-        self.0
-    }
 }
 
 impl TryFrom<&str> for Move {
@@ -169,7 +164,7 @@ pub type MoveList = arrayvec::ArrayVec<Move, { MAX_MOVES }>;
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[rustfmt::skip]
-#[allow(missing_docs)]
+#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
 pub enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
@@ -206,10 +201,7 @@ impl Square {
             Direction::Up => BOARD_WIDTH as i8,
             Direction::Down => -(BOARD_WIDTH as i8),
         };
-        match Self::try_from(self as i8 + shift) {
-            Ok(square) => Some(square),
-            Err(_) => None,
-        }
+        Self::try_from(self as i8 + shift).ok()
     }
 
     /// "Flips" the square vertically, i.e. returns the square as if the board
@@ -291,7 +283,7 @@ impl TryFrom<&str> for Square {
             Some((file, rank)) => (file, rank),
             None => bail!(
                 "square should be two-char, got {square} with {} chars",
-                square.bytes().len()
+                square.len()
             ),
         };
         Ok(Self::new(file.try_into()?, rank.try_into()?))
@@ -324,7 +316,7 @@ impl fmt::Display for Square {
 /// is normally represented with a lowercase letter.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(missing_docs)]
+#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
 pub enum File {
     A,
     B,
@@ -369,7 +361,7 @@ impl TryFrom<u8> for File {
 /// (i.e. rank 1 would be 0).
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(missing_docs)]
+#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
 pub enum Rank {
     Rank1,
     Rank2,
@@ -443,7 +435,7 @@ impl fmt::Display for Rank {
 /// Standard [chess pieces] types for one player.
 ///
 /// [chess pieces]: https://en.wikipedia.org/wiki/Chess_piece
-#[allow(missing_docs)]
+#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub enum PieceKind {
     Pawn,
@@ -480,9 +472,9 @@ impl fmt::Display for PieceKind {
 
 /// Represents a specific piece owned by a player.
 pub struct Piece {
-    #[allow(missing_docs)]
+    #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
     pub player: Player,
-    #[allow(missing_docs)]
+    #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
     pub kind: PieceKind,
 }
 
@@ -598,21 +590,21 @@ bitflags::bitflags! {
     /// [castle]: https://www.chessprogramming.org/Castling
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct CastleRights : u8 {
-        #[allow(missing_docs)]
+        #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
         const NONE = 0;
-        #[allow(missing_docs)]
+        #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
         const WHITE_SHORT = 0b0001;
-        #[allow(missing_docs)]
+        #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
         const WHITE_LONG = 0b0010;
-        #[allow(missing_docs)]
+        #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
         const WHITE_BOTH = Self::WHITE_SHORT.bits() | Self::WHITE_LONG.bits();
-        #[allow(missing_docs)]
+        #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
         const BLACK_SHORT = 0b0100;
-        #[allow(missing_docs)]
+        #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
         const BLACK_LONG = 0b1000;
-        #[allow(missing_docs)]
+        #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
         const BLACK_BOTH = Self::BLACK_SHORT.bits() | Self::BLACK_LONG.bits();
-        #[allow(missing_docs)]
+        #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
         const ALL = Self::WHITE_BOTH.bits() | Self::BLACK_BOTH.bits();
     }
 }
@@ -695,7 +687,7 @@ impl fmt::Display for CastleRights {
 }
 
 /// A pawn can be promoted to a queen, rook, bishop or a knight.
-#[allow(missing_docs)]
+#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
 pub enum Promotion {
     Knight = 1,

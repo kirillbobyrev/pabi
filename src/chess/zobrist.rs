@@ -19,11 +19,6 @@ impl RepetitionTable {
         }
     }
 
-    /// Removes all entries from the repetition history.
-    pub(crate) fn clear(&mut self) {
-        self.table.clear();
-    }
-
     /// Returns true if the position has occurred 3 times.
     ///
     /// In the tournament setting 3-fold repetition is a draw.

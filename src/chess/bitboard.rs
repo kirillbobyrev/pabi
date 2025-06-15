@@ -76,11 +76,11 @@ impl Bitboard {
 
     #[must_use]
     pub fn from_squares(squares: &[Square]) -> Self {
-        let mut result = Self::empty();
-        for square in squares {
-            result |= Self::from(*square);
+        let mut bits = 0u64;
+        for &square in squares {
+            bits |= 1u64 << (square as u8);
         }
-        result
+        Self::from_bits(bits)
     }
 
     /// Adds given square to the set.
@@ -426,23 +426,26 @@ impl Pieces {
 
     #[must_use]
     pub(super) fn at(&self, square: Square) -> Option<PieceKind> {
-        if self.all().contains(square) {
-            let kind = if self.king.contains(square) {
-                PieceKind::King
-            } else if self.pawns.contains(square) {
-                PieceKind::Pawn
-            } else if self.queens.contains(square) {
-                PieceKind::Queen
-            } else if self.rooks.contains(square) {
-                PieceKind::Rook
-            } else if self.bishops.contains(square) {
-                PieceKind::Bishop
-            } else {
-                PieceKind::Knight
-            };
-            return Some(kind);
+        // Early exit if square is empty
+        let square_bit = Bitboard::from(square);
+        if !(self.all() & square_bit).has_any() {
+            return None;
         }
-        None
+
+        // Check piece types in order of likelihood (for typical chess positions)
+        if (self.pawns & square_bit).has_any() {
+            Some(PieceKind::Pawn)
+        } else if (self.rooks & square_bit).has_any() {
+            Some(PieceKind::Rook)
+        } else if (self.knights & square_bit).has_any() {
+            Some(PieceKind::Knight)
+        } else if (self.bishops & square_bit).has_any() {
+            Some(PieceKind::Bishop)
+        } else if (self.queens & square_bit).has_any() {
+            Some(PieceKind::Queen)
+        } else {
+            Some(PieceKind::King)
+        }
     }
 }
 

@@ -63,7 +63,10 @@ const fn rook_ray(from: Square, to: Square) -> Bitboard {
     generated::ROOK_RAYS[(from as usize) * (BOARD_SIZE as usize) + to as usize]
 }
 
-// TODO: Document.
+/// Parallel bit extract operation - extracts bits from `a` according to `mask`.
+/// Uses BMI2 PEXT instruction when available, falls back to software
+/// implementation.
+#[inline]
 fn pext(a: u64, mask: u64) -> u64 {
     #[cfg(target_arch = "x86_64")]
     {
@@ -71,10 +74,12 @@ fn pext(a: u64, mask: u64) -> u64 {
             return unsafe { core::arch::x86_64::_pext_u64(a, mask) };
         }
     }
-    // Fallback.
+
+    // Software fallback implementation
     let mut result = 0u64;
     let mut mask = mask;
     let mut scanning_bit = 1u64;
+
     while mask != 0 {
         let ls1b = 1u64 << mask.trailing_zeros();
         if (a & ls1b) != 0 {
@@ -133,70 +138,70 @@ impl AttackInfo {
                 result.checkers.extend(pawn);
             }
         }
-        // Queens.
-        // TODO: Sliders repeat each other. Pull this into a function.
+        // Process sliding pieces (queens, bishops, rooks)
+        let sliding_ctx = SlidingPieceContext {
+            occupancy,
+            occupancy_without_king,
+            king,
+            our_occupancy,
+        };
+
+        // Queens can attack like both rooks and bishops
         for queen in their.queens.iter() {
-            let targets = queen_attacks(queen, occupancy);
-            result.attacks |= targets;
-            if targets.contains(king) {
-                result.checkers.extend(queen);
-                result.safe_king_squares -= queen_attacks(queen, occupancy_without_king);
-                // An attack can be either a check or a (potential) pin, not
-                // both.
-                continue;
-            }
-            let attack_ray = ray(queen, king);
-            let blocker = (attack_ray & occupancy) - Bitboard::from(queen);
-            if blocker.count() == 1 {
-                if (blocker & our_occupancy).has_any() {
-                    result.pins |= blocker;
-                } else {
-                    result.xrays |= blocker;
-                }
-            }
+            process_sliding_piece(&mut result, queen, &sliding_ctx, queen_attacks, ray);
         }
         for bishop in their.bishops.iter() {
-            let targets = bishop_attacks(bishop, occupancy);
-            result.attacks |= targets;
-            if targets.contains(king) {
-                result.checkers.extend(bishop);
-                result.safe_king_squares -= bishop_attacks(bishop, occupancy_without_king);
-                // An attack can be either a check or a (potential) pin, not
-                // both.
-                continue;
-            }
-            let attack_ray = bishop_ray(bishop, king);
-            let blocker = (attack_ray & occupancy) - Bitboard::from(bishop);
-            if blocker.count() == 1 {
-                if (blocker & our_occupancy).has_any() {
-                    result.pins |= blocker;
-                } else {
-                    result.xrays |= blocker;
-                }
-            }
+            process_sliding_piece(
+                &mut result,
+                bishop,
+                &sliding_ctx,
+                bishop_attacks,
+                bishop_ray,
+            );
         }
         for rook in their.rooks.iter() {
-            let targets = rook_attacks(rook, occupancy);
-            result.attacks |= targets;
-            if targets.contains(king) {
-                result.checkers.extend(rook);
-                result.safe_king_squares -= rook_attacks(rook, occupancy_without_king);
-                // An attack can be either a check or a (potential) pin, not
-                // both.
-                continue;
-            }
-            let attack_ray = rook_ray(rook, king);
-            let blocker = (attack_ray & occupancy) - Bitboard::from(rook);
-            if blocker.count() == 1 {
-                if (blocker & our_occupancy).has_any() {
-                    result.pins |= blocker;
-                } else {
-                    result.xrays |= blocker;
-                }
-            }
+            process_sliding_piece(&mut result, rook, &sliding_ctx, rook_attacks, rook_ray);
         }
         result.safe_king_squares -= result.attacks;
         result
+    }
+}
+
+/// Context for processing sliding pieces
+struct SlidingPieceContext {
+    occupancy: Bitboard,
+    occupancy_without_king: Bitboard,
+    king: Square,
+    our_occupancy: Bitboard,
+}
+
+/// Helper function to process sliding pieces (queens, bishops, rooks) uniformly
+#[inline]
+fn process_sliding_piece(
+    result: &mut AttackInfo,
+    piece_square: Square,
+    ctx: &SlidingPieceContext,
+    attack_fn: impl Fn(Square, Bitboard) -> Bitboard,
+    ray_fn: impl Fn(Square, Square) -> Bitboard,
+) {
+    let targets = attack_fn(piece_square, ctx.occupancy);
+    result.attacks |= targets;
+
+    if targets.contains(ctx.king) {
+        result.checkers.extend(piece_square);
+        result.safe_king_squares -= attack_fn(piece_square, ctx.occupancy_without_king);
+        return; // An attack can be either a check or a (potential) pin, not both
+    }
+
+    let attack_ray = ray_fn(piece_square, ctx.king);
+    let blocker = (attack_ray & ctx.occupancy) - Bitboard::from(piece_square);
+
+    if blocker.count() == 1 {
+        if (blocker & ctx.our_occupancy).has_any() {
+            result.pins |= blocker;
+        } else {
+            result.xrays |= blocker;
+        }
     }
 }
 

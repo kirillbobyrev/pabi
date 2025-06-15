@@ -8,7 +8,7 @@ use anyhow::bail;
 
 /// A standard game of chess is played between two players: White (having the
 /// advantage of the first turn) and Black.
-#[allow(missing_docs)]
+#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Player {
     White,
