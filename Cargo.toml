@@ -48,7 +48,7 @@ assert_cmd = "2.0.16"
 criterion = "0.5.1"
 predicates = "3.1.2"
 pretty_assertions = "1.1.0"
-proptest = "1.5.0"
+proptest = "1.9.0"
 shadow-rs = "1.0.1"
 # Used for testing and comparing against a reasonable baseline for correctness.
 shakmaty = "0.27.1"
