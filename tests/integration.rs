@@ -1,12 +1,9 @@
-use assert_cmd::Command;
 use predicates::boolean::PredicateBooleanExt;
 use predicates::str::contains;
 
-const BINARY_NAME: &str = "pabi";
-
 #[test]
 fn uci_setup() {
-    let mut cmd = Command::cargo_bin(BINARY_NAME).expect("Binary should be built");
+    let mut cmd = assert_cmd::cargo_bin_cmd!("pabi");
 
     drop(
         cmd.write_stdin("uci\n") // Write the uci command to stdin

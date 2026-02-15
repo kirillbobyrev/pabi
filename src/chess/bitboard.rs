@@ -328,17 +328,17 @@ impl ExactSizeIterator for BitboardIterator {
     }
 }
 
-impl TryInto<Square> for Bitboard {
+impl TryFrom<Bitboard> for Square {
     type Error = anyhow::Error;
 
-    fn try_into(self) -> anyhow::Result<Square> {
-        if self.bits.count_ones() != 1 {
+    fn try_from(bitboard: Bitboard) -> anyhow::Result<Self> {
+        if bitboard.bits.count_ones() != 1 {
             anyhow::bail!(
                 "bitboard should contain exactly 1 bit, got {}",
-                self.bits.count_ones()
+                bitboard.bits.count_ones()
             );
         }
-        Ok(unsafe { mem::transmute(self.bits.trailing_zeros() as u8) })
+        Ok(unsafe { mem::transmute(bitboard.bits.trailing_zeros() as u8) })
     }
 }
 
@@ -428,7 +428,7 @@ impl Pieces {
     pub(super) fn at(&self, square: Square) -> Option<PieceKind> {
         // Early exit if square is empty
         let square_bit = Bitboard::from(square);
-        if !(self.all() & square_bit).has_any() {
+        if (self.all() & square_bit).is_empty() {
             return None;
         }
 

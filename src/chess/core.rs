@@ -670,16 +670,16 @@ impl fmt::Display for CastleRights {
         if *self == Self::NONE {
             return f.write_char('-');
         }
-        if *self & Self::WHITE_SHORT != Self::NONE {
+        if self.contains(Self::WHITE_SHORT) {
             f.write_char('K')?;
         }
-        if *self & Self::WHITE_LONG != Self::NONE {
+        if self.contains(Self::WHITE_LONG) {
             f.write_char('Q')?;
         }
-        if *self & Self::BLACK_SHORT != Self::NONE {
+        if self.contains(Self::BLACK_SHORT) {
             f.write_char('k')?;
         }
-        if *self & Self::BLACK_LONG != Self::NONE {
+        if self.contains(Self::BLACK_LONG) {
             f.write_char('q')?;
         }
         Ok(())

@@ -31,7 +31,7 @@ fn expect_legal_position(input: &str) {
 }
 
 #[test]
-#[allow(unused_results)]
+#[allow(unused_results, reason = "Testing parsing, not using the result")]
 fn basic_positions() {
     // Full FEN.
     expect_legal_position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");

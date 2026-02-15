@@ -586,18 +586,18 @@ impl Position {
         self.halfmove_clock = 0;
 
         // Check en passant.
-        if let Some(en_passant_square) = previous_en_passant {
-            if next_move.to() == en_passant_square {
-                let captured_pawn = Square::new(next_move.to().file(), next_move.from().rank());
-                their_pieces.pawns.clear(captured_pawn);
-                self.hash ^= generated::get_piece_key(
-                    Piece {
-                        player: !self.side_to_move,
-                        kind: PieceKind::Pawn,
-                    },
-                    captured_pawn,
-                );
-            }
+        if let Some(en_passant_square) = previous_en_passant
+            && next_move.to() == en_passant_square
+        {
+            let captured_pawn = Square::new(next_move.to().file(), next_move.from().rank());
+            their_pieces.pawns.clear(captured_pawn);
+            self.hash ^= generated::get_piece_key(
+                Piece {
+                    player: !self.side_to_move,
+                    kind: PieceKind::Pawn,
+                },
+                captured_pawn,
+            );
         }
 
         our_pieces.pawns.clear(next_move.from());
