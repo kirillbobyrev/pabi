@@ -841,6 +841,17 @@ fn en_passant_hash() {
 }
 
 #[test]
+fn en_passant_cleared_hash() {
+    // After a move that clears EP, the incremental hash must match a fresh
+    // computation of the resulting position (no stale EP key in the hash).
+    let mut position = setup("6qk/8/8/3Pp3/8/8/K7/8 w - e6 0 1");
+    // King move clears EP without creating new EP.
+    position.make_move(&Move::from_uci("a2b2").expect("valid move"));
+    let expected = setup(&position.to_string());
+    assert_eq!(position.hash(), expected.hash());
+}
+
+#[test]
 fn castling_hash() {
     let mut position = setup("rnbqk1nr/p3bppp/1p2p3/2ppP3/3P4/P7/1PP1NPPP/R1BQKBNR w KQkq - 0 7");
     let initial_hash = position.hash();

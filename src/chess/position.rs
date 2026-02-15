@@ -466,10 +466,18 @@ impl Position {
         // push.
         self.halfmove_clock += 1;
 
+        // En passant is always transient (lasts one move). Clear it from both
+        // the position state and the hash, saving the old value for capture
+        // detection in make_pawn_move().
+        let previous_en_passant = self.en_passant_square.take();
+        if let Some(ep_square) = previous_en_passant {
+            self.hash ^= generated::EN_PASSANT_FILES[ep_square.file() as usize];
+        }
+
         self.update_castling_rights(next_move);
 
         self.handle_capture(next_move);
-        self.make_pawn_move(next_move);
+        self.make_pawn_move(next_move, previous_en_passant);
         self.make_king_move(next_move);
         self.make_regular_move(next_move);
 
@@ -478,6 +486,7 @@ impl Position {
         }
 
         self.side_to_move = !self.side_to_move;
+        self.hash ^= generated::BLACK_TO_MOVE;
     }
 
     fn update_castling_rights(&mut self, next_move: &Move) {
@@ -563,14 +572,11 @@ impl Position {
         }
     }
 
-    fn make_pawn_move(&mut self, next_move: &Move) -> bool {
+    fn make_pawn_move(&mut self, next_move: &Move, previous_en_passant: Option<Square>) -> bool {
         let (our_pieces, their_pieces) = match self.side_to_move {
             Player::White => (&mut self.white_pieces, &mut self.black_pieces),
             Player::Black => (&mut self.black_pieces, &mut self.white_pieces),
         };
-
-        let previous_en_passant = self.en_passant_square;
-        self.en_passant_square = None;
 
         if !our_pieces.pawns.contains(next_move.from()) {
             return false;
@@ -603,51 +609,16 @@ impl Position {
             next_move.from(),
         );
 
-        // Check promotions.
-        // TODO: Debug assertions to make sure the promotion is valid.
         if let Some(promotion) = next_move.promotion() {
-            match promotion {
-                Promotion::Queen => {
-                    our_pieces.queens.extend(next_move.to());
-                    self.hash ^= generated::get_piece_key(
-                        Piece {
-                            player: self.side_to_move,
-                            kind: PieceKind::Queen,
-                        },
-                        next_move.to(),
-                    );
-                }
-                Promotion::Rook => {
-                    our_pieces.rooks.extend(next_move.to());
-                    self.hash ^= generated::get_piece_key(
-                        Piece {
-                            player: self.side_to_move,
-                            kind: PieceKind::Rook,
-                        },
-                        next_move.to(),
-                    );
-                }
-                Promotion::Bishop => {
-                    our_pieces.bishops.extend(next_move.to());
-                    self.hash ^= generated::get_piece_key(
-                        Piece {
-                            player: self.side_to_move,
-                            kind: PieceKind::Bishop,
-                        },
-                        next_move.to(),
-                    );
-                }
-                Promotion::Knight => {
-                    our_pieces.knights.extend(next_move.to());
-                    self.hash ^= generated::get_piece_key(
-                        Piece {
-                            player: self.side_to_move,
-                            kind: PieceKind::Knight,
-                        },
-                        next_move.to(),
-                    );
-                }
-            };
+            let kind = PieceKind::from(promotion);
+            our_pieces.bitboard_for_mut(kind).extend(next_move.to());
+            self.hash ^= generated::get_piece_key(
+                Piece {
+                    player: self.side_to_move,
+                    kind,
+                },
+                next_move.to(),
+            );
             return true;
         }
 
@@ -787,22 +758,82 @@ impl Position {
 
     #[must_use]
     pub fn in_check(&self) -> bool {
-        // TODO: Computing this is expensive. Cache/check for attacks on king
-        // separately?
-        let attack_info = attacks::AttackInfo::new(
-            self.them(),
-            self.pieces(self.them()),
-            self.pieces(self.us()).king.as_square(),
-            self.occupancy(self.us()),
-            self.occupied_squares(),
-        );
-        attack_info.checkers.has_any()
+        let king = self.pieces(self.us()).king.as_square();
+        let their = self.pieces(self.them());
+        let occupancy = self.occupied_squares();
+
+        // Pawn check: compute candidate squares via bitboard shifts instead of
+        // using the pawn attack table, which has empty entries for back-rank
+        // squares (rank 1 and 8) where kings can reside.
+        const NOT_A_FILE: Bitboard = Bitboard::from_bits(0xFEFE_FEFE_FEFE_FEFE);
+        const NOT_H_FILE: Bitboard = Bitboard::from_bits(0x7F7F_7F7F_7F7F_7F7F);
+        let king_bb = Bitboard::from(king);
+        let pawn_check_squares = match self.us() {
+            // Black pawns check from one rank above the white king.
+            Player::White => ((king_bb << 7) & NOT_H_FILE) | ((king_bb << 9) & NOT_A_FILE),
+            // White pawns check from one rank below the black king.
+            Player::Black => ((king_bb >> 9) & NOT_H_FILE) | ((king_bb >> 7) & NOT_A_FILE),
+        };
+
+        (attacks::knight_attacks(king) & their.knights).has_any()
+            || (pawn_check_squares & their.pawns).has_any()
+            || (attacks::rook_attacks(king, occupancy) & (their.rooks | their.queens)).has_any()
+            || (attacks::bishop_attacks(king, occupancy) & (their.bishops | their.queens)).has_any()
     }
 
     /// Returns true if 50-move rule draw is in effect.
     #[must_use]
     pub fn halfmove_clock_expired(&self) -> bool {
         self.halfmove_clock >= 100
+    }
+
+    /// Returns true if neither side has sufficient material to checkmate.
+    ///
+    /// Detected cases:
+    /// - K vs K
+    /// - K+N vs K
+    /// - K+B vs K
+    /// - K+B vs K+B (same-colored bishops)
+    #[must_use]
+    pub fn is_insufficient_material(&self) -> bool {
+        let (white, black) = (&self.white_pieces, &self.black_pieces);
+
+        // Any pawns, rooks, or queens means sufficient material.
+        if (white.pawns | black.pawns | white.rooks | black.rooks | white.queens | black.queens)
+            .has_any()
+        {
+            return false;
+        }
+
+        let white_minors = white.knights.count() + white.bishops.count();
+        let black_minors = black.knights.count() + black.bishops.count();
+
+        // K vs K
+        if white_minors == 0 && black_minors == 0 {
+            return true;
+        }
+
+        // K+minor vs K
+        if (white_minors == 1 && black_minors == 0)
+            || (white_minors == 0 && black_minors == 1)
+        {
+            return true;
+        }
+
+        // K+B vs K+B with same-colored bishops
+        if white.knights.count() == 0
+            && black.knights.count() == 0
+            && white.bishops.count() == 1
+            && black.bishops.count() == 1
+        {
+            const DARK_SQUARES: Bitboard = Bitboard::from_bits(0xAA55_AA55_AA55_AA55);
+            let all_bishops = white.bishops | black.bishops;
+            let bishops_on_dark = all_bishops & DARK_SQUARES;
+            // All bishops on same color: either all dark or all light.
+            return bishops_on_dark.is_empty() || bishops_on_dark == all_bishops;
+        }
+
+        false
     }
 
     #[must_use]
@@ -1236,58 +1267,48 @@ fn generate_castle_moves(
     occupied_squares: Bitboard,
     moves: &mut MoveList,
 ) {
-    // TODO: Generalize castling to FCR.
-    // TODO: In FCR we should check if the rook is pinned or not.
-    if checkers.is_empty() {
-        match us {
-            Player::White => {
-                if castling.contains(CastleRights::WHITE_SHORT)
-                    && (attacks & attacks::WHITE_SHORT_CASTLE_KING_WALK).is_empty()
-                    && (occupied_squares
-                        & (attacks::WHITE_SHORT_CASTLE_KING_WALK
-                            | attacks::WHITE_SHORT_CASTLE_ROOK_WALK))
-                        .is_empty()
-                {
-                    unsafe {
-                        moves.push_unchecked(Move::new(Square::E1, Square::G1, None));
-                    }
-                }
-                if castling.contains(CastleRights::WHITE_LONG)
-                    && (attacks & attacks::WHITE_LONG_CASTLE_KING_WALK).is_empty()
-                    && (occupied_squares
-                        & (attacks::WHITE_LONG_CASTLE_KING_WALK
-                            | attacks::WHITE_LONG_CASTLE_ROOK_WALK))
-                        .is_empty()
-                {
-                    unsafe {
-                        moves.push_unchecked(Move::new(Square::E1, Square::C1, None));
-                    }
-                }
-            }
-            Player::Black => {
-                if castling.contains(CastleRights::BLACK_SHORT)
-                    && (attacks & attacks::BLACK_SHORT_CASTLE_KING_WALK).is_empty()
-                    && (occupied_squares
-                        & (attacks::BLACK_SHORT_CASTLE_KING_WALK
-                            | attacks::BLACK_SHORT_CASTLE_ROOK_WALK))
-                        .is_empty()
-                {
-                    unsafe {
-                        moves.push_unchecked(Move::new(Square::E8, Square::G8, None));
-                    }
-                }
-                if castling.contains(CastleRights::BLACK_LONG)
-                    && (attacks & attacks::BLACK_LONG_CASTLE_KING_WALK).is_empty()
-                    && (occupied_squares
-                        & (attacks::BLACK_LONG_CASTLE_KING_WALK
-                            | attacks::BLACK_LONG_CASTLE_ROOK_WALK))
-                        .is_empty()
-                {
-                    unsafe {
-                        moves.push_unchecked(Move::new(Square::E8, Square::C8, None));
-                    }
-                }
-            }
+    if !checkers.is_empty() {
+        return;
+    }
+
+    let (king_sq, short_right, long_right, short_king_walk, short_rook_walk, long_king_walk, long_rook_walk, short_to, long_to) = match us {
+        Player::White => (
+            Square::E1,
+            CastleRights::WHITE_SHORT, CastleRights::WHITE_LONG,
+            attacks::WHITE_SHORT_CASTLE_KING_WALK, attacks::WHITE_SHORT_CASTLE_ROOK_WALK,
+            attacks::WHITE_LONG_CASTLE_KING_WALK, attacks::WHITE_LONG_CASTLE_ROOK_WALK,
+            Square::G1, Square::C1,
+        ),
+        Player::Black => (
+            Square::E8,
+            CastleRights::BLACK_SHORT, CastleRights::BLACK_LONG,
+            attacks::BLACK_SHORT_CASTLE_KING_WALK, attacks::BLACK_SHORT_CASTLE_ROOK_WALK,
+            attacks::BLACK_LONG_CASTLE_KING_WALK, attacks::BLACK_LONG_CASTLE_ROOK_WALK,
+            Square::G8, Square::C8,
+        ),
+    };
+
+    try_castle(castling, short_right, attacks, short_king_walk, short_rook_walk, occupied_squares, king_sq, short_to, moves);
+    try_castle(castling, long_right, attacks, long_king_walk, long_rook_walk, occupied_squares, king_sq, long_to, moves);
+}
+
+fn try_castle(
+    castling: CastleRights,
+    right: CastleRights,
+    attacks: Bitboard,
+    king_walk: Bitboard,
+    rook_walk: Bitboard,
+    occupied_squares: Bitboard,
+    from: Square,
+    to: Square,
+    moves: &mut MoveList,
+) {
+    if castling.contains(right)
+        && (attacks & king_walk).is_empty()
+        && (occupied_squares & (king_walk | rook_walk)).is_empty()
+    {
+        unsafe {
+            moves.push_unchecked(Move::new(from, to, None));
         }
     }
 }

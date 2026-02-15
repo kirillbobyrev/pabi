@@ -8,9 +8,6 @@
 //! [reference]: https://www.chessprogramming.org/BMI2
 //! [PEXT Bitboards]: https://www.chessprogramming.org/BMI2#PEXTBitboards
 
-// TODO: This code is probably by far the least appealing in the project.
-// Refactor it and make it nicer.
-
 use super::generated;
 use crate::chess::bitboard::{Bitboard, Pieces};
 use crate::chess::core::{BOARD_SIZE, Square};
@@ -96,13 +93,10 @@ pub(super) struct AttackInfo {
     pub(super) attacks: Bitboard,
     pub(super) checkers: Bitboard,
     pub(super) pins: Bitboard,
-    // TODO: Get rid of the XRays.
-    pub(super) xrays: Bitboard,
     pub(super) safe_king_squares: Bitboard,
 }
 
 impl AttackInfo {
-    // TODO: Handle each piece separately.
     pub(super) fn new(
         they: Player,
         their: &Pieces,
@@ -114,7 +108,6 @@ impl AttackInfo {
             attacks: Bitboard::empty(),
             checkers: Bitboard::empty(),
             pins: Bitboard::empty(),
-            xrays: Bitboard::empty(),
             safe_king_squares: Bitboard::empty(),
         };
         result.safe_king_squares = !our_occupancy & king_attacks(king);
@@ -196,12 +189,8 @@ fn process_sliding_piece(
     let attack_ray = ray_fn(piece_square, ctx.king);
     let blocker = (attack_ray & ctx.occupancy) - Bitboard::from(piece_square);
 
-    if blocker.count() == 1 {
-        if (blocker & ctx.our_occupancy).has_any() {
-            result.pins |= blocker;
-        } else {
-            result.xrays |= blocker;
-        }
+    if blocker.count() == 1 && (blocker & ctx.our_occupancy).has_any() {
+        result.pins |= blocker;
     }
 }
 
@@ -595,37 +584,6 @@ mod tests {
             . . . . . . . .\n\
             . . . . . . . ."
         );
-        assert!(attacks.xrays.is_empty());
-    }
-
-    #[test]
-    fn xrays() {
-        let position = Position::try_from("b6k/8/8/3p4/8/8/8/7K w - - 0 1").unwrap();
-        let attacks = position.attack_info();
-        assert_eq!(
-            format!("{:?}", attacks.attacks),
-            ". . . . . . 1 .\n\
-            . 1 . . . . 1 1\n\
-            . . 1 . . . . .\n\
-            . . . 1 . . . .\n\
-            . . 1 . 1 . . .\n\
-            . . . . . . . .\n\
-            . . . . . . . .\n\
-            . . . . . . . ."
-        );
-        assert!(attacks.checkers.is_empty());
-        assert!(attacks.pins.is_empty());
-        assert_eq!(
-            format!("{:?}", attacks.xrays),
-            ". . . . . . . .\n\
-            . . . . . . . .\n\
-            . . . . . . . .\n\
-            . . . 1 . . . .\n\
-            . . . . . . . .\n\
-            . . . . . . . .\n\
-            . . . . . . . .\n\
-            . . . . . . . ."
-        );
     }
 
     #[test]
@@ -666,7 +624,7 @@ mod tests {
             . . . . . . . .\n\
             . . . . . . . ."
         );
-        assert!(attacks.xrays.is_empty());
+
     }
 
     #[test]
@@ -696,6 +654,6 @@ mod tests {
             . . . . . . . .\n\
             . . . . . . 1 ."
         );
-        assert!(attacks.xrays.is_empty());
+
     }
 }

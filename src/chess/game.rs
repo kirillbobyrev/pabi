@@ -67,9 +67,12 @@ impl Environment<Move, Position> for Game {
         if self.position.halfmove_clock_expired() {
             return Some(GameResult::Draw);
         }
+        if self.position.is_insufficient_material() {
+            return Some(GameResult::Draw);
+        }
         if self.position.num_pieces() == self.tablebase.max_pieces() {
             // TODO: This is a bit of a hack right now and not precise. Maybe
-            // it's not that inmportant, but worth revisiting.
+            // it's not that important, but worth revisiting.
             let wdl = self
                 .tablebase
                 .probe_wdl(&to_shakmaty_position(&self.position))

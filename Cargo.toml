@@ -10,8 +10,8 @@ license = "Apache-2.0"
 name = "pabi"
 readme = "README.md"
 repository = "https://github.com/kirillbobyrev/pabi"
-rust-version = "1.85"
-version = "2025.3.13"
+rust-version = "1.93"
+version = "2026.2.15"
 include = [
   "/src/",
   "/generated/",
