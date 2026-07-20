@@ -4,8 +4,8 @@
 //!
 //! [`Engine::uci_loop`] is the "main loop" of the engine which communicates
 //! with the environment and executes commands from the input stream.
-/// [Universal Chess Interface]: https://www.chessprogramming.org/UCI
-use core::panic;
+//!
+//! [Universal Chess Interface]: https://www.chessprogramming.org/UCI
 use std::io::{BufRead, Write};
 use std::time::Duration;
 
@@ -68,9 +68,7 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
             match self.input.read_line(&mut line) {
                 Ok(0) => break,
                 Ok(_) => {}
-                Err(e) => {
-                    panic!("Error reading from input: {}", e);
-                }
+                Err(e) => return Err(anyhow::Error::from(e).context("error reading UCI input")),
             }
             match Command::parse(&line) {
                 Command::Uci => self.handshake()?,
@@ -142,10 +140,9 @@ impl<'a, R: BufRead, W: Write> Engine<'a, R, W> {
             None => self.position = Position::starting(),
         };
         for next_move in moves {
-            match Move::from_uci(&next_move) {
-                Ok(next_move) => self.position.make_move(&next_move),
-                Err(_) => unreachable!(),
-            }
+            let next_move = Move::from_uci(&next_move)
+                .map_err(|e| e.context(format!("invalid move in position command: {next_move}")))?;
+            self.position.make_move(&next_move);
         }
         Ok(())
     }

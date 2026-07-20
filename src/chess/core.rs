@@ -61,8 +61,14 @@ impl Move {
 
     #[must_use]
     pub(super) fn promotion(&self) -> Option<Promotion> {
-        let promo = (self.0 & Self::PROMOTION_MASK) >> Self::PROMOTION_OFFSET;
-        unsafe { std::mem::transmute(promo as u8) }
+        match (self.0 & Self::PROMOTION_MASK) >> Self::PROMOTION_OFFSET {
+            0 => None,
+            1 => Some(Promotion::Knight),
+            2 => Some(Promotion::Bishop),
+            3 => Some(Promotion::Rook),
+            4 => Some(Promotion::Queen),
+            _ => unreachable!("promotion bits are only set through Move::new"),
+        }
     }
 
     /// Converts the move from UCI format to the internal representation. This
@@ -101,19 +107,22 @@ impl TryFrom<&str> for Move {
     type Error = anyhow::Error;
 
     fn try_from(uci: &str) -> anyhow::Result<Self> {
-        match uci.len() {
-            4 => Ok(Self::new(
-                Square::try_from(&uci[..2])?,
-                Square::try_from(&uci[2..4])?,
-                None,
-            )),
-            5 => Ok(Self::new(
-                Square::try_from(&uci[..2])?,
-                Square::try_from(&uci[2..4])?,
-                Some(Promotion::from(uci.chars().nth(4).unwrap())),
-            )),
-            _ => bail!("UCI move should be 4 or 5 characters long, got {uci}"),
+        // Byte-indexed slicing below is only safe for ASCII strings, and no
+        // valid UCI move contains non-ASCII symbols anyway.
+        if !uci.is_ascii() {
+            bail!("UCI move should only contain ASCII characters, got {uci}");
         }
+        let promotion = match uci.len() {
+            4 => None,
+            5 => Some(Promotion::try_from(uci.as_bytes()[4] as char)?),
+            _ => bail!("UCI move should be 4 or 5 characters long, got {uci}"),
+        };
+        let from = Square::try_from(&uci[..2])?;
+        let to = Square::try_from(&uci[2..4])?;
+        if from == to {
+            bail!("UCI move should have different source and target squares, got {uci}");
+        }
+        Ok(Self::new(from, to, promotion))
     }
 }
 
@@ -696,14 +705,16 @@ pub enum Promotion {
     Queen = 4,
 }
 
-impl From<char> for Promotion {
-    fn from(c: char) -> Self {
+impl TryFrom<char> for Promotion {
+    type Error = anyhow::Error;
+
+    fn try_from(c: char) -> anyhow::Result<Self> {
         match c {
-            'n' => Self::Knight,
-            'b' => Self::Bishop,
-            'r' => Self::Rook,
-            'q' => Self::Queen,
-            _ => unreachable!("unknown promotion piece, has to be in 'kbrq': {c}"),
+            'n' => Ok(Self::Knight),
+            'b' => Ok(Self::Bishop),
+            'r' => Ok(Self::Rook),
+            'q' => Ok(Self::Queen),
+            _ => bail!("promotion piece should be in 'nbrq', got '{c}'"),
         }
     }
 }
@@ -909,5 +920,24 @@ mod tests {
             Move::from_uci("e7e8q").unwrap(),
             Move::new(Square::E7, Square::E8, Some(Promotion::Queen))
         );
+    }
+
+    #[test]
+    fn incorrect_moves_from_uci() {
+        // Wrong length.
+        assert!(Move::from_uci("").is_err());
+        assert!(Move::from_uci("e2").is_err());
+        assert!(Move::from_uci("e2e4e5").is_err());
+        // Squares out of range.
+        assert!(Move::from_uci("i9i8").is_err());
+        assert!(Move::from_uci("e0e1").is_err());
+        // Invalid promotion piece.
+        assert!(Move::from_uci("e7e8k").is_err());
+        assert!(Move::from_uci("e7e8x").is_err());
+        // Source and target squares must differ.
+        assert!(Move::from_uci("e2e2").is_err());
+        // Non-ASCII input should not crash the parser.
+        assert!(Move::from_uci("é2e4").is_err());
+        assert!(Move::from_uci("e2é4").is_err());
     }
 }
