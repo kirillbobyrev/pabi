@@ -9,10 +9,12 @@ use crate::chess::zobrist::RepetitionTable;
 use crate::environment::{Action, Environment, GameResult, Observation, Player};
 
 impl Action for Move {
-    // Action space compression from lc0:
-    // https://github.com/LeelaChessZero/lc0/blob/master/src/chess/bitboard.cc
+    /// AlphaZero-style action space encoding, see [`Move::policy_index`].
+    ///
+    /// The move has to be from the perspective of the player making it: flip
+    /// Black's moves with [`Move::flip_perspective`] first.
     fn get_index(&self) -> u16 {
-        todo!();
+        self.policy_index()
     }
 }
 

@@ -413,6 +413,18 @@ impl Pieces {
     }
 
     #[must_use]
+    pub(crate) const fn bitboard_for(&self, piece: PieceKind) -> Bitboard {
+        match piece {
+            PieceKind::King => self.king,
+            PieceKind::Queen => self.queens,
+            PieceKind::Rook => self.rooks,
+            PieceKind::Bishop => self.bishops,
+            PieceKind::Knight => self.knights,
+            PieceKind::Pawn => self.pawns,
+        }
+    }
+
+    #[must_use]
     pub(super) fn bitboard_for_mut(&mut self, piece: PieceKind) -> &mut Bitboard {
         match piece {
             PieceKind::King => &mut self.king,

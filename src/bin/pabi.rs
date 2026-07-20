@@ -14,8 +14,8 @@ fn main() -> anyhow::Result<()> {
     pabi::print_engine_info();
     pabi::print_binary_info();
 
-    let mut input = std::io::stdin().lock();
-    let mut output = std::io::stdout().lock();
-    let mut engine = pabi::engine::Engine::new(&mut input, &mut output);
+    let input = std::io::stdin().lock();
+    let output = std::io::stdout();
+    let mut engine = pabi::engine::Engine::new(input, output);
     engine.uci_loop()
 }
