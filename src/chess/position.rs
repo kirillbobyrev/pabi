@@ -823,9 +823,7 @@ impl Position {
         }
 
         // K+minor vs K
-        if (white_minors == 1 && black_minors == 0)
-            || (white_minors == 0 && black_minors == 1)
-        {
+        if (white_minors == 1 && black_minors == 0) || (white_minors == 0 && black_minors == 1) {
             return true;
         }
 
@@ -1285,25 +1283,63 @@ fn generate_castle_moves(
         return;
     }
 
-    let (king_sq, short_right, long_right, short_king_walk, short_rook_walk, long_king_walk, long_rook_walk, short_to, long_to) = match us {
+    let (
+        king_sq,
+        short_right,
+        long_right,
+        short_king_walk,
+        short_rook_walk,
+        long_king_walk,
+        long_rook_walk,
+        short_to,
+        long_to,
+    ) = match us {
         Player::White => (
             Square::E1,
-            CastleRights::WHITE_SHORT, CastleRights::WHITE_LONG,
-            attacks::WHITE_SHORT_CASTLE_KING_WALK, attacks::WHITE_SHORT_CASTLE_ROOK_WALK,
-            attacks::WHITE_LONG_CASTLE_KING_WALK, attacks::WHITE_LONG_CASTLE_ROOK_WALK,
-            Square::G1, Square::C1,
+            CastleRights::WHITE_SHORT,
+            CastleRights::WHITE_LONG,
+            attacks::WHITE_SHORT_CASTLE_KING_WALK,
+            attacks::WHITE_SHORT_CASTLE_ROOK_WALK,
+            attacks::WHITE_LONG_CASTLE_KING_WALK,
+            attacks::WHITE_LONG_CASTLE_ROOK_WALK,
+            Square::G1,
+            Square::C1,
         ),
         Player::Black => (
             Square::E8,
-            CastleRights::BLACK_SHORT, CastleRights::BLACK_LONG,
-            attacks::BLACK_SHORT_CASTLE_KING_WALK, attacks::BLACK_SHORT_CASTLE_ROOK_WALK,
-            attacks::BLACK_LONG_CASTLE_KING_WALK, attacks::BLACK_LONG_CASTLE_ROOK_WALK,
-            Square::G8, Square::C8,
+            CastleRights::BLACK_SHORT,
+            CastleRights::BLACK_LONG,
+            attacks::BLACK_SHORT_CASTLE_KING_WALK,
+            attacks::BLACK_SHORT_CASTLE_ROOK_WALK,
+            attacks::BLACK_LONG_CASTLE_KING_WALK,
+            attacks::BLACK_LONG_CASTLE_ROOK_WALK,
+            Square::G8,
+            Square::C8,
         ),
     };
 
-    try_castle(castling, short_right, attacks, short_king_walk, short_rook_walk, occupied_squares, king_sq, short_to, moves);
-    try_castle(castling, long_right, attacks, long_king_walk, long_rook_walk, occupied_squares, king_sq, long_to, moves);
+    try_castle(
+        castling,
+        short_right,
+        attacks,
+        short_king_walk,
+        short_rook_walk,
+        occupied_squares,
+        king_sq,
+        short_to,
+        moves,
+    );
+    try_castle(
+        castling,
+        long_right,
+        attacks,
+        long_king_walk,
+        long_rook_walk,
+        occupied_squares,
+        king_sq,
+        long_to,
+        moves,
+    );
 }
 
 fn try_castle(
