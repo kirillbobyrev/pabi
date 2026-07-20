@@ -538,6 +538,37 @@ pub enum PieceKind {
     King,
 }
 
+impl PieceKind {
+    /// Returns the lowercase [algebraic notation] letter for this piece kind.
+    ///
+    /// [algebraic notation]: https://www.chessprogramming.org/Algebraic_Chess_Notation
+    #[must_use]
+    pub(crate) const fn to_char(self) -> char {
+        match self {
+            Self::Pawn => 'p',
+            Self::Knight => 'n',
+            Self::Bishop => 'b',
+            Self::Rook => 'r',
+            Self::Queen => 'q',
+            Self::King => 'k',
+        }
+    }
+
+    /// Parses a piece kind from its lowercase algebraic notation letter.
+    #[must_use]
+    pub(crate) const fn from_char(symbol: char) -> Option<Self> {
+        Some(match symbol {
+            'p' => Self::Pawn,
+            'n' => Self::Knight,
+            'b' => Self::Bishop,
+            'r' => Self::Rook,
+            'q' => Self::Queen,
+            'k' => Self::King,
+            _ => return None,
+        })
+    }
+}
+
 impl From<Promotion> for PieceKind {
     fn from(promotion: Promotion) -> Self {
         match promotion {
@@ -551,18 +582,12 @@ impl From<Promotion> for PieceKind {
 
 impl fmt::Display for PieceKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_char(match &self {
-            Self::Pawn => 'p',
-            Self::Knight => 'n',
-            Self::Bishop => 'b',
-            Self::Rook => 'r',
-            Self::Queen => 'q',
-            Self::King => 'k',
-        })
+        f.write_char(self.to_char())
     }
 }
 
 /// Represents a specific piece owned by a player.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Piece {
     #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
     pub player: Player,
@@ -580,78 +605,28 @@ impl Piece {
 impl TryFrom<char> for Piece {
     type Error = anyhow::Error;
 
+    /// Parses a piece from its algebraic notation letter: uppercase for White,
+    /// lowercase for Black.
     fn try_from(symbol: char) -> anyhow::Result<Self> {
-        match symbol {
-            'P' => Ok(Self {
-                player: Player::White,
-                kind: PieceKind::Pawn,
-            }),
-            'N' => Ok(Self {
-                player: Player::White,
-                kind: PieceKind::Knight,
-            }),
-            'B' => Ok(Self {
-                player: Player::White,
-                kind: PieceKind::Bishop,
-            }),
-            'R' => Ok(Self {
-                player: Player::White,
-                kind: PieceKind::Rook,
-            }),
-            'Q' => Ok(Self {
-                player: Player::White,
-                kind: PieceKind::Queen,
-            }),
-            'K' => Ok(Self {
-                player: Player::White,
-                kind: PieceKind::King,
-            }),
-            'p' => Ok(Self {
-                player: Player::Black,
-                kind: PieceKind::Pawn,
-            }),
-            'n' => Ok(Self {
-                player: Player::Black,
-                kind: PieceKind::Knight,
-            }),
-            'b' => Ok(Self {
-                player: Player::Black,
-                kind: PieceKind::Bishop,
-            }),
-            'r' => Ok(Self {
-                player: Player::Black,
-                kind: PieceKind::Rook,
-            }),
-            'k' => Ok(Self {
-                player: Player::Black,
-                kind: PieceKind::King,
-            }),
-            'q' => Ok(Self {
-                player: Player::Black,
-                kind: PieceKind::Queen,
-            }),
-            _ => bail!("piece symbol should be in \"PNBRQKpnbrqk\", got '{symbol}'"),
-        }
+        let Some(kind) = PieceKind::from_char(symbol.to_ascii_lowercase()) else {
+            bail!("piece symbol should be in \"PNBRQKpnbrqk\", got '{symbol}'");
+        };
+        let player = if symbol.is_ascii_uppercase() {
+            Player::White
+        } else {
+            Player::Black
+        };
+        Ok(Self { player, kind })
     }
 }
 
 impl fmt::Display for Piece {
+    /// Uppercase letter for White pieces, lowercase for Black.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_char(match (&self.player, &self.kind) {
-            // White: uppercase symbols.
-            (Player::White, PieceKind::Pawn) => 'P',
-            (Player::White, PieceKind::Knight) => 'N',
-            (Player::White, PieceKind::Bishop) => 'B',
-            (Player::White, PieceKind::Rook) => 'R',
-            (Player::White, PieceKind::Queen) => 'Q',
-            (Player::White, PieceKind::King) => 'K',
-            // Black: lowercase symbols.
-            (Player::Black, PieceKind::Pawn) => 'p',
-            (Player::Black, PieceKind::Knight) => 'n',
-            (Player::Black, PieceKind::Bishop) => 'b',
-            (Player::Black, PieceKind::Rook) => 'r',
-            (Player::Black, PieceKind::Queen) => 'q',
-            (Player::Black, PieceKind::King) => 'k',
+        let symbol = self.kind.to_char();
+        f.write_char(match self.player {
+            Player::White => symbol.to_ascii_uppercase(),
+            Player::Black => symbol,
         })
     }
 }
