@@ -19,7 +19,9 @@
 //! [BitboardCalculator]: https://gekomad.github.io/Cinnamon/BitboardCalculator/
 //! [PEXT Bitboards]: https://www.chessprogramming.org/BMI2#PEXTBitboards
 
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, Not, Shl, Shr, Sub, SubAssign};
+use std::ops::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, Shr, Sub, SubAssign,
+};
 use std::{fmt, mem};
 
 use itertools::Itertools;
@@ -91,6 +93,11 @@ impl Bitboard {
     /// Clears given square from the set.
     pub(super) fn clear(&mut self, square: Square) {
         *self &= !Self::from(square);
+    }
+
+    /// Toggles given square: adds it if absent, removes it if present.
+    pub(super) fn toggle(&mut self, square: Square) {
+        *self ^= Self::from(square);
     }
 
     /// Returns true if this bitboard contains given square.
@@ -238,6 +245,12 @@ impl BitXor for Bitboard {
 
     fn bitxor(self, rhs: Self) -> Self::Output {
         Self::from_bits(self.bits.bitxor(rhs.bits))
+    }
+}
+
+impl BitXorAssign for Bitboard {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        self.bits.bitxor_assign(rhs.bits);
     }
 }
 

@@ -172,6 +172,13 @@ impl Position {
         }
     }
 
+    fn pieces_mut(&mut self, player: Player) -> &mut Pieces {
+        match player {
+            Player::White => &mut self.white_pieces,
+            Player::Black => &mut self.black_pieces,
+        }
+    }
+
     /// Returns Zobrist hash of the position.
     #[must_use]
     pub fn hash(&self) -> zobrist::Key {
@@ -283,17 +290,13 @@ impl Position {
                     }
                     _ => (),
                 }
-                match Piece::try_from(symbol) {
-                    Ok(piece) => {
-                        let pieces = match piece.player {
-                            Player::White => &mut white_pieces,
-                            Player::Black => &mut black_pieces,
-                        };
-                        let square = Square::new(file.try_into()?, rank);
-                        *pieces.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
-                    }
-                    Err(e) => return Err(e),
-                }
+                let piece = Piece::try_from(symbol)?;
+                let pieces = match piece.player {
+                    Player::White => &mut white_pieces,
+                    Player::Black => &mut black_pieces,
+                };
+                let square = Square::new(file.try_into()?, rank);
+                *pieces.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
                 file += 1;
             }
             if file != BOARD_WIDTH {
@@ -493,216 +496,179 @@ impl Position {
     pub fn make_move(&mut self, next_move: &Move) {
         debug_assert!(self.is_legal());
 
-        // Increment halfmove clock early: it will be reset on capture or pawn
-        // push. Saturate to avoid overflow in (unadjudicated) games that go on
-        // long past the 50-move rule threshold.
+        let us = self.side_to_move;
+        let (from, to) = (next_move.from(), next_move.to());
+        let moved = self
+            .pieces(us)
+            .at(from)
+            .expect("a legal move originates from an occupied square");
+
+        // Increment the halfmove clock early: captures and pawn moves reset it
+        // below. Saturate to avoid overflow in (unadjudicated) games that run
+        // long past the 50-move threshold.
         self.halfmove_clock = self.halfmove_clock.saturating_add(1);
 
-        // En passant is always transient (lasts one move). Clear it from both
-        // the position state and the hash, saving the old value for capture
-        // detection in make_pawn_move().
+        // En passant is transient (lasts one move): clear it from the state and
+        // the hash, remembering the square to detect an en passant capture.
         let previous_en_passant = self.en_passant_square.take();
         if let Some(ep_square) = previous_en_passant {
             self.hash ^= generated::EN_PASSANT_FILES[ep_square.file() as usize];
         }
 
         self.update_castling_rights(next_move);
+        self.remove_captured_piece(to);
 
-        self.handle_capture(next_move);
-        self.make_pawn_move(next_move, previous_en_passant);
-        self.make_king_move(next_move);
-        self.make_regular_move(next_move);
-
-        if self.side_to_move == Player::Black {
-            self.fullmove_counter += 1;
+        match moved {
+            PieceKind::Pawn => {
+                self.make_pawn_move(from, to, next_move.promotion(), previous_en_passant)
+            }
+            PieceKind::King => self.make_king_move(from, to),
+            kind => self.move_piece(Piece { player: us, kind }, from, to),
         }
 
-        self.side_to_move = !self.side_to_move;
+        if us == Player::Black {
+            self.fullmove_counter += 1;
+        }
+        self.side_to_move = !us;
         self.hash ^= generated::BLACK_TO_MOVE;
     }
 
+    /// Adds `piece` to `square` if it is absent or removes it if present,
+    /// keeping the Zobrist hash in sync. Because keys are XOR-ed in, the same
+    /// call also undoes itself.
+    fn toggle_piece(&mut self, piece: Piece, square: Square) {
+        self.pieces_mut(piece.player)
+            .bitboard_for_mut(piece.kind)
+            .toggle(square);
+        self.hash ^= generated::get_piece_key(piece, square);
+    }
+
+    /// Moves `piece` between two squares, keeping the hash in sync.
+    fn move_piece(&mut self, piece: Piece, from: Square, to: Square) {
+        self.toggle_piece(piece, from);
+        self.toggle_piece(piece, to);
+    }
+
     fn update_castling_rights(&mut self, next_move: &Move) {
-        // Update white castling rights
         self.update_side_castling_rights(Player::White, next_move);
-        // Update black castling rights
         self.update_side_castling_rights(Player::Black, next_move);
     }
 
     fn update_side_castling_rights(&mut self, player: Player, next_move: &Move) {
-        let (king_square, kingside_rook, queenside_rook) = match player {
-            Player::White => (Square::E1, Square::H1, Square::A1),
-            Player::Black => (Square::E8, Square::H8, Square::A8),
-        };
-
-        let (kingside_right, queenside_right) = match player {
-            Player::White => (CastleRights::WHITE_SHORT, CastleRights::WHITE_LONG),
-            Player::Black => (CastleRights::BLACK_SHORT, CastleRights::BLACK_LONG),
-        };
-
-        let (kingside_hash, queenside_hash) = match player {
+        let (king, short_rook, long_rook, short, long, short_key, long_key) = match player {
             Player::White => (
+                Square::E1,
+                Square::H1,
+                Square::A1,
+                CastleRights::WHITE_SHORT,
+                CastleRights::WHITE_LONG,
                 generated::WHITE_CAN_CASTLE_SHORT,
                 generated::WHITE_CAN_CASTLE_LONG,
             ),
             Player::Black => (
+                Square::E8,
+                Square::H8,
+                Square::A8,
+                CastleRights::BLACK_SHORT,
+                CastleRights::BLACK_LONG,
                 generated::BLACK_CAN_CASTLE_SHORT,
                 generated::BLACK_CAN_CASTLE_LONG,
             ),
         };
 
-        // Check if king or rook moved
-        if self.castling.contains(kingside_right)
-            && (next_move.from() == king_square
-                || next_move.from() == kingside_rook
-                || next_move.to() == kingside_rook)
-        {
-            self.castling.remove(kingside_right);
-            self.hash ^= kingside_hash;
-        }
-
-        if self.castling.contains(queenside_right)
-            && (next_move.from() == king_square
-                || next_move.from() == queenside_rook
-                || next_move.to() == queenside_rook)
-        {
-            self.castling.remove(queenside_right);
-            self.hash ^= queenside_hash;
-        }
-    }
-
-    fn handle_capture(&mut self, next_move: &Move) {
-        let their_pieces = match self.side_to_move {
-            Player::White => &mut self.black_pieces,
-            Player::Black => &mut self.white_pieces,
-        };
-
-        if their_pieces.all().contains(next_move.to()) {
-            // Capturing a piece resets the clock.
-            self.halfmove_clock = 0;
-
-            let square = next_move.to();
-
-            for (piece, kind) in [
-                (&mut their_pieces.queens, PieceKind::Queen),
-                (&mut their_pieces.rooks, PieceKind::Rook),
-                (&mut their_pieces.bishops, PieceKind::Bishop),
-                (&mut their_pieces.knights, PieceKind::Knight),
-                (&mut their_pieces.pawns, PieceKind::Pawn),
-            ] {
-                if piece.contains(square) {
-                    piece.clear(square);
-                    self.hash ^= generated::get_piece_key(
-                        Piece {
-                            player: !self.side_to_move,
-                            kind,
-                        },
-                        square,
-                    );
-                    break;
-                }
+        // A castling right is lost when the king or the corresponding rook
+        // leaves its square, or when that rook is captured on its square.
+        for (right, rook, key) in [(short, short_rook, short_key), (long, long_rook, long_key)] {
+            if self.castling.contains(right)
+                && (next_move.from() == king || next_move.from() == rook || next_move.to() == rook)
+            {
+                self.castling.remove(right);
+                self.hash ^= key;
             }
         }
     }
 
-    fn make_pawn_move(&mut self, next_move: &Move, previous_en_passant: Option<Square>) -> bool {
-        let (our_pieces, their_pieces) = match self.side_to_move {
-            Player::White => (&mut self.white_pieces, &mut self.black_pieces),
-            Player::Black => (&mut self.black_pieces, &mut self.white_pieces),
-        };
-
-        if !our_pieces.pawns.contains(next_move.from()) {
-            return false;
+    /// Removes the opponent's piece captured on `square` (if any) and resets
+    /// the halfmove clock. En passant captures do not land on the captured
+    /// pawn's square and are handled in [`Self::make_pawn_move`].
+    fn remove_captured_piece(&mut self, square: Square) {
+        let them = !self.side_to_move;
+        if let Some(kind) = self.pieces(them).at(square) {
+            self.halfmove_clock = 0;
+            self.toggle_piece(Piece { player: them, kind }, square);
         }
-
-        // Pawn move resets the 50 halfmove rule clock.
-        self.halfmove_clock = 0;
-
-        // Check en passant.
-        if let Some(en_passant_square) = previous_en_passant
-            && next_move.to() == en_passant_square
-        {
-            let captured_pawn = Square::new(next_move.to().file(), next_move.from().rank());
-            their_pieces.pawns.clear(captured_pawn);
-            self.hash ^= generated::get_piece_key(
-                Piece {
-                    player: !self.side_to_move,
-                    kind: PieceKind::Pawn,
-                },
-                captured_pawn,
-            );
-        }
-
-        our_pieces.pawns.clear(next_move.from());
-        self.hash ^= generated::get_piece_key(
-            Piece {
-                player: self.side_to_move,
-                kind: PieceKind::Pawn,
-            },
-            next_move.from(),
-        );
-
-        if let Some(promotion) = next_move.promotion() {
-            let kind = PieceKind::from(promotion);
-            our_pieces.bitboard_for_mut(kind).extend(next_move.to());
-            self.hash ^= generated::get_piece_key(
-                Piece {
-                    player: self.side_to_move,
-                    kind,
-                },
-                next_move.to(),
-            );
-            return true;
-        }
-
-        our_pieces.pawns.extend(next_move.to());
-        self.hash ^= generated::get_piece_key(
-            Piece {
-                player: self.side_to_move,
-                kind: PieceKind::Pawn,
-            },
-            next_move.to(),
-        );
-
-        let single_push_square = next_move
-            .from()
-            .shift(pawn_push_direction(self.side_to_move))
-            .unwrap();
-
-        // Double push creates en passant square.
-        if next_move.from().rank() == Rank::pawns_starting(self.side_to_move)
-                && next_move.from().file() == next_move.to().file()
-                && single_push_square != next_move.to()
-                // Technically, this is not correct: https://github.com/jhlywa/chess.js/issues/294
-                && (their_pieces.pawns & attacks::pawn_attacks(single_push_square, self.side_to_move)).has_any()
-        {
-            self.en_passant_square = Some(single_push_square);
-            self.hash ^= generated::EN_PASSANT_FILES[single_push_square.file() as usize];
-        }
-
-        true
     }
 
-    /// Castle or regular king move.
-    fn make_king_move(&mut self, next_move: &Move) -> bool {
-        // Check castling conditions before borrowing pieces
-        let is_castling = next_move.from().rank() == Rank::backrank(self.side_to_move)
-            && next_move.to().rank() == Rank::backrank(self.side_to_move)
-            && next_move.from().file() == File::E
-            && (next_move.to().file() == File::G || next_move.to().file() == File::C);
+    fn make_pawn_move(
+        &mut self,
+        from: Square,
+        to: Square,
+        promotion: Option<Promotion>,
+        previous_en_passant: Option<Square>,
+    ) {
+        let us = self.side_to_move;
+        // Any pawn move resets the halfmove clock.
+        self.halfmove_clock = 0;
 
-        let our_pieces = match self.side_to_move {
-            Player::White => &mut self.white_pieces,
-            Player::Black => &mut self.black_pieces,
-        };
-
-        if !our_pieces.king.contains(next_move.from()) {
-            return false;
+        // A pawn landing on the en passant square captures the pawn that
+        // double-pushed on the previous move (which sits beside the target).
+        if previous_en_passant == Some(to) {
+            let captured = Square::new(to.file(), from.rank());
+            self.toggle_piece(
+                Piece {
+                    player: !us,
+                    kind: PieceKind::Pawn,
+                },
+                captured,
+            );
         }
 
-        // Handle castling moves
-        if is_castling {
-            let backrank = Rank::backrank(self.side_to_move);
-            let (rook_from, rook_to) = if next_move.to().file() == File::G {
+        self.toggle_piece(
+            Piece {
+                player: us,
+                kind: PieceKind::Pawn,
+            },
+            from,
+        );
+        if let Some(promotion) = promotion {
+            self.toggle_piece(
+                Piece {
+                    player: us,
+                    kind: promotion.into(),
+                },
+                to,
+            );
+            return;
+        }
+        self.toggle_piece(
+            Piece {
+                player: us,
+                kind: PieceKind::Pawn,
+            },
+            to,
+        );
+
+        // A double push that an enemy pawn could answer sets the en passant
+        // square.
+        let single_push = from.shift(pawn_push_direction(us)).unwrap();
+        if from.rank() == Rank::pawns_starting(us)
+            && from.file() == to.file()
+            && single_push != to
+            // Technically not fully correct: https://github.com/jhlywa/chess.js/issues/294
+            && (self.pieces(!us).pawns & attacks::pawn_attacks(single_push, us)).has_any()
+        {
+            self.en_passant_square = Some(single_push);
+            self.hash ^= generated::EN_PASSANT_FILES[single_push.file() as usize];
+        }
+    }
+
+    fn make_king_move(&mut self, from: Square, to: Square) {
+        let us = self.side_to_move;
+        // A king stepping two files (E to G or C) is castling: move the rook to
+        // the square the king skipped over.
+        if from.file() == File::E && matches!(to.file(), File::G | File::C) {
+            let backrank = Rank::backrank(us);
+            let (rook_from, rook_to) = if to.file() == File::G {
                 (
                     Square::new(File::H, backrank),
                     Square::new(File::F, backrank),
@@ -713,79 +679,23 @@ impl Position {
                     Square::new(File::D, backrank),
                 )
             };
-
-            // Move the rook
-            our_pieces.rooks.clear(rook_from);
-            self.hash ^= generated::get_piece_key(
+            self.move_piece(
                 Piece {
-                    player: self.side_to_move,
+                    player: us,
                     kind: PieceKind::Rook,
                 },
                 rook_from,
-            );
-            our_pieces.rooks.extend(rook_to);
-            self.hash ^= generated::get_piece_key(
-                Piece {
-                    player: self.side_to_move,
-                    kind: PieceKind::Rook,
-                },
                 rook_to,
             );
         }
-
-        // Move the king
-        our_pieces.king.clear(next_move.from());
-        self.hash ^= generated::get_piece_key(
+        self.move_piece(
             Piece {
-                player: self.side_to_move,
+                player: us,
                 kind: PieceKind::King,
             },
-            next_move.from(),
+            from,
+            to,
         );
-        our_pieces.king.extend(next_move.to());
-        self.hash ^= generated::get_piece_key(
-            Piece {
-                player: self.side_to_move,
-                kind: PieceKind::King,
-            },
-            next_move.to(),
-        );
-
-        true
-    }
-
-    fn make_regular_move(&mut self, next_move: &Move) {
-        let our_pieces = match self.side_to_move {
-            Player::White => &mut self.white_pieces,
-            Player::Black => &mut self.black_pieces,
-        };
-
-        for (bitboard, kind) in [
-            (&mut our_pieces.queens, PieceKind::Queen),
-            (&mut our_pieces.rooks, PieceKind::Rook),
-            (&mut our_pieces.bishops, PieceKind::Bishop),
-            (&mut our_pieces.knights, PieceKind::Knight),
-        ] {
-            if bitboard.contains(next_move.from()) {
-                bitboard.clear(next_move.from());
-                self.hash ^= generated::get_piece_key(
-                    Piece {
-                        player: self.side_to_move,
-                        kind,
-                    },
-                    next_move.from(),
-                );
-                bitboard.extend(next_move.to());
-                self.hash ^= generated::get_piece_key(
-                    Piece {
-                        player: self.side_to_move,
-                        kind,
-                    },
-                    next_move.to(),
-                );
-                return;
-            }
-        }
     }
 
     #[must_use]
@@ -1302,6 +1212,59 @@ fn is_discovered_check_after_en_passant(
         || (attacks::bishop_attacks(king, occupancy) & their_pieces.bishops).has_any()
 }
 
+/// Static geometry of a single castling move.
+struct Castle {
+    right: CastleRights,
+    /// Squares the king passes over, including its destination; none of them
+    /// may be attacked.
+    king_walk: Bitboard,
+    /// Squares between the king and the rook; all of them must be empty.
+    rook_walk: Bitboard,
+    king_from: Square,
+    king_to: Square,
+}
+
+impl Castle {
+    /// The two castling moves available to each player, kingside then
+    /// queenside.
+    const fn for_player(player: Player) -> &'static [Self; 2] {
+        match player {
+            Player::White => &[
+                Self {
+                    right: CastleRights::WHITE_SHORT,
+                    king_walk: attacks::WHITE_SHORT_CASTLE_KING_WALK,
+                    rook_walk: attacks::WHITE_SHORT_CASTLE_ROOK_WALK,
+                    king_from: Square::E1,
+                    king_to: Square::G1,
+                },
+                Self {
+                    right: CastleRights::WHITE_LONG,
+                    king_walk: attacks::WHITE_LONG_CASTLE_KING_WALK,
+                    rook_walk: attacks::WHITE_LONG_CASTLE_ROOK_WALK,
+                    king_from: Square::E1,
+                    king_to: Square::C1,
+                },
+            ],
+            Player::Black => &[
+                Self {
+                    right: CastleRights::BLACK_SHORT,
+                    king_walk: attacks::BLACK_SHORT_CASTLE_KING_WALK,
+                    rook_walk: attacks::BLACK_SHORT_CASTLE_ROOK_WALK,
+                    king_from: Square::E8,
+                    king_to: Square::G8,
+                },
+                Self {
+                    right: CastleRights::BLACK_LONG,
+                    king_walk: attacks::BLACK_LONG_CASTLE_KING_WALK,
+                    rook_walk: attacks::BLACK_LONG_CASTLE_ROOK_WALK,
+                    king_from: Square::E8,
+                    king_to: Square::C8,
+                },
+            ],
+        }
+    }
+}
+
 fn generate_castle_moves(
     us: Player,
     checkers: Bitboard,
@@ -1310,86 +1273,17 @@ fn generate_castle_moves(
     occupied_squares: Bitboard,
     moves: &mut MoveList,
 ) {
-    if !checkers.is_empty() {
+    if checkers.has_any() {
         return;
     }
-
-    let (
-        king_sq,
-        short_right,
-        long_right,
-        short_king_walk,
-        short_rook_walk,
-        long_king_walk,
-        long_rook_walk,
-        short_to,
-        long_to,
-    ) = match us {
-        Player::White => (
-            Square::E1,
-            CastleRights::WHITE_SHORT,
-            CastleRights::WHITE_LONG,
-            attacks::WHITE_SHORT_CASTLE_KING_WALK,
-            attacks::WHITE_SHORT_CASTLE_ROOK_WALK,
-            attacks::WHITE_LONG_CASTLE_KING_WALK,
-            attacks::WHITE_LONG_CASTLE_ROOK_WALK,
-            Square::G1,
-            Square::C1,
-        ),
-        Player::Black => (
-            Square::E8,
-            CastleRights::BLACK_SHORT,
-            CastleRights::BLACK_LONG,
-            attacks::BLACK_SHORT_CASTLE_KING_WALK,
-            attacks::BLACK_SHORT_CASTLE_ROOK_WALK,
-            attacks::BLACK_LONG_CASTLE_KING_WALK,
-            attacks::BLACK_LONG_CASTLE_ROOK_WALK,
-            Square::G8,
-            Square::C8,
-        ),
-    };
-
-    try_castle(
-        castling,
-        short_right,
-        attacks,
-        short_king_walk,
-        short_rook_walk,
-        occupied_squares,
-        king_sq,
-        short_to,
-        moves,
-    );
-    try_castle(
-        castling,
-        long_right,
-        attacks,
-        long_king_walk,
-        long_rook_walk,
-        occupied_squares,
-        king_sq,
-        long_to,
-        moves,
-    );
-}
-
-fn try_castle(
-    castling: CastleRights,
-    right: CastleRights,
-    attacks: Bitboard,
-    king_walk: Bitboard,
-    rook_walk: Bitboard,
-    occupied_squares: Bitboard,
-    from: Square,
-    to: Square,
-    moves: &mut MoveList,
-) {
-    if castling.contains(right)
-        && (attacks & king_walk).is_empty()
-        && (occupied_squares & (king_walk | rook_walk)).is_empty()
-    {
-        unsafe {
-            moves.push_unchecked(Move::new(from, to, None));
+    for castle in Castle::for_player(us) {
+        if castling.contains(castle.right)
+            && (attacks & castle.king_walk).is_empty()
+            && (occupied_squares & (castle.king_walk | castle.rook_walk)).is_empty()
+        {
+            unsafe {
+                moves.push_unchecked(Move::new(castle.king_from, castle.king_to, None));
+            }
         }
     }
 }

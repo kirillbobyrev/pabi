@@ -1,5 +1,8 @@
 # Some options here require nightly.
 edition = "2024"
+# Opt into the 2024 formatting style (import grouping, let-else, etc.) rather
+# than staying on the older default style rules.
+style_edition = "2024"
 format_code_in_doc_comments = true
 format_macro_matchers = true
 group_imports = "StdExternalCrate"

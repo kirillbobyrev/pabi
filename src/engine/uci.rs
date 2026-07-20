@@ -16,16 +16,7 @@ pub(super) enum Command {
         moves: Vec<String>,
     },
     NewGame,
-    Go {
-        wtime: Option<Duration>,
-        btime: Option<Duration>,
-        winc: Option<Duration>,
-        binc: Option<Duration>,
-        movetime: Option<Duration>,
-        depth: Option<u32>,
-        nodes: Option<u64>,
-        infinite: bool,
-    },
+    Go(Go),
     Stop,
     Quit,
     /// This is an extension to the UCI protocol useful for debugging. The
@@ -34,6 +25,20 @@ pub(super) enum Command {
     /// transposition table information and so on).
     State,
     Unknown(String),
+}
+
+/// Parsed arguments of the UCI `go` command. Every limit is optional; an empty
+/// `Go` means "search until stopped".
+#[derive(Debug, Default, PartialEq)]
+pub(super) struct Go {
+    pub(super) wtime: Option<Duration>,
+    pub(super) btime: Option<Duration>,
+    pub(super) winc: Option<Duration>,
+    pub(super) binc: Option<Duration>,
+    pub(super) movetime: Option<Duration>,
+    pub(super) depth: Option<u32>,
+    pub(super) nodes: Option<u64>,
+    pub(super) infinite: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -50,69 +55,38 @@ pub(super) enum OptionValue {
 }
 
 fn parse_go(parts: &[&str]) -> Command {
-    let mut wtime = None;
-    let mut btime = None;
-    let mut winc = None;
-    let mut binc = None;
-    let mut movetime = None;
-    let mut depth = None;
-    let mut nodes = None;
-    let mut infinite = false;
+    let mut go = Go::default();
+    // Time controls are given in milliseconds, as per the UCI protocol.
+    let millis = |value: &str| value.parse().map(Duration::from_millis).ok();
 
     let mut i = 1;
-
-    // Time controls are given in milliseconds, as per the UCI protocol.
     while i < parts.len() {
+        let value = parts.get(i + 1).copied();
         match parts[i] {
-            "wtime" if i + 1 < parts.len() => {
-                wtime = parts[i + 1].parse().map(Duration::from_millis).ok();
-                i += 2;
-            }
-            "btime" if i + 1 < parts.len() => {
-                btime = parts[i + 1].parse().map(Duration::from_millis).ok();
-                i += 2;
-            }
-            "winc" if i + 1 < parts.len() => {
-                winc = parts[i + 1].parse().map(Duration::from_millis).ok();
-                i += 2;
-            }
-            "binc" if i + 1 < parts.len() => {
-                binc = parts[i + 1].parse().map(Duration::from_millis).ok();
-                i += 2;
-            }
-            "movetime" if i + 1 < parts.len() => {
-                movetime = parts[i + 1].parse().map(Duration::from_millis).ok();
-                i += 2;
-            }
-            "depth" if i + 1 < parts.len() => {
-                depth = parts[i + 1].parse().ok();
-                i += 2;
-            }
-            "nodes" if i + 1 < parts.len() => {
-                nodes = parts[i + 1].parse().ok();
-                i += 2;
-            }
+            "wtime" => go.wtime = value.and_then(millis),
+            "btime" => go.btime = value.and_then(millis),
+            "winc" => go.winc = value.and_then(millis),
+            "binc" => go.binc = value.and_then(millis),
+            "movetime" => go.movetime = value.and_then(millis),
+            "depth" => go.depth = value.and_then(|value| value.parse().ok()),
+            "nodes" => go.nodes = value.and_then(|value| value.parse().ok()),
             "infinite" => {
-                infinite = true;
+                go.infinite = true;
                 i += 1;
+                continue;
             }
             // Tokens without a value (e.g. "ponder") and unsupported ones are
-            // skipped one at a time so that they can not swallow a keyword
-            // that follows them.
-            _ => i += 1,
+            // skipped one at a time so that they can not swallow a keyword that
+            // follows them.
+            _ => {
+                i += 1;
+                continue;
+            }
         }
+        i += 2;
     }
 
-    Command::Go {
-        wtime,
-        btime,
-        winc,
-        binc,
-        movetime,
-        depth,
-        nodes,
-        infinite,
-    }
+    Command::Go(go)
 }
 
 fn parse_setoption(parts: &[&str]) -> Command {
@@ -275,46 +249,32 @@ mod tests {
     fn parse_go() {
         assert_eq!(
             Command::parse("go wtime 300000 btime 300000 winc 10000 binc 10000"),
-            Command::Go {
+            Command::Go(Go {
                 wtime: Some(Duration::from_millis(300_000)),
                 btime: Some(Duration::from_millis(300_000)),
                 winc: Some(Duration::from_millis(10000)),
                 binc: Some(Duration::from_millis(10000)),
-                movetime: None,
-                depth: None,
-                nodes: None,
-                infinite: false,
-            }
+                ..Go::default()
+            })
         );
 
         assert_eq!(
             Command::parse("go wtime 1000"),
-            Command::Go {
+            Command::Go(Go {
                 wtime: Some(Duration::from_millis(1000)),
-                btime: None,
-                winc: None,
-                binc: None,
-                movetime: None,
-                depth: None,
-                nodes: None,
-                infinite: false,
-            }
+                ..Go::default()
+            })
         );
 
         // "infinite" and "ponder" have no value: the keywords that follow them
         // should still be picked up.
         assert_eq!(
             Command::parse("go ponder wtime 1000 btime 2000"),
-            Command::Go {
+            Command::Go(Go {
                 wtime: Some(Duration::from_millis(1000)),
                 btime: Some(Duration::from_millis(2000)),
-                winc: None,
-                binc: None,
-                movetime: None,
-                depth: None,
-                nodes: None,
-                infinite: false,
-            }
+                ..Go::default()
+            })
         );
     }
 
@@ -345,42 +305,25 @@ mod tests {
     fn parse_go_limits() {
         assert_eq!(
             Command::parse("go movetime 5000"),
-            Command::Go {
-                wtime: None,
-                btime: None,
-                winc: None,
-                binc: None,
+            Command::Go(Go {
                 movetime: Some(Duration::from_millis(5000)),
-                depth: None,
-                nodes: None,
-                infinite: false,
-            }
+                ..Go::default()
+            })
         );
         assert_eq!(
             Command::parse("go depth 12 nodes 100000"),
-            Command::Go {
-                wtime: None,
-                btime: None,
-                winc: None,
-                binc: None,
-                movetime: None,
+            Command::Go(Go {
                 depth: Some(12),
                 nodes: Some(100_000),
-                infinite: false,
-            }
+                ..Go::default()
+            })
         );
         assert_eq!(
             Command::parse("go infinite"),
-            Command::Go {
-                wtime: None,
-                btime: None,
-                winc: None,
-                binc: None,
-                movetime: None,
-                depth: None,
-                nodes: None,
+            Command::Go(Go {
                 infinite: true,
-            }
+                ..Go::default()
+            })
         );
     }
 }

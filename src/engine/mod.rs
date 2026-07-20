@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::chess::core::Move;
 use crate::chess::position::Position;
@@ -115,23 +115,14 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
                     }
                 }
                 Command::NewGame => self.new_game(),
-                Command::Go {
-                    wtime,
-                    btime,
-                    winc,
-                    binc,
-                    movetime,
-                    depth,
-                    nodes,
-                    infinite,
-                } => {
-                    if depth.is_some() {
+                Command::Go(go) => {
+                    if go.depth.is_some() {
                         self.send(
                             "info string depth limit is not supported by the MCTS search and is \
                              ignored",
                         )?;
                     }
-                    self.go(wtime, btime, winc, binc, movetime, nodes, infinite);
+                    self.go(&go);
                 }
                 Command::Stop => self.stop_search(),
                 Command::Quit => {
@@ -247,42 +238,36 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
         Ok(())
     }
 
-    /// Starts the search in a background thread. The thread reports progress
-    /// through `info` lines and always finishes by printing `bestmove`.
-    fn go(
-        &mut self,
-        wtime: Option<Duration>,
-        btime: Option<Duration>,
-        winc: Option<Duration>,
-        binc: Option<Duration>,
-        movetime: Option<Duration>,
-        nodes: Option<u64>,
-        infinite: bool,
-    ) {
-        self.stop_search();
-
+    /// Translates a `go` command into concrete [`mcts::Limits`]. An explicit
+    /// move time or `infinite` flag is used directly; otherwise a budget is
+    /// derived from the clock of the side to move, falling back to an infinite
+    /// search when no limit is given at all.
+    fn limits(&self, go: &uci::Go) -> mcts::Limits {
         let mut limits = mcts::Limits {
-            move_time: movetime,
-            nodes,
-            infinite,
+            move_time: go.movetime,
+            nodes: go.nodes,
+            infinite: go.infinite,
         };
-        if limits.move_time.is_none() && !infinite {
+        if limits.move_time.is_none() && !limits.infinite {
             let (time, increment) = match self.position.us() {
-                Player::White => (wtime, winc),
-                Player::Black => (btime, binc),
+                Player::White => (go.wtime, go.winc),
+                Player::Black => (go.btime, go.binc),
             };
-            if let Some(time) = time {
-                limits.move_time = Some(time_manager::time_budget(
-                    time,
-                    increment.unwrap_or_default(),
-                ));
-            }
+            limits.move_time =
+                time.map(|time| time_manager::time_budget(time, increment.unwrap_or_default()));
         }
-        // `go` without any limits means searching until told to stop.
         if limits.move_time.is_none() && limits.nodes.is_none() {
             limits.infinite = true;
         }
+        limits
+    }
 
+    /// Starts the search in a background thread. The thread reports progress
+    /// through `info` lines and always finishes by printing `bestmove`.
+    fn go(&mut self, go: &uci::Go) {
+        self.stop_search();
+
+        let limits = self.limits(go);
         let infinite = limits.infinite;
         let stop = Arc::new(AtomicBool::new(false));
         let position = self.position.clone();
@@ -296,15 +281,11 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
                 let _ = writeln!(out, "{info}");
                 let _ = out.flush();
             });
+            let best_move = result
+                .best_move
+                .map_or_else(|| "(none)".to_string(), |best_move| best_move.to_string());
             let mut out = out.lock().expect("output lock poisoned");
-            match result.best_move {
-                Some(best_move) => {
-                    let _ = writeln!(out, "bestmove {best_move}");
-                }
-                None => {
-                    let _ = writeln!(out, "bestmove (none)");
-                }
-            }
+            let _ = writeln!(out, "bestmove {best_move}");
             let _ = out.flush();
         });
 
