@@ -53,26 +53,29 @@ fn parse_go(parts: &[&str]) -> Command {
 
     let mut i = 1;
 
+    // Time controls are given in milliseconds, as per the UCI protocol.
     while i < parts.len() {
         match parts[i] {
             "wtime" if i + 1 < parts.len() => {
-                wtime = parts[i + 1].parse().map(Duration::from_micros).ok();
+                wtime = parts[i + 1].parse().map(Duration::from_millis).ok();
+                i += 2;
             }
             "btime" if i + 1 < parts.len() => {
-                btime = parts[i + 1].parse().map(Duration::from_micros).ok();
+                btime = parts[i + 1].parse().map(Duration::from_millis).ok();
+                i += 2;
             }
             "winc" if i + 1 < parts.len() => {
-                winc = parts[i + 1].parse().map(Duration::from_micros).ok();
+                winc = parts[i + 1].parse().map(Duration::from_millis).ok();
+                i += 2;
             }
             "binc" if i + 1 < parts.len() => {
-                binc = parts[i + 1].parse().map(Duration::from_micros).ok();
+                binc = parts[i + 1].parse().map(Duration::from_millis).ok();
+                i += 2;
             }
-            _ => {}
-        }
-        if parts[i] == "infinite" {
-            i += 1;
-        } else {
-            i += 2;
+            // Tokens without a value (e.g. "infinite" or "ponder") and
+            // unsupported ones are skipped one at a time so that they can not
+            // swallow a keyword that follows them.
+            _ => i += 1,
         }
     }
 
@@ -97,7 +100,7 @@ fn parse_setoption(parts: &[&str]) -> Command {
             "Threads" => EngineOption::Threads,
             _ => return Command::Unknown(parts.join(" ")),
         };
-        let value = if name_end < parts.len() {
+        let value = if name_end + 1 < parts.len() {
             match option {
                 EngineOption::Hash | EngineOption::Threads => parts[name_end + 1]
                     .parse::<usize>()
@@ -208,6 +211,11 @@ mod tests {
             Command::parse("setoption name InvalidOption value 123"),
             Command::Unknown("setoption name InvalidOption value 123".to_string())
         );
+        // A trailing "value" with nothing after it should not crash the parser.
+        assert_eq!(
+            Command::parse("setoption name Hash value"),
+            Command::Unknown("setoption name Hash value".to_string())
+        );
     }
 
     #[test]
@@ -240,18 +248,30 @@ mod tests {
         assert_eq!(
             Command::parse("go wtime 300000 btime 300000 winc 10000 binc 10000"),
             Command::Go {
-                wtime: Some(Duration::from_micros(300_000)),
-                btime: Some(Duration::from_micros(300_000)),
-                winc: Some(Duration::from_micros(10000)),
-                binc: Some(Duration::from_micros(10000)),
+                wtime: Some(Duration::from_millis(300_000)),
+                btime: Some(Duration::from_millis(300_000)),
+                winc: Some(Duration::from_millis(10000)),
+                binc: Some(Duration::from_millis(10000)),
             }
         );
 
         assert_eq!(
             Command::parse("go wtime 1000"),
             Command::Go {
-                wtime: Some(Duration::from_micros(1000)),
+                wtime: Some(Duration::from_millis(1000)),
                 btime: None,
+                winc: None,
+                binc: None,
+            }
+        );
+
+        // "infinite" and "ponder" have no value: the keywords that follow them
+        // should still be picked up.
+        assert_eq!(
+            Command::parse("go ponder wtime 1000 btime 2000"),
+            Command::Go {
+                wtime: Some(Duration::from_millis(1000)),
+                btime: Some(Duration::from_millis(2000)),
                 winc: None,
                 binc: None,
             }

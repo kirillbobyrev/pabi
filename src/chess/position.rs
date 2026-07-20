@@ -463,8 +463,9 @@ impl Position {
         debug_assert!(self.is_legal());
 
         // Increment halfmove clock early: it will be reset on capture or pawn
-        // push.
-        self.halfmove_clock += 1;
+        // push. Saturate to avoid overflow in (unadjudicated) games that go on
+        // long past the 50-move rule threshold.
+        self.halfmove_clock = self.halfmove_clock.saturating_add(1);
 
         // En passant is always transient (lasts one move). Clear it from both
         // the position state and the hash, saving the old value for capture
@@ -759,26 +760,34 @@ impl Position {
     #[must_use]
     pub fn in_check(&self) -> bool {
         let king = self.pieces(self.us()).king.as_square();
-        let their = self.pieces(self.them());
+        self.is_attacked_by(king, self.them())
+    }
+
+    /// Returns true if the given square is attacked by any piece of the given
+    /// player.
+    fn is_attacked_by(&self, target: Square, attacker: Player) -> bool {
+        let their = self.pieces(attacker);
         let occupancy = self.occupied_squares();
 
-        // Pawn check: compute candidate squares via bitboard shifts instead of
-        // using the pawn attack table, which has empty entries for back-rank
+        // Pawn attacks: compute candidate squares via bitboard shifts instead
+        // of using the pawn attack table, which has empty entries for back-rank
         // squares (rank 1 and 8) where kings can reside.
         const NOT_A_FILE: Bitboard = Bitboard::from_bits(0xFEFE_FEFE_FEFE_FEFE);
         const NOT_H_FILE: Bitboard = Bitboard::from_bits(0x7F7F_7F7F_7F7F_7F7F);
-        let king_bb = Bitboard::from(king);
-        let pawn_check_squares = match self.us() {
-            // Black pawns check from one rank above the white king.
-            Player::White => ((king_bb << 7) & NOT_H_FILE) | ((king_bb << 9) & NOT_A_FILE),
-            // White pawns check from one rank below the black king.
-            Player::Black => ((king_bb >> 9) & NOT_H_FILE) | ((king_bb >> 7) & NOT_A_FILE),
+        let target_bb = Bitboard::from(target);
+        let pawn_attacker_squares = match attacker {
+            // White pawns attack from one rank below the target.
+            Player::White => ((target_bb >> 9) & NOT_H_FILE) | ((target_bb >> 7) & NOT_A_FILE),
+            // Black pawns attack from one rank above the target.
+            Player::Black => ((target_bb << 7) & NOT_H_FILE) | ((target_bb << 9) & NOT_A_FILE),
         };
 
-        (attacks::knight_attacks(king) & their.knights).has_any()
-            || (pawn_check_squares & their.pawns).has_any()
-            || (attacks::rook_attacks(king, occupancy) & (their.rooks | their.queens)).has_any()
-            || (attacks::bishop_attacks(king, occupancy) & (their.bishops | their.queens)).has_any()
+        (attacks::knight_attacks(target) & their.knights).has_any()
+            || (pawn_attacker_squares & their.pawns).has_any()
+            || (attacks::king_attacks(target) & their.king).has_any()
+            || (attacks::rook_attacks(target, occupancy) & (their.rooks | their.queens)).has_any()
+            || (attacks::bishop_attacks(target, occupancy) & (their.bishops | their.queens))
+                .has_any()
     }
 
     /// Returns true if 50-move rule draw is in effect.
@@ -814,9 +823,7 @@ impl Position {
         }
 
         // K+minor vs K
-        if (white_minors == 1 && black_minors == 0)
-            || (white_minors == 0 && black_minors == 1)
-        {
+        if (white_minors == 1 && black_minors == 0) || (white_minors == 0 && black_minors == 1) {
             return true;
         }
 
@@ -932,14 +939,14 @@ impl fmt::Display for Position {
                 write!(f, "{RANK_SEPARATOR}")?;
             }
         }
-        write!(f, " {} ", &self.side_to_move)?;
-        write!(f, "{} ", &self.castling)?;
+        write!(f, " {} ", self.side_to_move)?;
+        write!(f, "{} ", self.castling)?;
         match self.en_passant_square {
             Some(square) => write!(f, "{square} "),
             None => write!(f, "- "),
         }?;
-        write!(f, "{} ", &self.halfmove_clock)?;
-        write!(f, "{}", &self.fullmove_counter)?;
+        write!(f, "{} ", self.halfmove_clock)?;
+        write!(f, "{}", self.fullmove_counter)?;
         Ok(())
     }
 }
@@ -971,13 +978,13 @@ impl fmt::Debug for Position {
         }
         write!(f, "{LINE_SEPARATOR}")?;
 
-        writeln!(f, "Player to move: {:?}", &self.side_to_move)?;
-        writeln!(f, "Fullmove counter: {:?}", &self.fullmove_counter)?;
-        writeln!(f, "En Passant: {:?}", &self.en_passant_square)?;
+        writeln!(f, "Player to move: {:?}", self.side_to_move)?;
+        writeln!(f, "Fullmove counter: {:?}", self.fullmove_counter)?;
+        writeln!(f, "En Passant: {:?}", self.en_passant_square)?;
         // bitflags' default fmt::Debug implementation is not very convenient:
         // dump FEN instead.
-        writeln!(f, "Castling rights: {}", &self.castling)?;
-        writeln!(f, "FEN: {}", &self)?;
+        writeln!(f, "Castling rights: {}", self.castling)?;
+        writeln!(f, "FEN: {}", self)?;
 
         Ok(())
     }
@@ -1047,6 +1054,13 @@ fn validate(position: &Position) -> anyhow::Result<()> {
     .has_any()
     {
         bail!("pawns can not be placed on backranks")
+    }
+    // The player that just moved can not be left in check: it would mean that
+    // their king can be captured. This also rejects positions with adjacent
+    // kings.
+    let their_king = position.pieces(position.them()).king.as_square();
+    if position.is_attacked_by(their_king, position.us()) {
+        bail!("side not to move can not be in check")
     }
     let attack_info = position.attack_info();
     // Can't have more than two checks.
@@ -1157,9 +1171,7 @@ fn generate_pawn_moves(
 ) {
     // Generate pawn captures
     for from in pawns.iter() {
-        let targets = (attacks::pawn_attacks(from, ctx.us) & their_occupancy)
-            & ctx.their_or_empty
-            & ctx.blocking_ray;
+        let targets = attacks::pawn_attacks(from, ctx.us) & their_occupancy & ctx.blocking_ray;
         for to in targets.iter() {
             unsafe {
                 ctx.try_add_move_with_promotions(from, to);
@@ -1271,25 +1283,63 @@ fn generate_castle_moves(
         return;
     }
 
-    let (king_sq, short_right, long_right, short_king_walk, short_rook_walk, long_king_walk, long_rook_walk, short_to, long_to) = match us {
+    let (
+        king_sq,
+        short_right,
+        long_right,
+        short_king_walk,
+        short_rook_walk,
+        long_king_walk,
+        long_rook_walk,
+        short_to,
+        long_to,
+    ) = match us {
         Player::White => (
             Square::E1,
-            CastleRights::WHITE_SHORT, CastleRights::WHITE_LONG,
-            attacks::WHITE_SHORT_CASTLE_KING_WALK, attacks::WHITE_SHORT_CASTLE_ROOK_WALK,
-            attacks::WHITE_LONG_CASTLE_KING_WALK, attacks::WHITE_LONG_CASTLE_ROOK_WALK,
-            Square::G1, Square::C1,
+            CastleRights::WHITE_SHORT,
+            CastleRights::WHITE_LONG,
+            attacks::WHITE_SHORT_CASTLE_KING_WALK,
+            attacks::WHITE_SHORT_CASTLE_ROOK_WALK,
+            attacks::WHITE_LONG_CASTLE_KING_WALK,
+            attacks::WHITE_LONG_CASTLE_ROOK_WALK,
+            Square::G1,
+            Square::C1,
         ),
         Player::Black => (
             Square::E8,
-            CastleRights::BLACK_SHORT, CastleRights::BLACK_LONG,
-            attacks::BLACK_SHORT_CASTLE_KING_WALK, attacks::BLACK_SHORT_CASTLE_ROOK_WALK,
-            attacks::BLACK_LONG_CASTLE_KING_WALK, attacks::BLACK_LONG_CASTLE_ROOK_WALK,
-            Square::G8, Square::C8,
+            CastleRights::BLACK_SHORT,
+            CastleRights::BLACK_LONG,
+            attacks::BLACK_SHORT_CASTLE_KING_WALK,
+            attacks::BLACK_SHORT_CASTLE_ROOK_WALK,
+            attacks::BLACK_LONG_CASTLE_KING_WALK,
+            attacks::BLACK_LONG_CASTLE_ROOK_WALK,
+            Square::G8,
+            Square::C8,
         ),
     };
 
-    try_castle(castling, short_right, attacks, short_king_walk, short_rook_walk, occupied_squares, king_sq, short_to, moves);
-    try_castle(castling, long_right, attacks, long_king_walk, long_rook_walk, occupied_squares, king_sq, long_to, moves);
+    try_castle(
+        castling,
+        short_right,
+        attacks,
+        short_king_walk,
+        short_rook_walk,
+        occupied_squares,
+        king_sq,
+        short_to,
+        moves,
+    );
+    try_castle(
+        castling,
+        long_right,
+        attacks,
+        long_king_walk,
+        long_rook_walk,
+        occupied_squares,
+        king_sq,
+        long_to,
+        moves,
+    );
 }
 
 fn try_castle(

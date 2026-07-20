@@ -109,6 +109,18 @@ fn en_passant_double_check() {
 }
 
 #[test]
+#[should_panic(expected = "side not to move can not be in check")]
+fn opposite_check() {
+    let _ = setup("k7/8/8/8/8/8/5q2/6K1 b - - 0 1");
+}
+
+#[test]
+#[should_panic(expected = "side not to move can not be in check")]
+fn adjacent_kings() {
+    let _ = setup("8/8/3kK3/8/8/8/8/8 w - - 0 1");
+}
+
+#[test]
 #[should_panic(expected = "expected <= 2 checks, got 3")]
 fn triple_check() {
     let _ = setup("2r3r1/P3k3/prp5/1B5p/5P2/2Q1n2p/PP4KP/3R4 w - - 0 34");

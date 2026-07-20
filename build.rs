@@ -31,10 +31,10 @@ fn generate_zobrist_keys() {
     let mut rng = rand::rng();
 
     let piece_keys: [ZobristKey; NUM_COLORS * NUM_PIECES * NUM_SQUARES] =
-        std::array::from_fn(|_| rand::Rng::random(&mut rng));
+        std::array::from_fn(|_| rand::RngExt::random(&mut rng));
     generate_file("pieces_zobrist_keys", &format!("{piece_keys:?}"));
 
-    let en_passant_keys: [ZobristKey; 8] = std::array::from_fn(|_| rand::Rng::random(&mut rng));
+    let en_passant_keys: [ZobristKey; 8] = std::array::from_fn(|_| rand::RngExt::random(&mut rng));
     generate_file("en_passant_zobrist_keys", &format!("{en_passant_keys:?}"));
 }
 

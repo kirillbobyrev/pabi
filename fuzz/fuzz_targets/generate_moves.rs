@@ -17,10 +17,10 @@ fuzz_target!(|data: &[u8]| {
     let shakmaty_setup: shakmaty::fen::Fen = input
         .parse()
         .expect("when we parsed a valid position it should be accepted by shakmaty");
-    let shakmaty_position: Result<Chess, _> = shakmaty_setup.into_position(CastlingMode::Standard);
-    if shakmaty_position.is_err() {
-        return;
-    }
+    let shakmaty_position: Chess = match shakmaty_setup.into_position(CastlingMode::Standard) {
+        Ok(position) => position,
+        Err(_) => return,
+    };
     assert_eq!(
         position
             .generate_moves()
@@ -29,8 +29,6 @@ fuzz_target!(|data: &[u8]| {
             .sorted()
             .collect::<Vec<_>>(),
         shakmaty_position
-            .as_ref()
-            .unwrap()
             .legal_moves()
             .iter()
             .map(|m| m.to_uci(CastlingMode::Standard).to_string())
