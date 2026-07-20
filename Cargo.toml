@@ -68,34 +68,37 @@ strip = true
 # TODO: Set profile-generate and profile-use (https://github.com/kirillbobyrev/pabi/issues/9).
 
 [lints.rust]
-# absolute_paths_not_starting_with_crate = "warn"
-# let_underscore_drop = "warn"
-# macro_use_extern_crate = "warn"
-# missing_docs = "warn"
-# unused_extern_crates = "warn"
-# unused_import_braces = "warn"
-# unused_lifetimes = "warn"
-# unused_qualifications = "warn"
+absolute_paths_not_starting_with_crate = "warn"
 keyword_idents_2018 = "deny"
 keyword_idents_2024 = "deny"
+macro_use_extern_crate = "warn"
 trivial_casts = "deny"
-# trivial_numeric_casts = "deny"
-# unreachable_pub = "deny"
+trivial_numeric_casts = "deny"
+unreachable_pub = "deny"
+unused_extern_crates = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+# TODO: Enable once the remaining public items are documented and the search
+# stubs stop discarding results.
+# let_underscore_drop = "warn"
+# missing_docs = "warn"
 # unused_results = "deny"
 
 [lints.clippy]
 missing_transmute_annotations = "allow"
-# cargo = "warn"
-# complexity = "warn"
-# correctness = "warn"
-# nursery = "warn"
-# pedantic = "warn"
-# style = "warn"
+# The core clippy groups. `perf` and `suspicious` are denied because a
+# regression there is almost always a real bug; the rest warn to keep iteration
+# friction low. `pedantic`/`nursery`/`cargo` are intentionally left off: they are
+# dominated by low-value style noise and transitive-dependency reports.
+correctness = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
-redundant_pattern_matching = "deny"
 perf = { level = "deny", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
 allow_attributes_without_reason = "deny"
 derivable_impls = "deny"
+redundant_pattern_matching = "deny"
 
 [lints.rustdoc]
 broken_intra_doc_links = "deny"

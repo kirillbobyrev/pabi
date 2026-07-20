@@ -290,17 +290,13 @@ impl Position {
                     }
                     _ => (),
                 }
-                match Piece::try_from(symbol) {
-                    Ok(piece) => {
-                        let pieces = match piece.player {
-                            Player::White => &mut white_pieces,
-                            Player::Black => &mut black_pieces,
-                        };
-                        let square = Square::new(file.try_into()?, rank);
-                        *pieces.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
-                    }
-                    Err(e) => return Err(e),
-                }
+                let piece = Piece::try_from(symbol)?;
+                let pieces = match piece.player {
+                    Player::White => &mut white_pieces,
+                    Player::Black => &mut black_pieces,
+                };
+                let square = Square::new(file.try_into()?, rank);
+                *pieces.bitboard_for_mut(piece.kind) |= Bitboard::from(square);
                 file += 1;
             }
             if file != BOARD_WIDTH {
