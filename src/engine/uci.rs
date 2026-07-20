@@ -21,6 +21,10 @@ pub(super) enum Command {
         btime: Option<Duration>,
         winc: Option<Duration>,
         binc: Option<Duration>,
+        movetime: Option<Duration>,
+        depth: Option<u32>,
+        nodes: Option<u64>,
+        infinite: bool,
     },
     Stop,
     Quit,
@@ -50,6 +54,10 @@ fn parse_go(parts: &[&str]) -> Command {
     let mut btime = None;
     let mut winc = None;
     let mut binc = None;
+    let mut movetime = None;
+    let mut depth = None;
+    let mut nodes = None;
+    let mut infinite = false;
 
     let mut i = 1;
 
@@ -72,9 +80,25 @@ fn parse_go(parts: &[&str]) -> Command {
                 binc = parts[i + 1].parse().map(Duration::from_millis).ok();
                 i += 2;
             }
-            // Tokens without a value (e.g. "infinite" or "ponder") and
-            // unsupported ones are skipped one at a time so that they can not
-            // swallow a keyword that follows them.
+            "movetime" if i + 1 < parts.len() => {
+                movetime = parts[i + 1].parse().map(Duration::from_millis).ok();
+                i += 2;
+            }
+            "depth" if i + 1 < parts.len() => {
+                depth = parts[i + 1].parse().ok();
+                i += 2;
+            }
+            "nodes" if i + 1 < parts.len() => {
+                nodes = parts[i + 1].parse().ok();
+                i += 2;
+            }
+            "infinite" => {
+                infinite = true;
+                i += 1;
+            }
+            // Tokens without a value (e.g. "ponder") and unsupported ones are
+            // skipped one at a time so that they can not swallow a keyword
+            // that follows them.
             _ => i += 1,
         }
     }
@@ -84,6 +108,10 @@ fn parse_go(parts: &[&str]) -> Command {
         btime,
         winc,
         binc,
+        movetime,
+        depth,
+        nodes,
+        infinite,
     }
 }
 
@@ -252,6 +280,10 @@ mod tests {
                 btime: Some(Duration::from_millis(300_000)),
                 winc: Some(Duration::from_millis(10000)),
                 binc: Some(Duration::from_millis(10000)),
+                movetime: None,
+                depth: None,
+                nodes: None,
+                infinite: false,
             }
         );
 
@@ -262,6 +294,10 @@ mod tests {
                 btime: None,
                 winc: None,
                 binc: None,
+                movetime: None,
+                depth: None,
+                nodes: None,
+                infinite: false,
             }
         );
 
@@ -274,6 +310,10 @@ mod tests {
                 btime: Some(Duration::from_millis(2000)),
                 winc: None,
                 binc: None,
+                movetime: None,
+                depth: None,
+                nodes: None,
+                infinite: false,
             }
         );
     }
@@ -298,6 +338,49 @@ mod tests {
         assert_eq!(
             Command::parse("unknown command"),
             Command::Unknown("unknown command".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_go_limits() {
+        assert_eq!(
+            Command::parse("go movetime 5000"),
+            Command::Go {
+                wtime: None,
+                btime: None,
+                winc: None,
+                binc: None,
+                movetime: Some(Duration::from_millis(5000)),
+                depth: None,
+                nodes: None,
+                infinite: false,
+            }
+        );
+        assert_eq!(
+            Command::parse("go depth 12 nodes 100000"),
+            Command::Go {
+                wtime: None,
+                btime: None,
+                winc: None,
+                binc: None,
+                movetime: None,
+                depth: Some(12),
+                nodes: Some(100_000),
+                infinite: false,
+            }
+        );
+        assert_eq!(
+            Command::parse("go infinite"),
+            Command::Go {
+                wtime: None,
+                btime: None,
+                winc: None,
+                binc: None,
+                movetime: None,
+                depth: None,
+                nodes: None,
+                infinite: true,
+            }
         );
     }
 }
