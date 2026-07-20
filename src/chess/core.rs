@@ -78,6 +78,89 @@ impl Move {
         Self::try_from(uci)
     }
 
+    /// Encodes the move as an index into the AlphaZero-style policy action
+    /// space of 64 × 73 = 4672 possible moves: for each source square there
+    /// are 73 "move planes" — 56 sliding moves (8 directions × 7 distances,
+    /// which also cover king moves, castling, pawn pushes/captures and queen
+    /// promotions), 8 knight moves and 9 underpromotions (3 directions × 3
+    /// pieces).
+    ///
+    /// The move must be encoded from the perspective of the player making it,
+    /// i.e. as if that player's pawns move up the board: flip Black's moves
+    /// with [`Move::flip_perspective`] before encoding. This compresses the
+    /// action space and lets the policy network share weights between colors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the move geometry is impossible for a chess piece (can not
+    /// happen for moves produced by the move generator).
+    #[must_use]
+    pub fn policy_index(&self) -> u16 {
+        /// Number of move planes per source square.
+        const NUM_PLANES: u16 = 73;
+        /// Knight move offsets as (rank, file) deltas, counterclockwise.
+        const KNIGHT_OFFSETS: [(i8, i8); 8] = [
+            (2, 1),
+            (1, 2),
+            (-1, 2),
+            (-2, 1),
+            (-2, -1),
+            (-1, -2),
+            (1, -2),
+            (2, -1),
+        ];
+
+        let (from, to) = (self.from(), self.to());
+        let rank_delta = to.rank() as i8 - from.rank() as i8;
+        let file_delta = to.file() as i8 - from.file() as i8;
+
+        let plane = if let Some(promotion) = self.promotion()
+            && promotion != Promotion::Queen
+        {
+            // Underpromotions: planes 64-72. Queen promotions are encoded as
+            // regular sliding moves.
+            let piece = match promotion {
+                Promotion::Knight => 0,
+                Promotion::Bishop => 1,
+                Promotion::Rook => 2,
+                Promotion::Queen => unreachable!("queen promotions use sliding planes"),
+            };
+            debug_assert!(rank_delta == 1 && file_delta.abs() <= 1);
+            let direction =
+                u16::try_from(file_delta + 1).expect("promotion file delta is in -1..=1");
+            64 + direction * 3 + piece
+        } else if let Some(knight_offset) = KNIGHT_OFFSETS
+            .iter()
+            .position(|&offset| offset == (rank_delta, file_delta))
+        {
+            // Knight moves: planes 56-63.
+            56 + knight_offset as u16
+        } else {
+            // Sliding moves: planes 0-55, 8 directions (clockwise starting
+            // from up) times 7 distances.
+            debug_assert!(
+                rank_delta == 0 || file_delta == 0 || rank_delta.abs() == file_delta.abs(),
+                "{self} is not a possible chess move"
+            );
+            let direction: u16 = match (rank_delta.signum(), file_delta.signum()) {
+                (1, 0) => 0,
+                (1, 1) => 1,
+                (0, 1) => 2,
+                (-1, 1) => 3,
+                (-1, 0) => 4,
+                (-1, -1) => 5,
+                (0, -1) => 6,
+                (1, -1) => 7,
+                _ => unreachable!("moves have different source and target squares"),
+            };
+            let distance = u16::try_from(rank_delta.abs().max(file_delta.abs()))
+                .expect("distance is in 1..=7");
+            direction * 7 + (distance - 1)
+        };
+
+        from as u16 * NUM_PLANES + plane
+    }
+
     /// Converts the move from the perspective of one player to the other, as if
     /// the other player's backrank is rank 1.
     ///
@@ -920,6 +1003,66 @@ mod tests {
             Move::from_uci("e7e8q").unwrap(),
             Move::new(Square::E7, Square::E8, Some(Promotion::Queen))
         );
+    }
+
+    #[test]
+    fn policy_index_known_values() {
+        // e2e4: source square 12, direction up (0), distance 2 -> plane 1.
+        assert_eq!(Move::from_uci("e2e4").unwrap().policy_index(), 12 * 73 + 1);
+        // Queen promotions use the sliding planes: direction up, distance 1.
+        assert_eq!(Move::from_uci("e7e8q").unwrap().policy_index(), 52 * 73);
+        // Knight underpromotion push: plane 64 + 1 * 3 + 0 = 67.
+        assert_eq!(
+            Move::from_uci("e7e8n").unwrap().policy_index(),
+            52 * 73 + 67
+        );
+        // Rook underpromotion capturing towards the a-file: plane 64 + 0 + 2.
+        assert_eq!(
+            Move::from_uci("e7d8r").unwrap().policy_index(),
+            52 * 73 + 66
+        );
+        // Knight move g1f3: offset (2, -1) is the last knight plane.
+        assert_eq!(Move::from_uci("g1f3").unwrap().policy_index(), 6 * 73 + 63);
+        // Short castling is encoded as a king slide two squares to the right.
+        assert_eq!(
+            Move::from_uci("e1g1").unwrap().policy_index(),
+            4 * 73 + 2 * 7 + 1
+        );
+    }
+
+    #[test]
+    fn policy_index_unique_and_bounded_for_legal_moves() {
+        use std::collections::HashSet;
+
+        use crate::chess::position::Position;
+        use crate::environment::Player;
+
+        // Positions covering castling, en passant, promotions and
+        // underpromotions for both colors.
+        for fen in [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1",
+            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+            "rnbqk1nr/ppp2ppp/8/4p3/2PpP3/5N2/PP1P1PPP/RNBQKB1R b KQkq c3 0 4",
+            "8/5P1k/8/8/8/8/K1p5/8 w - - 0 1",
+            "8/5P1k/8/8/8/8/K1p5/8 b - - 0 1",
+        ] {
+            let position = Position::from_fen(fen).unwrap();
+            let mut seen = HashSet::new();
+            for next_move in position.generate_moves() {
+                // Encode from the perspective of the player making the move.
+                let index = match position.us() {
+                    Player::White => next_move.policy_index(),
+                    Player::Black => next_move.flip_perspective().policy_index(),
+                };
+                assert!(index < 64 * 73, "index {index} out of bounds in {fen}");
+                assert!(
+                    seen.insert(index),
+                    "duplicate index {index} for {next_move} in {fen}"
+                );
+            }
+        }
     }
 
     #[test]

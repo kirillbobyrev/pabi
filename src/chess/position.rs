@@ -178,6 +178,37 @@ impl Position {
         self.hash
     }
 
+    pub(crate) const fn castling(&self) -> CastleRights {
+        self.castling
+    }
+
+    pub(crate) const fn en_passant(&self) -> Option<Square> {
+        self.en_passant_square
+    }
+
+    pub(crate) const fn halfmove_clock(&self) -> u8 {
+        self.halfmove_clock
+    }
+
+    /// Calls `f` for every piece on the board.
+    pub(crate) fn for_each_piece(&self, mut f: impl FnMut(Square, Piece)) {
+        for player in [Player::White, Player::Black] {
+            let pieces = self.pieces(player);
+            for (bitboard, kind) in [
+                (pieces.pawns, PieceKind::Pawn),
+                (pieces.knights, PieceKind::Knight),
+                (pieces.bishops, PieceKind::Bishop),
+                (pieces.rooks, PieceKind::Rook),
+                (pieces.queens, PieceKind::Queen),
+                (pieces.king, PieceKind::King),
+            ] {
+                for square in bitboard.iter() {
+                    f(square, Piece { player, kind });
+                }
+            }
+        }
+    }
+
     fn occupancy(&self, player: Player) -> Bitboard {
         self.pieces(player).all()
     }
@@ -1375,6 +1406,41 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    /// Plays random games and verifies that the incrementally updated state
+    /// (most importantly the Zobrist hash, which is maintained through many
+    /// hand-written paths in `make_move`: castling, en passant, promotions and
+    /// captures) always matches the state recomputed from scratch.
+    #[test]
+    fn incremental_hash_matches_recomputed_in_random_games() {
+        use rand::rngs::SmallRng;
+        use rand::{RngExt, SeedableRng};
+
+        const GAMES: u64 = 100;
+        const MAX_PLIES: usize = 200;
+
+        for seed in 0..GAMES {
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut position = Position::starting();
+            for _ in 0..MAX_PLIES {
+                let moves = position.generate_moves();
+                if moves.is_empty() || position.halfmove_clock_expired() {
+                    break;
+                }
+                let next_move = moves[rng.random_range(0..moves.len())];
+                position.make_move(&next_move);
+                assert!(
+                    position.is_legal(),
+                    "illegal position after {next_move} (seed {seed}): {position}"
+                );
+                assert_eq!(
+                    position.hash(),
+                    position.compute_hash(),
+                    "incremental hash diverged after {next_move} (seed {seed}): {position}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn starting() {

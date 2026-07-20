@@ -42,8 +42,10 @@ fn generate_zobrist_keys() {
 // Piece indices match the order of PieceKind, the planes match the order of
 // Piece.
 
-const MIDDLEGAME_VALUE: [i32; 6] = [0, 1025, 477, 365, 337, 82];
-const ENDGAME_VALUE: [i32; 6] = [0, 936, 512, 297, 281, 94];
+// Piece base values in `PieceKind` order: Pawn, Knight, Bishop, Rook, Queen,
+// King.
+const MIDDLEGAME_VALUE: [i32; 6] = [82, 337, 365, 477, 1025, 0];
+const ENDGAME_VALUE: [i32; 6] = [94, 281, 297, 512, 936, 0];
 
 #[rustfmt::skip]
 const MIDDLEGAME_PAWN_TABLE: [i32; 64] = [
@@ -193,9 +195,13 @@ fn populate_piece_values(
     phase_values: &[i32; 6],
     output: &mut [[i32; 64]; 12],
 ) {
+    // The source tables are written from White's perspective with rank 8 first
+    // (the way boards are usually printed), while the board representation is
+    // Little-Endian Rank-File (A1 = 0). Hence, White planes mirror the table
+    // vertically and Black planes read it as is.
     for square in 0..64 {
-        output[piece_index][square] = phase_values[piece_index] + piece_values[square];
-        output[6 + piece_index][square] = phase_values[piece_index] + piece_values[flip(square)];
+        output[piece_index][square] = phase_values[piece_index] + piece_values[flip(square)];
+        output[6 + piece_index][square] = phase_values[piece_index] + piece_values[square];
     }
 }
 
@@ -203,13 +209,16 @@ fn generate_pesto_tables() {
     let mut middlegame_table = [[0; 64]; 12];
     let mut endgame_table = [[0; 64]; 12];
 
+    // The plane order matches `Piece::plane()`: planes 0-5 are White pieces in
+    // `PieceKind` order (Pawn, Knight, Bishop, Rook, Queen, King), planes 6-11
+    // are Black pieces in the same order.
     for (piece_index, (middlegame_piece_table, endgame_piece_table)) in [
-        (&MIDDLEGAME_KING_TABLE, &ENDGAME_KING_TABLE),
-        (&MIDDLEGAME_QUEEN_TABLE, &ENDGAME_QUEEN_TABLE),
-        (&MIDDLEGAME_ROOK_TABLE, &ENDGAME_ROOK_TABLE),
-        (&MIDDLEGAME_BISHOP_TABLE, &ENDGAME_BISHOP_TABLE),
-        (&MIDDLEGAME_KNIGHT_TABLE, &ENDGAME_KNIGHT_TABLE),
         (&MIDDLEGAME_PAWN_TABLE, &ENDGAME_PAWN_TABLE),
+        (&MIDDLEGAME_KNIGHT_TABLE, &ENDGAME_KNIGHT_TABLE),
+        (&MIDDLEGAME_BISHOP_TABLE, &ENDGAME_BISHOP_TABLE),
+        (&MIDDLEGAME_ROOK_TABLE, &ENDGAME_ROOK_TABLE),
+        (&MIDDLEGAME_QUEEN_TABLE, &ENDGAME_QUEEN_TABLE),
+        (&MIDDLEGAME_KING_TABLE, &ENDGAME_KING_TABLE),
     ]
     .iter()
     .enumerate()
