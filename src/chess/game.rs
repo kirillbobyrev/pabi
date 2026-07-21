@@ -28,6 +28,7 @@ impl Observation for Position {}
 /// `Game` is the shared substrate for both the UCI engine (which searches from
 /// the current position) and self-play data generation (which drives a game to
 /// a terminal result through the [`Environment`] interface).
+#[derive(Clone)]
 pub struct Game {
     position: Position,
     /// Zobrist hashes of every position reached so far, including the current
