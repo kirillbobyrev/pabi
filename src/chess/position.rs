@@ -857,10 +857,10 @@ impl fmt::Display for Position {
     /// Returns position representation in Forsyth-Edwards Notation (FEN).
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for rank_idx in (0..BOARD_WIDTH).rev() {
-            let rank: Rank = unsafe { std::mem::transmute(rank_idx) };
+            let rank = Rank::ALL[rank_idx as usize];
             let mut empty_squares = 0i32;
             for file_idx in 0..BOARD_WIDTH {
-                let file: File = unsafe { std::mem::transmute(file_idx) };
+                let file = File::ALL[file_idx as usize];
                 let square = Square::new(file, rank);
                 if let Some(piece) = self.at(square) {
                     if empty_squares != 0 {
@@ -904,9 +904,9 @@ impl fmt::Debug for Position {
         const SQUARE_SEPARATOR: &str = " ";
 
         for rank_idx in (0..BOARD_WIDTH).rev() {
-            let rank: Rank = unsafe { std::mem::transmute(rank_idx) };
+            let rank = Rank::ALL[rank_idx as usize];
             for file_idx in 0..BOARD_WIDTH {
-                let file: File = unsafe { std::mem::transmute(file_idx) };
+                let file = File::ALL[file_idx as usize];
                 match self.at(Square::new(file, rank)) {
                     Some(piece) => write!(f, "{piece}"),
                     None => f.write_char('.'),

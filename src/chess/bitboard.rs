@@ -19,10 +19,10 @@
 //! [BitboardCalculator]: https://gekomad.github.io/Cinnamon/BitboardCalculator/
 //! [PEXT Bitboards]: https://www.chessprogramming.org/BMI2#PEXTBitboards
 
+use std::fmt;
 use std::ops::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, Shr, Sub, SubAssign,
 };
-use std::{fmt, mem};
 
 use itertools::Itertools;
 
@@ -109,7 +109,8 @@ impl Bitboard {
     #[must_use]
     pub(super) const fn as_square(self) -> Square {
         debug_assert!(self.bits.count_ones() == 1);
-        unsafe { mem::transmute(self.bits.trailing_zeros() as u8) }
+        // SAFETY: a single-bit bitboard has `trailing_zeros()` in 0..64.
+        unsafe { Square::from_index_unchecked(self.bits.trailing_zeros() as u8) }
     }
 
     #[must_use]
@@ -328,10 +329,8 @@ impl Iterator for BitboardIterator {
         let next_index = self.bits.trailing_zeros();
         // Clear LS1B.
         self.bits &= self.bits - 1;
-        // For performance reasons, it's better to convert directly: the
-        // conversion is safe because trailing_zeros() will return a number in
-        // the 0..64 range.
-        Some(unsafe { mem::transmute(next_index as u8) })
+        // SAFETY: the bitboard was non-zero, so `trailing_zeros()` is in 0..64.
+        Some(unsafe { Square::from_index_unchecked(next_index as u8) })
     }
 }
 
@@ -351,7 +350,7 @@ impl TryFrom<Bitboard> for Square {
                 bitboard.bits.count_ones()
             );
         }
-        Ok(unsafe { mem::transmute(bitboard.bits.trailing_zeros() as u8) })
+        Ok(Square::ALL[bitboard.bits.trailing_zeros() as usize])
     }
 }
 
