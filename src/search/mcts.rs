@@ -62,12 +62,16 @@ pub struct Limits {
 }
 
 /// Final result of a search.
-pub struct SearchResult {
+pub(crate) struct SearchResult {
     /// The move the engine considers best. `None` if the root position has no
     /// legal moves.
-    pub best_move: Option<Move>,
+    pub(crate) best_move: Option<Move>,
     /// Number of search iterations performed.
-    pub nodes: u64,
+    pub(crate) nodes: u64,
+    /// Visit count of each legal root move. This is the MCTS policy: a move's
+    /// share of the total visits is the search's improved probability of
+    /// playing it, which self-play uses as the policy training target.
+    pub(crate) root_visits: Vec<(Move, u32)>,
     /// The search tree, returned so its statistics can seed a later search.
     pub(crate) tree: Tree,
 }
@@ -93,6 +97,7 @@ pub(crate) fn search(
         return SearchResult {
             best_move: None,
             nodes: 0,
+            root_visits: Vec::new(),
             tree,
         };
     }
@@ -119,8 +124,16 @@ pub(crate) fn search(
     SearchResult {
         best_move: Some(searcher.best_move()),
         nodes: iterations,
+        root_visits: searcher.root_visits(),
         tree: searcher.tree,
     }
+}
+
+/// Convenience entry point for self-play: runs a fresh, unbounded search under
+/// `limits` and returns the root move visit counts (the policy target).
+pub(crate) fn policy(game: &Game, limits: &Limits) -> Vec<(Move, u32)> {
+    let stop = AtomicBool::new(false);
+    search(game, Tree::new(), usize::MAX, limits, &stop, |_| {}).root_visits
 }
 
 fn limits_reached(limits: &Limits, iterations: u64, start: Instant) -> bool {
@@ -260,6 +273,22 @@ impl<'a> Searcher<'a> {
             .node(best)
             .action
             .expect("root children have actions")
+    }
+
+    /// Returns the visit count of each root move (the MCTS policy).
+    fn root_visits(&self) -> Vec<(Move, u32)> {
+        self.tree
+            .node(ROOT_ID)
+            .children
+            .iter()
+            .map(|&child| {
+                let node = self.tree.node(child);
+                (
+                    node.action.expect("root children have actions"),
+                    node.visits,
+                )
+            })
+            .collect()
     }
 
     /// Returns the most-visited child of a node, breaking ties by mean value.
