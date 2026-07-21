@@ -59,6 +59,18 @@ pub enum GameResult {
     Loss,
 }
 
+impl GameResult {
+    /// Returns the result from the opponent's perspective.
+    #[must_use]
+    pub fn flip(self) -> Self {
+        match self {
+            Self::Win => Self::Loss,
+            Self::Draw => Self::Draw,
+            Self::Loss => Self::Win,
+        }
+    }
+}
+
 // TODO: Require features tensor?
 pub trait Observation {}
 

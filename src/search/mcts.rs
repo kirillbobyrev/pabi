@@ -4,8 +4,9 @@
 //!    child ([`crate::search::policy`]) until a leaf is reached.
 //! 2. Expansion: generate the leaf's children and assign prior probabilities.
 //! 3. Evaluation: score the leaf with the value function
-//!    ([`crate::evaluation`]); terminal positions get their exact game value.
-//!    There are no random playouts, matching the AlphaZero variant of MCTS.
+//!    ([`crate::evaluation`]); terminal positions get their exact game value,
+//!    including Syzygy tablebase adjudication. There are no random playouts,
+//!    matching the AlphaZero variant of MCTS.
 //! 4. Backup: propagate the value up the path, flipping the sign at each level
 //!    (the value of a position for one player is the negation of its value for
 //!    the opponent).
@@ -15,11 +16,16 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use shakmaty::Chess;
+use shakmaty_syzygy::Tablebase;
+
 use super::policy;
 use super::tree::{NodeId, ROOT_ID, Tree};
 use crate::chess::core::Move;
+use crate::chess::game;
 use crate::chess::position::Position;
 use crate::chess::zobrist::Key;
+use crate::environment::GameResult;
 use crate::evaluation;
 
 /// Exploration constant ($c_{puct}$ in the AlphaZero paper).
@@ -41,8 +47,7 @@ pub struct Limits {
     pub move_time: Option<Duration>,
     /// Limit on the number of search iterations (playouts).
     pub nodes: Option<u64>,
-    /// If set, the search runs until stopped externally, ignoring other
-    /// limits.
+    /// If set, the search runs until stopped externally, ignoring other limits.
     pub infinite: bool,
 }
 
@@ -58,181 +63,270 @@ pub struct SearchResult {
 
 /// Searches the position and returns the best move.
 ///
-/// `history` should contain the Zobrist hashes of all positions of the game so
-/// far (including the root position): it is used to score repetitions as
-/// draws.
+/// `history` holds the Zobrist hashes of all positions of the game so far
+/// (including the root); it is used to score repetitions as draws. `tablebase`,
+/// when present, adjudicates positions with few enough pieces exactly.
 ///
 /// `on_info` is called with UCI `info` lines as the search progresses.
 pub fn search(
-    root_position: &Position,
+    root: &Position,
     history: &[Key],
+    tablebase: Option<&Tablebase<Chess>>,
     limits: &Limits,
     stop: &AtomicBool,
     mut on_info: impl FnMut(&str),
 ) -> SearchResult {
-    let root_moves = root_position.generate_moves();
-    if root_moves.is_empty() {
+    if root.generate_moves().is_empty() {
         return SearchResult {
             best_move: None,
             nodes: 0,
         };
     }
 
-    let mut tree = Tree::new();
-    #[allow(clippy::cast_precision_loss, reason = "the number of moves is small")]
-    let prior = 1.0 / root_moves.len() as f32;
-    for next_move in &root_moves {
-        let _ = tree.add_child(ROOT_ID, *next_move, prior);
-    }
-    tree.node_mut(ROOT_ID).expanded = true;
-
+    let mut searcher = Searcher::new(root, history, tablebase);
     let start = Instant::now();
     let mut iterations = 0u64;
     let mut max_depth = 0usize;
     let mut last_report = Instant::now();
 
-    loop {
-        if stop.load(Ordering::Relaxed) {
-            break;
-        }
-        if !limits.infinite {
-            if let Some(nodes) = limits.nodes
-                && iterations >= nodes
-            {
-                break;
-            }
-            if let Some(move_time) = limits.move_time
-                && start.elapsed() >= move_time
-            {
-                break;
-            }
-        }
-
-        let depth = simulate(&mut tree, root_position, history);
-        max_depth = max_depth.max(depth);
+    while !stop.load(Ordering::Relaxed) && !limits_reached(limits, iterations, start) {
+        max_depth = max_depth.max(searcher.simulate());
         iterations += 1;
 
         if iterations.is_multiple_of(CHECK_INTERVAL)
             && last_report.elapsed() >= Duration::from_secs(1)
         {
-            on_info(&info_line(&tree, iterations, max_depth, start));
+            on_info(&searcher.info_line(iterations, max_depth, start));
             last_report = Instant::now();
         }
     }
 
-    on_info(&info_line(&tree, iterations, max_depth, start));
-
+    on_info(&searcher.info_line(iterations, max_depth, start));
     SearchResult {
-        best_move: Some(best_move(&tree)),
+        best_move: Some(searcher.best_move()),
         nodes: iterations,
     }
 }
 
-/// Runs a single search iteration (selection, expansion, evaluation, backup)
-/// and returns the depth reached.
-fn simulate(tree: &mut Tree, root_position: &Position, history: &[Key]) -> usize {
-    let mut position = root_position.clone();
-    let mut path = vec![ROOT_ID];
-    let mut path_hashes: Vec<Key> = Vec::new();
-    let mut node_id = ROOT_ID;
-
-    // Selection: descend until a terminal or unexpanded node.
-    while tree.node(node_id).terminal.is_none() && tree.node(node_id).expanded {
-        let child_id = policy::select_child(tree, node_id, CPUCT);
-        let action = tree
-            .node(child_id)
-            .action
-            .expect("non-root nodes always have an action");
-        position.make_move(&action);
-        path_hashes.push(position.hash());
-        path.push(child_id);
-        node_id = child_id;
+fn limits_reached(limits: &Limits, iterations: u64, start: Instant) -> bool {
+    if limits.infinite {
+        return false;
     }
-
-    // Expansion and evaluation.
-    let value = match tree.node(node_id).terminal {
-        Some(value) => value,
-        None => expand_and_evaluate(tree, node_id, &position, &path_hashes, history),
-    };
-
-    backup(tree, &path, value);
-    path.len() - 1
+    limits.nodes.is_some_and(|nodes| iterations >= nodes)
+        || limits
+            .move_time
+            .is_some_and(|budget| start.elapsed() >= budget)
 }
 
-/// Expands the leaf and returns its value from the perspective of the player
-/// to move at the leaf. Terminal values are cached in the node: the path from
-/// the root to a node is unique, so the terminal status (including draws by
-/// repetition) is deterministic.
-fn expand_and_evaluate(
-    tree: &mut Tree,
-    node_id: NodeId,
-    position: &Position,
-    path_hashes: &[Key],
-    history: &[Key],
-) -> f64 {
-    let moves = position.generate_moves();
-    if moves.is_empty() {
-        // Checkmate is the worst outcome for the player to move; stalemate is
-        // a draw.
-        let value = if position.in_check() { -1.0 } else { 0.0 };
-        tree.node_mut(node_id).terminal = Some(value);
-        return value;
-    }
+/// Carries the immutable search inputs alongside the growing tree so that the
+/// per-iteration steps do not have to thread them through as parameters.
+struct Searcher<'a> {
+    root: &'a Position,
+    history: &'a [Key],
+    tablebase: Option<&'a Tablebase<Chess>>,
+    tree: Tree,
+}
 
-    let is_root = path_hashes.is_empty();
-    if !is_root {
-        if position.halfmove_clock_expired() || position.is_insufficient_material() {
-            tree.node_mut(node_id).terminal = Some(0.0);
-            return 0.0;
-        }
-        // Score any repetition of an earlier position (in the game or in the
-        // current search path) as an immediate draw.
-        let current = *path_hashes.last().expect("non-root path is not empty");
-        let earlier = &path_hashes[..path_hashes.len() - 1];
-        if earlier.contains(&current) || history.contains(&current) {
-            tree.node_mut(node_id).terminal = Some(0.0);
-            return 0.0;
+impl<'a> Searcher<'a> {
+    /// Creates a searcher with the root node already expanded. The caller
+    /// guarantees the root has at least one legal move.
+    fn new(
+        root: &'a Position,
+        history: &'a [Key],
+        tablebase: Option<&'a Tablebase<Chess>>,
+    ) -> Self {
+        let mut tree = Tree::new();
+        expand(&mut tree, ROOT_ID, &root.generate_moves());
+        Self {
+            root,
+            history,
+            tablebase,
+            tree,
         }
     }
 
+    /// Runs one iteration (selection, expansion, evaluation, backup) and
+    /// returns the depth reached.
+    fn simulate(&mut self) -> usize {
+        let mut position = self.root.clone();
+        let mut path = vec![ROOT_ID];
+        let mut path_hashes: Vec<Key> = Vec::new();
+        let mut node_id = ROOT_ID;
+
+        // Selection: descend until a terminal or unexpanded node.
+        while self.tree.node(node_id).terminal.is_none() && self.tree.node(node_id).expanded {
+            node_id = policy::select_child(&self.tree, node_id, CPUCT);
+            let action = self
+                .tree
+                .node(node_id)
+                .action
+                .expect("non-root nodes always have an action");
+            position.make_move(&action);
+            path_hashes.push(position.hash());
+            path.push(node_id);
+        }
+
+        let value = match self.tree.node(node_id).terminal {
+            Some(value) => value,
+            None => self.expand_and_evaluate(node_id, &position, &path_hashes),
+        };
+        self.backup(&path, value);
+        path.len() - 1
+    }
+
+    /// Expands the leaf and returns its value from the perspective of the
+    /// player to move at the leaf. Terminal values are cached in the node:
+    /// the path from the root to a node is unique, so its terminal status
+    /// (including draws by repetition) is deterministic.
+    fn expand_and_evaluate(
+        &mut self,
+        node_id: NodeId,
+        position: &Position,
+        path_hashes: &[Key],
+    ) -> f64 {
+        let moves = position.generate_moves();
+        if moves.is_empty() {
+            // Checkmate is the worst outcome for the player to move; stalemate
+            // is a draw.
+            return self.mark_terminal(node_id, if position.in_check() { -1.0 } else { 0.0 });
+        }
+
+        // The root itself (empty path) is never a leaf here, so any repetition
+        // or rule-based draw along the path ends the game.
+        if let [earlier @ .., current] = path_hashes
+            && (position.halfmove_clock_expired()
+                || position.is_insufficient_material()
+                || earlier.contains(current)
+                || self.history.contains(current))
+        {
+            return self.mark_terminal(node_id, 0.0);
+        }
+
+        if let Some(tablebase) = self.tablebase
+            && let Some(result) = game::probe_tablebase(tablebase, position)
+        {
+            return self.mark_terminal(node_id, value_from_result(result));
+        }
+
+        expand(&mut self.tree, node_id, &moves);
+        value_from_centipawns(evaluation::evaluate(position))
+    }
+
+    /// Records an exact terminal value on the node and returns it.
+    fn mark_terminal(&mut self, node_id: NodeId, value: f64) -> f64 {
+        self.tree.node_mut(node_id).terminal = Some(value);
+        value
+    }
+
+    /// Propagates `leaf_value` (from the perspective of the player to move at
+    /// the leaf) up the path, flipping the sign at each level because node
+    /// statistics are stored from the parent's perspective.
+    fn backup(&mut self, path: &[NodeId], leaf_value: f64) {
+        let mut value = leaf_value;
+        for &node_id in path.iter().rev() {
+            let node = self.tree.node_mut(node_id);
+            node.visits += 1;
+            node.total_value -= value;
+            value = -value;
+        }
+    }
+
+    /// Returns the root child with the most visits, breaking ties by mean
+    /// value.
+    fn best_move(&self) -> Move {
+        let best = self
+            .most_visited_child(ROOT_ID)
+            .expect("root is always expanded");
+        self.tree
+            .node(best)
+            .action
+            .expect("root children have actions")
+    }
+
+    /// Returns the most-visited child of a node, breaking ties by mean value.
+    fn most_visited_child(&self, node_id: NodeId) -> Option<NodeId> {
+        self.tree
+            .node(node_id)
+            .children
+            .iter()
+            .copied()
+            .max_by(|&a, &b| {
+                let (a, b) = (self.tree.node(a), self.tree.node(b));
+                a.visits
+                    .cmp(&b.visits)
+                    .then(a.mean_value().total_cmp(&b.mean_value()))
+            })
+    }
+
+    fn info_line(&self, iterations: u64, max_depth: usize, start: Instant) -> String {
+        let elapsed = start.elapsed();
+        let millis = elapsed.as_millis();
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_precision_loss,
+            clippy::cast_sign_loss,
+            reason = "nps can not realistically overflow or be negative"
+        )]
+        let nps = (iterations as f64 / elapsed.as_secs_f64().max(f64::MIN_POSITIVE)) as u64;
+
+        let score = self.most_visited_child(ROOT_ID).map_or(0, |best| {
+            centipawns_from_value(self.tree.node(best).mean_value())
+        });
+        let pv = self.principal_variation();
+
+        format!(
+            "info depth {max_depth} nodes {iterations} nps {nps} time {millis} score cp {score} \
+             pv {pv}"
+        )
+    }
+
+    /// Builds the principal variation by following the most-visited child from
+    /// the root while nodes have been visited.
+    fn principal_variation(&self) -> String {
+        let mut pv = Vec::new();
+        let mut node_id = ROOT_ID;
+        while pv.len() < MAX_PV_LENGTH {
+            let Some(best) = self.most_visited_child(node_id) else {
+                break;
+            };
+            if self.tree.node(best).visits == 0 {
+                break;
+            }
+            pv.push(
+                self.tree
+                    .node(best)
+                    .action
+                    .expect("non-root nodes have actions")
+                    .to_string(),
+            );
+            node_id = best;
+        }
+        // Even with zero completed iterations there is a legal first move.
+        if pv.is_empty() {
+            pv.push(self.best_move().to_string());
+        }
+        pv.join(" ")
+    }
+}
+
+/// Adds a child node for every legal move, with a uniform prior, and marks the
+/// node expanded.
+fn expand(tree: &mut Tree, node_id: NodeId, moves: &[Move]) {
     #[allow(clippy::cast_precision_loss, reason = "the number of moves is small")]
     let prior = 1.0 / moves.len() as f32;
-    for next_move in &moves {
+    for next_move in moves {
         let _ = tree.add_child(node_id, *next_move, prior);
     }
     tree.node_mut(node_id).expanded = true;
-
-    value_from_centipawns(evaluation::evaluate(position))
 }
 
-/// Propagates the value up the path. `value` is from the perspective of the
-/// player to move at the leaf (the last node in the path); node statistics
-/// store values from the parent's perspective, so the sign flips at each
-/// level.
-fn backup(tree: &mut Tree, path: &[NodeId], leaf_value: f64) {
-    let mut value = leaf_value;
-    for &node_id in path.iter().rev() {
-        let node = tree.node_mut(node_id);
-        node.visits += 1;
-        node.total_value -= value;
-        value = -value;
+/// Maps a game result to the search value domain `[-1, 1]`.
+fn value_from_result(result: GameResult) -> f64 {
+    match result {
+        GameResult::Win => 1.0,
+        GameResult::Draw => 0.0,
+        GameResult::Loss => -1.0,
     }
-}
-
-/// Returns the root child with the most visits, breaking ties by mean value.
-fn best_move(tree: &Tree) -> Move {
-    let root = tree.node(ROOT_ID);
-    let best = root
-        .children
-        .iter()
-        .max_by(|&&a, &&b| {
-            let (a, b) = (tree.node(a), tree.node(b));
-            a.visits
-                .cmp(&b.visits)
-                .then(a.mean_value().total_cmp(&b.mean_value()))
-        })
-        .expect("root is always expanded");
-    tree.node(*best).action.expect("root children have actions")
 }
 
 /// Maps a centipawn score to the value domain `[-1, 1]` through the logistic
@@ -251,72 +345,6 @@ fn centipawns_from_value(value: f64) -> i32 {
     (400.0 * ((1.0 + value) / (1.0 - value)).log10()).round() as i32
 }
 
-fn info_line(tree: &Tree, iterations: u64, max_depth: usize, start: Instant) -> String {
-    let elapsed = start.elapsed();
-    let millis = elapsed.as_millis();
-    let nps = if elapsed.as_secs_f64() > 0.0 {
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_precision_loss,
-            clippy::cast_sign_loss,
-            reason = "nps can not realistically overflow or be negative"
-        )]
-        let nps = (iterations as f64 / elapsed.as_secs_f64()) as u64;
-        nps
-    } else {
-        0
-    };
-
-    let root = tree.node(ROOT_ID);
-    let best = root
-        .children
-        .iter()
-        .max_by_key(|&&child| tree.node(child).visits)
-        .expect("root is always expanded");
-    let score = centipawns_from_value(tree.node(*best).mean_value());
-
-    let mut pv = String::new();
-    let mut node_id = ROOT_ID;
-    for _ in 0..MAX_PV_LENGTH {
-        let node = tree.node(node_id);
-        if node.children.is_empty() {
-            break;
-        }
-        let next = *node
-            .children
-            .iter()
-            .max_by_key(|&&child| tree.node(child).visits)
-            .expect("children are not empty");
-        if tree.node(next).visits == 0 {
-            break;
-        }
-        if !pv.is_empty() {
-            pv.push(' ');
-        }
-        pv.push_str(
-            &tree
-                .node(next)
-                .action
-                .expect("non-root nodes have actions")
-                .to_string(),
-        );
-        node_id = next;
-    }
-    if pv.is_empty() {
-        // Even with zero completed iterations there is a legal first move.
-        pv = tree
-            .node(root.children[0])
-            .action
-            .expect("root children have actions")
-            .to_string();
-    }
-
-    format!(
-        "info depth {max_depth} nodes {iterations} nps {nps} time {millis} score cp {score} pv \
-         {pv}"
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -327,23 +355,18 @@ mod tests {
         let position = Position::from_fen(fen).unwrap();
         let history = vec![position.hash()];
         let stop = AtomicBool::new(false);
-        search(&position, &history, limits, &stop, |_| {})
+        search(&position, &history, None, limits, &stop, |_| {})
     }
 
     #[test]
     fn returns_legal_move_from_starting_position() {
         let position = Position::starting();
-        let history = vec![position.hash()];
-        let stop = AtomicBool::new(false);
-        let result = search(
-            &position,
-            &history,
+        let result = run(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
             &Limits {
                 nodes: Some(100),
                 ..Limits::default()
             },
-            &stop,
-            |_| {},
         );
         let best = result.best_move.expect("starting position has moves");
         assert!(position.generate_moves().contains(&best));
@@ -381,6 +404,7 @@ mod tests {
         let result = search(
             &position,
             &history,
+            None,
             &Limits {
                 infinite: true,
                 ..Limits::default()
@@ -402,6 +426,33 @@ mod tests {
             },
         );
         assert_eq!(result.nodes, 64);
+    }
+
+    #[test]
+    fn searches_with_tablebase() {
+        use crate::chess::game;
+
+        const TABLEBASE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/syzygy");
+        let tablebase = game::load_tablebase(TABLEBASE_PATH.as_ref()).unwrap();
+
+        // KQvK is a tablebase win for White; the search probes the 3-piece
+        // children and must still return a legal move.
+        let position = Position::from_fen("4k3/8/8/8/4KQ2/8/8/8 w - - 0 1").unwrap();
+        let history = vec![position.hash()];
+        let stop = AtomicBool::new(false);
+        let result = search(
+            &position,
+            &history,
+            Some(&tablebase),
+            &Limits {
+                nodes: Some(500),
+                ..Limits::default()
+            },
+            &stop,
+            |_| {},
+        );
+        let best = result.best_move.expect("KQvK has legal moves");
+        assert!(position.generate_moves().contains(&best));
     }
 
     #[test]
