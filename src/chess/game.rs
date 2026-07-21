@@ -65,6 +65,13 @@ impl Game {
         &self.position
     }
 
+    /// The player to move at the root, from whose perspective [`Self::result`]
+    /// reports the outcome.
+    #[must_use]
+    pub fn perspective(&self) -> Player {
+        self.perspective
+    }
+
     /// Zobrist hashes of all positions in the game, including the current one.
     #[must_use]
     pub fn history(&self) -> &[Key] {
