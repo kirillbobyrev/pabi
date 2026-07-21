@@ -104,3 +104,21 @@ fn openbench_output() {
             .stdout(is_match(r"(?m)^\d+ nodes \d+ nps$").unwrap()),
     );
 }
+
+#[test]
+fn uci_loads_syzygy_tablebase() {
+    let tablebase_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/syzygy");
+    let mut cmd = assert_cmd::cargo_bin_cmd!("pabi");
+
+    drop(
+        cmd.write_stdin(format!(
+            "setoption name SyzygyTablebase value {tablebase_dir}\nstate\nquit\n"
+        ))
+        .assert()
+        .success()
+        .stdout(
+            contains("loaded Syzygy tablebases")
+                .and(contains("option SyzygyTablebase loaded, up to 3 pieces")),
+        ),
+    );
+}
