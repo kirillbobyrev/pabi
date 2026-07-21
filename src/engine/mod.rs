@@ -18,18 +18,35 @@ use crate::chess::game::{self, Game};
 use crate::chess::position::Position;
 use crate::engine::uci::Command;
 use crate::environment::{Environment, Player};
-use crate::search::mcts;
+use crate::search::{Tree, mcts};
 
 mod time_manager;
 mod uci;
 
+/// The `position` a search ran from, identifying the tree it produced so that
+/// the tree can be reused when the game continues along the same line.
+#[derive(Clone, Default)]
+struct PositionSpec {
+    fen: Option<String>,
+    moves: Vec<String>,
+}
+
+/// A search tree kept for reuse, together with the position it is rooted at.
+struct Reusable {
+    spec: PositionSpec,
+    tree: Tree,
+}
+
 /// A search running in a background thread. The search can be stopped through
-/// the flag; joining the handle guarantees that `bestmove` has been printed.
+/// the flag; joining the handle yields the grown tree (for reuse) and
+/// guarantees that `bestmove` has been printed.
 struct SearchThread {
     stop: Arc<AtomicBool>,
-    handle: thread::JoinHandle<()>,
+    handle: thread::JoinHandle<Tree>,
     /// Whether the search would run forever unless stopped externally.
     infinite: bool,
+    /// The position the search ran from.
+    spec: PositionSpec,
 }
 
 /// The Engine connects everything together and handles commands sent by UCI
@@ -38,13 +55,17 @@ struct SearchThread {
 pub struct Engine<R: BufRead, W: Write + Send + 'static> {
     /// The game the next search will start from.
     game: Game,
+    /// The `position` command that produced [`Self::game`], used to reuse the
+    /// search tree when the game continues along the same line.
+    spec: PositionSpec,
     debug: bool,
-    /// Requested transposition table size in MB. Stored for the time when the
-    /// search gets a transposition table.
+    /// Search tree size budget in MB (the UCI `Hash` option).
     hash_size_mb: usize,
     /// Number of search threads. Only single-threaded search is implemented so
     /// far.
     threads: usize,
+    /// Tree kept from the previous search for reuse.
+    reusable: Option<Reusable>,
     /// UCI commands will be read from this stream.
     input: R,
     /// Responses to UCI commands will be written to this stream. Shared with
@@ -60,9 +81,11 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
     pub fn new(input: R, out: W) -> Self {
         Self {
             game: Game::new(Position::starting()),
+            spec: PositionSpec::default(),
             debug: false,
             hash_size_mb: 16,
             threads: 1,
+            reusable: None,
             input,
             out: Arc::new(Mutex::new(out)),
             search: None,
@@ -220,14 +243,17 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
     fn new_game(&mut self) {
         self.stop_search();
         self.game = self.fresh_game(Position::starting());
+        self.spec = PositionSpec::default();
+        // A new game invalidates the tree from the previous one.
+        self.reusable = None;
     }
 
     /// Changes the position of the board to the one specified in the command.
     /// Each move is checked to be legal in the position it is applied to.
     fn set_position(&mut self, fen: Option<String>, moves: &[String]) -> anyhow::Result<()> {
         self.stop_search();
-        let root = match fen {
-            Some(fen) => Position::from_fen(&fen)?,
+        let root = match &fen {
+            Some(fen) => Position::from_fen(fen)?,
             None => Position::starting(),
         };
         let mut game = self.fresh_game(root);
@@ -240,6 +266,10 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
             game.apply(&next_move);
         }
         self.game = game;
+        self.spec = PositionSpec {
+            fen,
+            moves: moves.to_vec(),
+        };
         Ok(())
     }
 
@@ -275,45 +305,64 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
     }
 
     /// Starts the search in a background thread. The thread reports progress
-    /// through `info` lines and always finishes by printing `bestmove`.
+    /// through `info` lines, returns the grown tree for reuse, and always
+    /// finishes by printing `bestmove`.
     fn go(&mut self, go: &uci::Go) {
         self.stop_search();
 
         let limits = self.limits(go);
         let infinite = limits.infinite;
+        let tree = self.reuse_tree();
+        let node_budget = mcts::node_budget(self.hash_size_mb);
         let stop = Arc::new(AtomicBool::new(false));
-        let position = self.game.position().clone();
-        let history = self.game.history().to_vec();
-        let tablebase = self.game.tablebase();
+        let game = self.game.clone();
         let out = Arc::clone(&self.out);
         let search_stop = Arc::clone(&stop);
 
         let handle = thread::spawn(move || {
-            let result = mcts::search(
-                &position,
-                &history,
-                tablebase.as_deref(),
-                &limits,
-                &search_stop,
-                |info| {
-                    let mut out = out.lock().expect("output lock poisoned");
-                    let _ = writeln!(out, "{info}");
-                    let _ = out.flush();
-                },
-            );
+            let result = mcts::search(&game, tree, node_budget, &limits, &search_stop, |info| {
+                let mut out = out.lock().expect("output lock poisoned");
+                let _ = writeln!(out, "{info}");
+                let _ = out.flush();
+            });
             let best_move = result
                 .best_move
                 .map_or_else(|| "(none)".to_string(), |best_move| best_move.to_string());
-            let mut out = out.lock().expect("output lock poisoned");
-            let _ = writeln!(out, "bestmove {best_move}");
-            let _ = out.flush();
+            {
+                let mut out = out.lock().expect("output lock poisoned");
+                let _ = writeln!(out, "bestmove {best_move}");
+                let _ = out.flush();
+            }
+            result.tree
         });
 
         self.search = Some(SearchThread {
             stop,
             handle,
             infinite,
+            spec: self.spec.clone(),
         });
+    }
+
+    /// Returns the tree to seed the next search: the previous search's subtree
+    /// re-rooted at the current position when the game continued along the same
+    /// line, otherwise a fresh tree.
+    fn reuse_tree(&mut self) -> Tree {
+        let Some(reusable) = self.reusable.take() else {
+            return Tree::new();
+        };
+        if reusable.spec.fen == self.spec.fen && self.spec.moves.starts_with(&reusable.spec.moves) {
+            let played: Option<Vec<Move>> = self.spec.moves[reusable.spec.moves.len()..]
+                .iter()
+                .map(|uci| Move::from_uci(uci).ok())
+                .collect();
+            if let Some(played) = played
+                && let Some(tree) = reusable.tree.rerooted(&played)
+            {
+                return tree;
+            }
+        }
+        Tree::new()
     }
 
     /// Stops the running search (if any) and waits for it to print `bestmove`.
@@ -321,16 +370,21 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
         self.finish_search(true);
     }
 
-    /// Waits for the running search (if any) to print `bestmove`. When `force`
-    /// is set, the search is interrupted; otherwise it runs until its own
-    /// limits expire (infinite searches are interrupted regardless, as they
-    /// have no limits to expire).
+    /// Waits for the running search (if any) to print `bestmove`, keeping its
+    /// tree for reuse. When `force` is set, the search is interrupted;
+    /// otherwise it runs until its own limits expire (infinite searches are
+    /// interrupted regardless, as they have no limits to expire).
     fn finish_search(&mut self, force: bool) {
         if let Some(search) = self.search.take() {
             if force || search.infinite {
                 search.stop.store(true, Ordering::Relaxed);
             }
-            let _ = search.handle.join();
+            if let Ok(tree) = search.handle.join() {
+                self.reusable = Some(Reusable {
+                    spec: search.spec,
+                    tree,
+                });
+            }
         }
     }
 
@@ -413,13 +467,20 @@ pub fn openbench() {
     let start = Instant::now();
     let mut total_nodes = 0;
     for fen in POSITIONS {
-        let position = Position::from_fen(fen).expect("bench positions are valid");
+        let game = Game::new(Position::from_fen(fen).expect("bench positions are valid"));
         let limits = mcts::Limits {
             nodes: Some(NODES_PER_POSITION),
             ..mcts::Limits::default()
         };
         let stop = AtomicBool::new(false);
-        let result = mcts::search(&position, &[position.hash()], None, &limits, &stop, |_| {});
+        let result = mcts::search(
+            &game,
+            Tree::new(),
+            mcts::node_budget(16),
+            &limits,
+            &stop,
+            |_| {},
+        );
         total_nodes += result.nodes;
         println!(
             "info string bench bestmove {} for {fen}",

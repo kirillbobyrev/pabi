@@ -5,3 +5,5 @@
 pub mod mcts;
 mod policy;
 mod tree;
+
+pub(crate) use tree::Tree;

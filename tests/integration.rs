@@ -106,6 +106,25 @@ fn openbench_output() {
 }
 
 #[test]
+fn uci_reuses_tree_across_continuing_searches() {
+    // Two searches on the same continuing game exercise the tree-reuse path in
+    // a single process; both must still produce a legal bestmove.
+    let mut cmd = assert_cmd::cargo_bin_cmd!("pabi");
+
+    drop(
+        cmd.write_stdin(
+            "position startpos moves e2e4\ngo nodes 800\n\
+             position startpos moves e2e4 e7e5\ngo nodes 800\nquit\n",
+        )
+        .assert()
+        .success()
+        .stdout(
+            is_match(r"(?s)bestmove [a-h][1-8][a-h][1-8].*bestmove [a-h][1-8][a-h][1-8]").unwrap(),
+        ),
+    );
+}
+
+#[test]
 fn uci_loads_syzygy_tablebase() {
     let tablebase_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/syzygy");
     let mut cmd = assert_cmd::cargo_bin_cmd!("pabi");

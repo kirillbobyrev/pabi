@@ -13,6 +13,7 @@
 //!
 //! [Monte Carlo Tree Search]: https://en.wikipedia.org/wiki/Monte_Carlo_tree_search
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -20,9 +21,9 @@ use shakmaty::Chess;
 use shakmaty_syzygy::Tablebase;
 
 use super::policy;
-use super::tree::{NodeId, ROOT_ID, Tree};
+use super::tree::{Node, NodeId, ROOT_ID, Tree};
 use crate::chess::core::Move;
-use crate::chess::game;
+use crate::chess::game::{self, Game};
 use crate::chess::position::Position;
 use crate::chess::zobrist::Key;
 use crate::environment::GameResult;
@@ -38,6 +39,15 @@ const CHECK_INTERVAL: u64 = 128;
 /// Maximum length of the principal variation to report.
 const MAX_PV_LENGTH: usize = 16;
 
+/// Converts a Hash option value (in MB) into a search tree node budget. The
+/// per-node estimate accounts for a [`Node`] and the small heap-allocated child
+/// list it typically owns.
+#[must_use]
+pub fn node_budget(hash_mb: usize) -> usize {
+    const BYTES_PER_NODE: usize = size_of::<Node>() + 32;
+    (hash_mb * 1_000_000 / BYTES_PER_NODE).max(1)
+}
+
 /// Limits controlling when the search stops. Multiple limits can be active at
 /// once: the search stops as soon as any of them is reached. Regardless of the
 /// limits, the search can always be stopped externally through the stop flag.
@@ -52,38 +62,42 @@ pub struct Limits {
 }
 
 /// Final result of a search.
-#[derive(Debug, Clone)]
 pub struct SearchResult {
     /// The move the engine considers best. `None` if the root position has no
     /// legal moves.
     pub best_move: Option<Move>,
     /// Number of search iterations performed.
     pub nodes: u64,
+    /// The search tree, returned so its statistics can seed a later search.
+    pub(crate) tree: Tree,
 }
 
-/// Searches the position and returns the best move.
+/// Searches the game's current position and returns the best move along with
+/// the (grown) search tree.
 ///
-/// `history` holds the Zobrist hashes of all positions of the game so far
-/// (including the root); it is used to score repetitions as draws. `tablebase`,
-/// when present, adjudicates positions with few enough pieces exactly.
+/// `tree` seeds the search: pass [`Tree::new`] for a fresh search or a
+/// [`Tree::rerooted`] subtree to reuse earlier statistics. `node_budget` caps
+/// the tree size to bound memory (see [`node_budget`]).
 ///
 /// `on_info` is called with UCI `info` lines as the search progresses.
-pub fn search(
-    root: &Position,
-    history: &[Key],
-    tablebase: Option<&Tablebase<Chess>>,
+pub(crate) fn search(
+    game: &Game,
+    tree: Tree,
+    node_budget: usize,
     limits: &Limits,
     stop: &AtomicBool,
     mut on_info: impl FnMut(&str),
 ) -> SearchResult {
-    if root.generate_moves().is_empty() {
+    let root_moves = game.position().generate_moves();
+    if root_moves.is_empty() {
         return SearchResult {
             best_move: None,
             nodes: 0,
+            tree,
         };
     }
 
-    let mut searcher = Searcher::new(root, history, tablebase);
+    let mut searcher = Searcher::new(game, tree, node_budget, &root_moves);
     let start = Instant::now();
     let mut iterations = 0u64;
     let mut max_depth = 0usize;
@@ -105,6 +119,7 @@ pub fn search(
     SearchResult {
         best_move: Some(searcher.best_move()),
         nodes: iterations,
+        tree: searcher.tree,
     }
 }
 
@@ -123,24 +138,24 @@ fn limits_reached(limits: &Limits, iterations: u64, start: Instant) -> bool {
 struct Searcher<'a> {
     root: &'a Position,
     history: &'a [Key],
-    tablebase: Option<&'a Tablebase<Chess>>,
+    tablebase: Option<Arc<Tablebase<Chess>>>,
+    /// Maximum number of nodes the tree is allowed to grow to.
+    node_budget: usize,
     tree: Tree,
 }
 
 impl<'a> Searcher<'a> {
-    /// Creates a searcher with the root node already expanded. The caller
-    /// guarantees the root has at least one legal move.
-    fn new(
-        root: &'a Position,
-        history: &'a [Key],
-        tablebase: Option<&'a Tablebase<Chess>>,
-    ) -> Self {
-        let mut tree = Tree::new();
-        expand(&mut tree, ROOT_ID, &root.generate_moves());
+    /// Creates a searcher, expanding the root node if the seed tree left it
+    /// unexpanded. The caller guarantees the root has at least one legal move.
+    fn new(game: &'a Game, mut tree: Tree, node_budget: usize, root_moves: &[Move]) -> Self {
+        if !tree.node(ROOT_ID).expanded {
+            expand(&mut tree, ROOT_ID, root_moves);
+        }
         Self {
-            root,
-            history,
-            tablebase,
+            root: game.position(),
+            history: game.history(),
+            tablebase: game.tablebase(),
+            node_budget,
             tree,
         }
     }
@@ -202,13 +217,17 @@ impl<'a> Searcher<'a> {
             return self.mark_terminal(node_id, 0.0);
         }
 
-        if let Some(tablebase) = self.tablebase
+        if let Some(tablebase) = &self.tablebase
             && let Some(result) = game::probe_tablebase(tablebase, position)
         {
             return self.mark_terminal(node_id, value_from_result(result));
         }
 
-        expand(&mut self.tree, node_id, &moves);
+        // Stop growing the tree once it reaches the memory budget; the leaf is
+        // still evaluated, it just is not expanded.
+        if self.tree.len() < self.node_budget {
+            expand(&mut self.tree, node_id, &moves);
+        }
         value_from_centipawns(evaluation::evaluate(position))
     }
 
@@ -350,12 +369,15 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::environment::Environment;
+
+    fn search_game(game: &Game, limits: &Limits) -> SearchResult {
+        let stop = AtomicBool::new(false);
+        search(game, Tree::new(), usize::MAX, limits, &stop, |_| {})
+    }
 
     fn run(fen: &str, limits: &Limits) -> SearchResult {
-        let position = Position::from_fen(fen).unwrap();
-        let history = vec![position.hash()];
-        let stop = AtomicBool::new(false);
-        search(&position, &history, None, limits, &stop, |_| {})
+        search_game(&Game::new(Position::from_fen(fen).unwrap()), limits)
     }
 
     #[test]
@@ -396,15 +418,13 @@ mod tests {
 
     #[test]
     fn stops_immediately_when_stop_flag_is_set() {
-        let position = Position::starting();
-        let history = vec![position.hash()];
         let stop = AtomicBool::new(true);
         // Infinite search with a pre-set stop flag has to terminate and still
         // produce a legal move.
         let result = search(
-            &position,
-            &history,
-            None,
+            &Game::new(Position::starting()),
+            Tree::new(),
+            usize::MAX,
             &Limits {
                 infinite: true,
                 ..Limits::default()
@@ -430,29 +450,76 @@ mod tests {
 
     #[test]
     fn searches_with_tablebase() {
-        use crate::chess::game;
-
         const TABLEBASE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/syzygy");
-        let tablebase = game::load_tablebase(TABLEBASE_PATH.as_ref()).unwrap();
+        let tablebase = Arc::new(game::load_tablebase(TABLEBASE_PATH.as_ref()).unwrap());
 
         // KQvK is a tablebase win for White; the search probes the 3-piece
         // children and must still return a legal move.
         let position = Position::from_fen("4k3/8/8/8/4KQ2/8/8/8 w - - 0 1").unwrap();
-        let history = vec![position.hash()];
-        let stop = AtomicBool::new(false);
-        let result = search(
-            &position,
-            &history,
-            Some(&tablebase),
+        let mut game = Game::new(position.clone());
+        game.set_tablebase(Some(tablebase));
+        let result = search_game(
+            &game,
             &Limits {
                 nodes: Some(500),
+                ..Limits::default()
+            },
+        );
+        let best = result.best_move.expect("KQvK has legal moves");
+        assert!(position.generate_moves().contains(&best));
+    }
+
+    #[test]
+    fn reuses_tree_across_moves() {
+        // Search the starting position, then reuse the subtree under 1. e4 e5
+        // for the next search: the reused tree already carries visits, so the
+        // continuation search starts from a non-empty tree.
+        let mut game = Game::new(Position::starting());
+        let stop = AtomicBool::new(false);
+        let first = search(
+            &game,
+            Tree::new(),
+            usize::MAX,
+            &Limits {
+                nodes: Some(2000),
                 ..Limits::default()
             },
             &stop,
             |_| {},
         );
-        let best = result.best_move.expect("KQvK has legal moves");
-        assert!(position.generate_moves().contains(&best));
+
+        let line = [
+            Move::from_uci("e2e4").unwrap(),
+            Move::from_uci("e7e5").unwrap(),
+        ];
+        let reused = first
+            .tree
+            .rerooted(&line)
+            .expect("the 1. e4 e5 line was explored");
+        assert!(reused.len() > 1, "reused subtree should carry statistics");
+
+        for played in line {
+            game.apply(&played);
+        }
+        let second = search(
+            &game,
+            reused,
+            usize::MAX,
+            &Limits {
+                nodes: Some(100),
+                ..Limits::default()
+            },
+            &stop,
+            |_| {},
+        );
+        let best = second.best_move.expect("position has moves");
+        assert!(game.position().generate_moves().contains(&best));
+    }
+
+    #[test]
+    fn node_budget_scales_with_hash() {
+        assert!(node_budget(64) > node_budget(1));
+        assert!(node_budget(0) >= 1);
     }
 
     #[test]
