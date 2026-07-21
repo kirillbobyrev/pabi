@@ -17,6 +17,12 @@ pub(super) enum Command {
     },
     NewGame,
     Go(Go),
+    /// The move the engine was pondering on was played; the ponder search
+    /// should continue on the engine's own clock.
+    PonderHit,
+    /// Copy-protection registration. The engine does not require it, so this is
+    /// ignored.
+    Register,
     Stop,
     Quit,
     /// This is an extension to the UCI protocol useful for debugging. The
@@ -39,6 +45,8 @@ pub(super) struct Go {
     pub(super) depth: Option<u32>,
     pub(super) nodes: Option<u64>,
     pub(super) infinite: bool,
+    /// The search runs on the opponent's clock until a `ponderhit` or `stop`.
+    pub(super) ponder: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -46,12 +54,18 @@ pub(super) enum EngineOption {
     Hash,
     SyzygyTablebase,
     Threads,
+    MultiPv,
+    Ponder,
+    ClearHash,
 }
 
 #[derive(Debug, PartialEq)]
 pub(super) enum OptionValue {
     Integer(usize),
     String(String),
+    Bool(bool),
+    /// A `button`-typed option, which carries no value.
+    Button,
 }
 
 fn parse_go(parts: &[&str]) -> Command {
@@ -75,9 +89,13 @@ fn parse_go(parts: &[&str]) -> Command {
                 i += 1;
                 continue;
             }
-            // Tokens without a value (e.g. "ponder") and unsupported ones are
-            // skipped one at a time so that they can not swallow a keyword that
-            // follows them.
+            "ponder" => {
+                go.ponder = true;
+                i += 1;
+                continue;
+            }
+            // Unsupported tokens are skipped one at a time so that they can not
+            // swallow a keyword that follows them.
             _ => {
                 i += 1;
                 continue;
@@ -90,39 +108,47 @@ fn parse_go(parts: &[&str]) -> Command {
 }
 
 fn parse_setoption(parts: &[&str]) -> Command {
-    if parts.len() > 3 && parts[1] == "name" {
-        let name_end = parts
-            .iter()
-            .position(|&x| x == "value")
-            .unwrap_or(parts.len());
-        let option = parts[2..name_end].join(" ");
-        let option = match option.as_str() {
-            "Hash" => EngineOption::Hash,
-            "SyzygyTablebase" => EngineOption::SyzygyTablebase,
-            "Threads" => EngineOption::Threads,
-            _ => return Command::Unknown(parts.join(" ")),
-        };
-        let value = if name_end + 1 < parts.len() {
-            match option {
-                EngineOption::Hash | EngineOption::Threads => parts[name_end + 1]
-                    .parse::<usize>()
-                    .ok()
-                    .map(OptionValue::Integer),
-                EngineOption::SyzygyTablebase => {
-                    Some(OptionValue::String(parts[name_end + 1..].join(" ")))
-                }
-            }
-        } else {
-            None
-        };
-        if let Some(value) = value {
-            Command::SetOption { option, value }
-        } else {
-            Command::Unknown(parts.join(" "))
-        }
-    } else {
-        Command::Unknown(parts.join(" "))
+    let unknown = || Command::Unknown(parts.join(" "));
+    if parts.len() < 3 || parts[1] != "name" {
+        return unknown();
     }
+
+    // `setoption name <name> [value <value>]`.
+    let value_pos = parts.iter().position(|&token| token == "value");
+    let name = parts[2..value_pos.unwrap_or(parts.len())].join(" ");
+    let value = value_pos.map(|pos| parts[pos + 1..].join(" "));
+
+    let option = match name.as_str() {
+        "Hash" => EngineOption::Hash,
+        "SyzygyTablebase" => EngineOption::SyzygyTablebase,
+        "Threads" => EngineOption::Threads,
+        "MultiPV" => EngineOption::MultiPv,
+        "Ponder" => EngineOption::Ponder,
+        "Clear Hash" => EngineOption::ClearHash,
+        _ => return unknown(),
+    };
+
+    // A `button` option carries no value; everything else requires one.
+    let value = match option {
+        EngineOption::ClearHash => OptionValue::Button,
+        EngineOption::Hash | EngineOption::Threads | EngineOption::MultiPv => {
+            match value.and_then(|value| value.parse().ok()) {
+                Some(number) => OptionValue::Integer(number),
+                None => return unknown(),
+            }
+        }
+        EngineOption::SyzygyTablebase => match value {
+            Some(path) => OptionValue::String(path),
+            None => return unknown(),
+        },
+        EngineOption::Ponder => match value.as_deref() {
+            Some("true") => OptionValue::Bool(true),
+            Some("false") => OptionValue::Bool(false),
+            _ => return unknown(),
+        },
+    };
+
+    Command::SetOption { option, value }
 }
 
 fn parse_setposition(parts: &[&str]) -> Command {
@@ -158,6 +184,8 @@ impl Command {
             "position" => parse_setposition(&parts),
             "ucinewgame" => Self::NewGame,
             "go" => parse_go(&parts),
+            "ponderhit" => Self::PonderHit,
+            "register" => Self::Register,
             "stop" => Self::Stop,
             "quit" => Self::Quit,
             "state" => Self::State,
@@ -221,6 +249,50 @@ mod tests {
     }
 
     #[test]
+    fn parse_setoption_extended() {
+        assert_eq!(
+            Command::parse("setoption name MultiPV value 4"),
+            Command::SetOption {
+                option: EngineOption::MultiPv,
+                value: OptionValue::Integer(4)
+            }
+        );
+        assert_eq!(
+            Command::parse("setoption name Ponder value true"),
+            Command::SetOption {
+                option: EngineOption::Ponder,
+                value: OptionValue::Bool(true)
+            }
+        );
+        // "Clear Hash" is a button: it has a multi-word name and no value.
+        assert_eq!(
+            Command::parse("setoption name Clear Hash"),
+            Command::SetOption {
+                option: EngineOption::ClearHash,
+                value: OptionValue::Button
+            }
+        );
+    }
+
+    #[test]
+    fn parse_ponderhit_and_register() {
+        assert_eq!(Command::parse("ponderhit"), Command::PonderHit);
+        assert_eq!(Command::parse("register later"), Command::Register);
+    }
+
+    #[test]
+    fn parse_go_ponder() {
+        assert_eq!(
+            Command::parse("go ponder wtime 1000"),
+            Command::Go(Go {
+                wtime: Some(Duration::from_millis(1000)),
+                ponder: true,
+                ..Go::default()
+            })
+        );
+    }
+
+    #[test]
     fn parse_position() {
         assert_eq!(
             Command::parse("position startpos moves e2e4 e7e5"),
@@ -266,13 +338,13 @@ mod tests {
             })
         );
 
-        // "infinite" and "ponder" have no value: the keywords that follow them
-        // should still be picked up.
+        // A valueless keyword must not swallow the keyword that follows it.
         assert_eq!(
             Command::parse("go ponder wtime 1000 btime 2000"),
             Command::Go(Go {
                 wtime: Some(Duration::from_millis(1000)),
                 btime: Some(Duration::from_millis(2000)),
+                ponder: true,
                 ..Go::default()
             })
         );
