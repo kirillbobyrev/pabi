@@ -125,6 +125,46 @@ fn uci_reuses_tree_across_continuing_searches() {
 }
 
 #[test]
+fn uci_multipv_reports_multiple_lines() {
+    let mut cmd = assert_cmd::cargo_bin_cmd!("pabi");
+
+    drop(
+        cmd.write_stdin("setoption name MultiPV value 3\nposition startpos\ngo nodes 3000\nquit\n")
+            .assert()
+            .success()
+            .stdout(
+                contains("multipv 2")
+                    .and(contains("multipv 3"))
+                    .and(contains("seldepth")),
+            ),
+    );
+}
+
+#[test]
+fn uci_reports_forced_mate() {
+    let mut cmd = assert_cmd::cargo_bin_cmd!("pabi");
+
+    drop(
+        cmd.write_stdin("position fen 6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1\ngo nodes 5000\nquit\n")
+            .assert()
+            .success()
+            .stdout(contains("score mate 1").and(contains("bestmove a1a8"))),
+    );
+}
+
+#[test]
+fn uci_ponderhit_produces_bestmove() {
+    let mut cmd = assert_cmd::cargo_bin_cmd!("pabi");
+
+    drop(
+        cmd.write_stdin("position startpos\ngo ponder wtime 300 btime 300\nponderhit\nquit\n")
+            .assert()
+            .success()
+            .stdout(is_match(r"bestmove [a-h][1-8][a-h][1-8]").unwrap()),
+    );
+}
+
+#[test]
 fn uci_loads_syzygy_tablebase() {
     let tablebase_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/syzygy");
     let mut cmd = assert_cmd::cargo_bin_cmd!("pabi");

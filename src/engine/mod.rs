@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::chess::core::Move;
 use crate::chess::game::{self, Game};
@@ -47,6 +47,12 @@ struct SearchThread {
     infinite: bool,
     /// The position the search ran from.
     spec: PositionSpec,
+    /// Whether the search is currently pondering (running on the opponent's
+    /// clock).
+    pondering: bool,
+    /// Time budget to apply when a `ponderhit` switches the search to the
+    /// engine's own clock.
+    ponder_budget: Option<Duration>,
 }
 
 /// The Engine connects everything together and handles commands sent by UCI
@@ -64,6 +70,8 @@ pub struct Engine<R: BufRead, W: Write + Send + 'static> {
     /// Number of search threads. Only single-threaded search is implemented so
     /// far.
     threads: usize,
+    /// Number of principal variations to report (the UCI `MultiPV` option).
+    multipv: usize,
     /// Tree kept from the previous search for reuse.
     reusable: Option<Reusable>,
     /// UCI commands will be read from this stream.
@@ -85,6 +93,7 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
             debug: false,
             hash_size_mb: 16,
             threads: 1,
+            multipv: 1,
             reusable: None,
             input,
             out: Arc::new(Mutex::new(out)),
@@ -137,6 +146,10 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
                     }
                     self.go(&go);
                 }
+                Command::PonderHit => self.ponder_hit(),
+                // The engine does not require registration; acknowledge and
+                // move on.
+                Command::Register => {}
                 Command::Stop => self.stop_search(),
                 Command::Quit => {
                     // Let a search with finite limits run to completion so
@@ -177,7 +190,10 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
         self.send(&format!("id author {}", env!("CARGO_PKG_AUTHORS")))?;
         self.send("option name Hash type spin default 16 min 1 max 1048576")?;
         self.send("option name Threads type spin default 1 min 1 max 1")?;
+        self.send("option name MultiPV type spin default 1 min 1 max 218")?;
+        self.send("option name Ponder type check default false")?;
         self.send("option name SyzygyTablebase type string default <empty>")?;
+        self.send("option name Clear Hash type button")?;
         self.send("uciok")?;
         Ok(())
     }
@@ -201,6 +217,15 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
                     self.send("info string only 1 search thread is supported for now")?;
                 }
                 self.threads = 1;
+            }
+            (uci::EngineOption::MultiPv, uci::OptionValue::Integer(lines)) => {
+                self.multipv = lines.clamp(1, 218);
+            }
+            // Ponder capability is declared for GUIs; the engine reacts to
+            // `go ponder`, so the value itself needs no state.
+            (uci::EngineOption::Ponder, uci::OptionValue::Bool(_)) => {}
+            (uci::EngineOption::ClearHash, uci::OptionValue::Button) => {
+                self.reusable = None;
             }
             (uci::EngineOption::SyzygyTablebase, uci::OptionValue::String(path)) => {
                 self.set_tablebase(&path)?;
@@ -310,17 +335,31 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
     fn go(&mut self, go: &uci::Go) {
         self.stop_search();
 
-        let limits = self.limits(go);
+        let mut limits = self.limits(go);
+        // Pondering runs on the opponent's clock: search without a time limit
+        // until a `ponderhit` applies the budget or a `stop` ends it.
+        let ponder_budget = if go.ponder {
+            limits.move_time.take()
+        } else {
+            None
+        };
+        if go.ponder {
+            limits.infinite = true;
+        }
         let infinite = limits.infinite;
+
         let tree = self.reuse_tree();
-        let node_budget = mcts::node_budget(self.hash_size_mb);
+        let config = mcts::Config {
+            node_budget: mcts::node_budget(self.hash_size_mb),
+            multipv: self.multipv,
+        };
         let stop = Arc::new(AtomicBool::new(false));
         let game = self.game.clone();
         let out = Arc::clone(&self.out);
         let search_stop = Arc::clone(&stop);
 
         let handle = thread::spawn(move || {
-            let result = mcts::search(&game, tree, node_budget, &limits, &search_stop, |info| {
+            let result = mcts::search(&game, tree, &config, &limits, &search_stop, |info| {
                 let mut out = out.lock().expect("output lock poisoned");
                 let _ = writeln!(out, "{info}");
                 let _ = out.flush();
@@ -341,7 +380,28 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
             handle,
             infinite,
             spec: self.spec.clone(),
+            pondering: go.ponder,
+            ponder_budget,
         });
+    }
+
+    /// Handles `ponderhit`: the pondered move was played, so the search now
+    /// runs on the engine's own clock. A timer thread stops it once the
+    /// move-time budget elapses; without a budget it continues until a
+    /// `stop`.
+    fn ponder_hit(&mut self) {
+        if let Some(search) = &mut self.search
+            && search.pondering
+        {
+            search.pondering = false;
+            if let Some(budget) = search.ponder_budget.take() {
+                let stop = Arc::clone(&search.stop);
+                thread::spawn(move || {
+                    thread::sleep(budget);
+                    stop.store(true, Ordering::Relaxed);
+                });
+            }
+        }
     }
 
     /// Returns the tree to seed the next search: the previous search's subtree
@@ -408,6 +468,7 @@ impl<R: BufRead, W: Write + Send + 'static> Engine<R, W> {
         self.send(&format!("info string debug {}", self.debug))?;
         self.send(&format!("info string option Hash {}", self.hash_size_mb))?;
         self.send(&format!("info string option Threads {}", self.threads))?;
+        self.send(&format!("info string option MultiPV {}", self.multipv))?;
         self.send(&format!(
             "info string option SyzygyTablebase {}",
             self.game.tablebase().map_or_else(
@@ -473,14 +534,11 @@ pub fn openbench() {
             ..mcts::Limits::default()
         };
         let stop = AtomicBool::new(false);
-        let result = mcts::search(
-            &game,
-            Tree::new(),
-            mcts::node_budget(16),
-            &limits,
-            &stop,
-            |_| {},
-        );
+        let config = mcts::Config {
+            node_budget: mcts::node_budget(16),
+            multipv: 1,
+        };
+        let result = mcts::search(&game, Tree::new(), &config, &limits, &stop, |_| {});
         total_nodes += result.nodes;
         println!(
             "info string bench bestmove {} for {fen}",

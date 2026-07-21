@@ -61,6 +61,25 @@ pub struct Limits {
     pub infinite: bool,
 }
 
+/// Static configuration of a search: how large the tree may grow and how many
+/// principal variations to report.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Config {
+    /// Maximum number of tree nodes (see [`node_budget`]).
+    pub(crate) node_budget: usize,
+    /// Number of best lines to report (the UCI `MultiPV` option).
+    pub(crate) multipv: usize,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            node_budget: usize::MAX,
+            multipv: 1,
+        }
+    }
+}
+
 /// Final result of a search.
 pub(crate) struct SearchResult {
     /// The move the engine considers best. `None` if the root position has no
@@ -80,14 +99,14 @@ pub(crate) struct SearchResult {
 /// the (grown) search tree.
 ///
 /// `tree` seeds the search: pass [`Tree::new`] for a fresh search or a
-/// [`Tree::rerooted`] subtree to reuse earlier statistics. `node_budget` caps
-/// the tree size to bound memory (see [`node_budget`]).
+/// [`Tree::rerooted`] subtree to reuse earlier statistics. `config` controls
+/// the tree size budget and the number of reported lines.
 ///
-/// `on_info` is called with UCI `info` lines as the search progresses.
+/// `on_info` is called with UCI `info` blocks as the search progresses.
 pub(crate) fn search(
     game: &Game,
     tree: Tree,
-    node_budget: usize,
+    config: &Config,
     limits: &Limits,
     stop: &AtomicBool,
     mut on_info: impl FnMut(&str),
@@ -102,7 +121,7 @@ pub(crate) fn search(
         };
     }
 
-    let mut searcher = Searcher::new(game, tree, node_budget, &root_moves);
+    let mut searcher = Searcher::new(game, tree, config, &root_moves);
     let start = Instant::now();
     let mut iterations = 0u64;
     let mut max_depth = 0usize;
@@ -115,12 +134,12 @@ pub(crate) fn search(
         if iterations.is_multiple_of(CHECK_INTERVAL)
             && last_report.elapsed() >= Duration::from_secs(1)
         {
-            on_info(&searcher.info_line(iterations, max_depth, start));
+            on_info(&searcher.report(iterations, max_depth, start));
             last_report = Instant::now();
         }
     }
 
-    on_info(&searcher.info_line(iterations, max_depth, start));
+    on_info(&searcher.report(iterations, max_depth, start));
     SearchResult {
         best_move: Some(searcher.best_move()),
         nodes: iterations,
@@ -133,7 +152,7 @@ pub(crate) fn search(
 /// `limits` and returns the root move visit counts (the policy target).
 pub(crate) fn policy(game: &Game, limits: &Limits) -> Vec<(Move, u32)> {
     let stop = AtomicBool::new(false);
-    search(game, Tree::new(), usize::MAX, limits, &stop, |_| {}).root_visits
+    search(game, Tree::new(), &Config::default(), limits, &stop, |_| {}).root_visits
 }
 
 fn limits_reached(limits: &Limits, iterations: u64, start: Instant) -> bool {
@@ -152,15 +171,14 @@ struct Searcher<'a> {
     root: &'a Position,
     history: &'a [Key],
     tablebase: Option<Arc<Tablebase<Chess>>>,
-    /// Maximum number of nodes the tree is allowed to grow to.
-    node_budget: usize,
+    config: Config,
     tree: Tree,
 }
 
 impl<'a> Searcher<'a> {
     /// Creates a searcher, expanding the root node if the seed tree left it
     /// unexpanded. The caller guarantees the root has at least one legal move.
-    fn new(game: &'a Game, mut tree: Tree, node_budget: usize, root_moves: &[Move]) -> Self {
+    fn new(game: &'a Game, mut tree: Tree, config: &Config, root_moves: &[Move]) -> Self {
         if !tree.node(ROOT_ID).expanded {
             expand(&mut tree, ROOT_ID, root_moves);
         }
@@ -168,7 +186,7 @@ impl<'a> Searcher<'a> {
             root: game.position(),
             history: game.history(),
             tablebase: game.tablebase(),
-            node_budget,
+            config: *config,
             tree,
         }
     }
@@ -238,7 +256,7 @@ impl<'a> Searcher<'a> {
 
         // Stop growing the tree once it reaches the memory budget; the leaf is
         // still evaluated, it just is not expanded.
-        if self.tree.len() < self.node_budget {
+        if self.tree.len() < self.config.node_budget {
             expand(&mut self.tree, node_id, &moves);
         }
         value_from_centipawns(evaluation::evaluate(position))
@@ -306,7 +324,9 @@ impl<'a> Searcher<'a> {
             })
     }
 
-    fn info_line(&self, iterations: u64, max_depth: usize, start: Instant) -> String {
+    /// Builds the UCI `info` block: one line per reported principal variation
+    /// (up to `MultiPV`), ordered best first.
+    fn report(&self, iterations: u64, max_depth: usize, start: Instant) -> String {
         let elapsed = start.elapsed();
         let millis = elapsed.as_millis();
         #[allow(
@@ -316,44 +336,89 @@ impl<'a> Searcher<'a> {
             reason = "nps can not realistically overflow or be negative"
         )]
         let nps = (iterations as f64 / elapsed.as_secs_f64().max(f64::MIN_POSITIVE)) as u64;
+        let hashfull =
+            (self.tree.len() as u64 * 1000 / self.config.node_budget.max(1) as u64).min(1000);
 
-        let score = self.most_visited_child(ROOT_ID).map_or(0, |best| {
-            centipawns_from_value(self.tree.node(best).mean_value())
+        // Report the most-visited root moves first, as many as MultiPV asks for.
+        let mut roots: Vec<NodeId> = self.tree.node(ROOT_ID).children.clone();
+        roots.sort_by(|&a, &b| {
+            let (a, b) = (self.tree.node(a), self.tree.node(b));
+            b.visits
+                .cmp(&a.visits)
+                .then(b.mean_value().total_cmp(&a.mean_value()))
         });
-        let pv = self.principal_variation();
 
-        format!(
-            "info depth {max_depth} nodes {iterations} nps {nps} time {millis} score cp {score} \
-             pv {pv}"
-        )
+        roots
+            .iter()
+            .take(self.config.multipv.max(1))
+            .enumerate()
+            .map(|(rank, &child)| {
+                let pv = self.line(child);
+                let score = self.score(&pv, self.tree.node(child).mean_value());
+                let moves: Vec<String> = pv.iter().map(ToString::to_string).collect();
+                format!(
+                    "info depth {} seldepth {max_depth} multipv {} score {score} nodes \
+                     {iterations} nps {nps} hashfull {hashfull} time {millis} pv {}",
+                    pv.len(),
+                    rank + 1,
+                    moves.join(" ")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
-    /// Builds the principal variation by following the most-visited child from
-    /// the root while nodes have been visited.
-    fn principal_variation(&self) -> String {
-        let mut pv = Vec::new();
-        let mut node_id = ROOT_ID;
+    /// Builds a principal variation starting with `first`, following the
+    /// most-visited children.
+    fn line(&self, first: NodeId) -> Vec<Move> {
+        let mut pv = vec![self.tree.node(first).action.expect("child has action")];
+        let mut node_id = first;
         while pv.len() < MAX_PV_LENGTH {
-            let Some(best) = self.most_visited_child(node_id) else {
+            let Some(next) = self.most_visited_child(node_id) else {
                 break;
             };
-            if self.tree.node(best).visits == 0 {
+            if self.tree.node(next).visits == 0 {
                 break;
             }
             pv.push(
                 self.tree
-                    .node(best)
+                    .node(next)
                     .action
-                    .expect("non-root nodes have actions")
-                    .to_string(),
+                    .expect("non-root nodes have actions"),
             );
-            node_id = best;
+            node_id = next;
         }
-        // Even with zero completed iterations there is a legal first move.
-        if pv.is_empty() {
-            pv.push(self.best_move().to_string());
+        pv
+    }
+
+    /// Formats the score of a line: `mate N` when the line ends in checkmate,
+    /// otherwise `cp N` from the root player's perspective.
+    fn score(&self, pv: &[Move], mean_value: f64) -> String {
+        self.mate_distance(pv).map_or_else(
+            || format!("cp {}", centipawns_from_value(mean_value)),
+            |mate| format!("mate {mate}"),
+        )
+    }
+
+    /// If the line ends in checkmate, returns the mate distance in moves:
+    /// positive if the root player mates, negative if it is mated. Tablebase
+    /// wins are not mates and return `None`.
+    fn mate_distance(&self, pv: &[Move]) -> Option<i32> {
+        let mut position = self.root.clone();
+        for next_move in pv {
+            position.make_move(next_move);
         }
-        pv.join(" ")
+        if !position.generate_moves().is_empty() || !position.in_check() {
+            return None;
+        }
+        let plies = i32::try_from(pv.len()).expect("pv length is small");
+        // Odd length: the root player delivered mate; even: the root player was
+        // mated.
+        Some(if plies % 2 == 1 {
+            (plies + 1) / 2
+        } else {
+            -(plies / 2)
+        })
     }
 }
 
@@ -402,7 +467,7 @@ mod tests {
 
     fn search_game(game: &Game, limits: &Limits) -> SearchResult {
         let stop = AtomicBool::new(false);
-        search(game, Tree::new(), usize::MAX, limits, &stop, |_| {})
+        search(game, Tree::new(), &Config::default(), limits, &stop, |_| {})
     }
 
     fn run(fen: &str, limits: &Limits) -> SearchResult {
@@ -453,7 +518,7 @@ mod tests {
         let result = search(
             &Game::new(Position::starting()),
             Tree::new(),
-            usize::MAX,
+            &Config::default(),
             &Limits {
                 infinite: true,
                 ..Limits::default()
@@ -508,7 +573,7 @@ mod tests {
         let first = search(
             &game,
             Tree::new(),
-            usize::MAX,
+            &Config::default(),
             &Limits {
                 nodes: Some(2000),
                 ..Limits::default()
@@ -533,7 +598,7 @@ mod tests {
         let second = search(
             &game,
             reused,
-            usize::MAX,
+            &Config::default(),
             &Limits {
                 nodes: Some(100),
                 ..Limits::default()
