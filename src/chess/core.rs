@@ -1,7 +1,6 @@
 //! Chess primitives commonly used within [`crate::chess`].
 
 use std::fmt::{self, Write};
-use std::mem;
 
 use anyhow::bail;
 use itertools::Itertools;
@@ -13,6 +12,62 @@ use crate::environment::Player;
 pub const BOARD_WIDTH: u8 = 8;
 #[allow(missing_docs, reason = "Self-explanatory constants")]
 pub const BOARD_SIZE: u8 = BOARD_WIDTH * BOARD_WIDTH;
+
+/// Defines a `#[repr(u8)]` enum whose variants have contiguous discriminants
+/// starting at 0, together with the inverse of `value as u8`:
+///
+/// - `ALL`: every variant, ordered by discriminant, so `ALL[i as usize]` maps
+///   an in-range index back to its variant.
+/// - `from_index`: the safe, checked conversion, returning `None` when out of
+///   range. Prefer this everywhere.
+/// - `from_index_unchecked`: the zero-cost conversion for the few hot paths
+///   where the index is known to be in range by construction.
+///
+/// These centralize what would otherwise be scattered `unsafe { transmute }`
+/// calls into one audited, debug-checked place.
+macro_rules! index_enum {
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident { $($variant:ident),+ $(,)? }
+    ) => {
+        $(#[$meta])*
+        #[repr(u8)]
+        $vis enum $name { $($variant),+ }
+
+        impl $name {
+            /// All variants, ordered by their `u8` discriminant (`0`, `1`, …).
+            $vis const ALL: [$name; [$(index_enum!(@unit $variant)),+].len()] =
+                [$($name::$variant),+];
+
+            /// Returns the variant with discriminant `index`, or `None` if it is
+            /// out of range.
+            #[must_use]
+            $vis const fn from_index(index: u8) -> Option<$name> {
+                if (index as usize) < $name::ALL.len() {
+                    Some($name::ALL[index as usize])
+                } else {
+                    None
+                }
+            }
+
+            /// Returns the variant with discriminant `index` without a bounds
+            /// check, for hot paths where `index` is in range by construction.
+            ///
+            /// # Safety
+            ///
+            /// `index` must be less than `Self::ALL.len()`. Because the enum is
+            /// `#[repr(u8)]` with contiguous discriminants from 0, that is
+            /// exactly the set of valid discriminants.
+            #[must_use]
+            $vis const unsafe fn from_index_unchecked(index: u8) -> $name {
+                debug_assert!((index as usize) < $name::ALL.len());
+                // SAFETY: guaranteed in range by the caller (see above).
+                unsafe { ::core::mem::transmute::<u8, $name>(index) }
+            }
+        }
+    };
+    (@unit $variant:ident) => { () };
+}
 
 /// Represents any kind of a legal chess move. A move is the only way to mutate
 /// [`crate::chess::position::Position`] and change the board state. Moves are
@@ -231,60 +286,65 @@ const MAX_MOVES: usize = 256;
 /// `std::Vec` with unknown capacity.
 pub type MoveList = arrayvec::ArrayVec<Move, { MAX_MOVES }>;
 
-/// Board squares: from left to right, from bottom to the top ([Little-Endian Rank-File Mapping]):
-///
-/// ```
-/// use pabi::chess::core::Square;
-///
-/// assert_eq!(Square::A1 as u8, 0);
-/// assert_eq!(Square::E1 as u8, 4);
-/// assert_eq!(Square::H1 as u8, 7);
-/// assert_eq!(Square::A4 as u8, 8 * 3);
-/// assert_eq!(Square::H8 as u8, 63);
-/// ```
-///
-/// Square is a compact representation using only one byte.
-///
-/// ```
-/// use pabi::chess::core::Square;
-/// use std::mem::size_of;
-///
-/// assert_eq!(size_of::<Square>(), 1);
-/// ```
-///
-/// [Little-Endian Rank-File Mapping]: https://www.chessprogramming.org/Square_Mapping_Considerations#LittleEndianRankFileMapping
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[rustfmt::skip]
-#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
-pub enum Square {
-    A1, B1, C1, D1, E1, F1, G1, H1,
-    A2, B2, C2, D2, E2, F2, G2, H2,
-    A3, B3, C3, D3, E3, F3, G3, H3,
-    A4, B4, C4, D4, E4, F4, G4, H4,
-    A5, B5, C5, D5, E5, F5, G5, H5,
-    A6, B6, C6, D6, E6, F6, G6, H6,
-    A7, B7, C7, D7, E7, F7, G7, H7,
-    A8, B8, C8, D8, E8, F8, G8, H8,
+index_enum! {
+    /// Board squares: from left to right, from bottom to the top ([Little-Endian Rank-File Mapping]):
+    ///
+    /// ```
+    /// use pabi::chess::core::Square;
+    ///
+    /// assert_eq!(Square::A1 as u8, 0);
+    /// assert_eq!(Square::E1 as u8, 4);
+    /// assert_eq!(Square::H1 as u8, 7);
+    /// assert_eq!(Square::A4 as u8, 8 * 3);
+    /// assert_eq!(Square::H8 as u8, 63);
+    /// ```
+    ///
+    /// Square is a compact representation using only one byte.
+    ///
+    /// ```
+    /// use pabi::chess::core::Square;
+    /// use std::mem::size_of;
+    ///
+    /// assert_eq!(size_of::<Square>(), 1);
+    /// ```
+    ///
+    /// [Little-Endian Rank-File Mapping]: https://www.chessprogramming.org/Square_Mapping_Considerations#LittleEndianRankFileMapping
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[rustfmt::skip]
+    #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
+    pub enum Square {
+        A1, B1, C1, D1, E1, F1, G1, H1,
+        A2, B2, C2, D2, E2, F2, G2, H2,
+        A3, B3, C3, D3, E3, F3, G3, H3,
+        A4, B4, C4, D4, E4, F4, G4, H4,
+        A5, B5, C5, D5, E5, F5, G5, H5,
+        A6, B6, C6, D6, E6, F6, G6, H6,
+        A7, B7, C7, D7, E7, F7, G7, H7,
+        A8, B8, C8, D8, E8, F8, G8, H8,
+    }
 }
 
 impl Square {
     /// Connects file (column) and rank (row) to form a full square.
     #[must_use]
     pub const fn new(file: File, rank: Rank) -> Self {
-        unsafe { mem::transmute(file as u8 + (rank as u8) * BOARD_WIDTH) }
+        // SAFETY: a file (0..8) and rank (0..8) always combine into a valid
+        // square index (0..64).
+        unsafe { Self::from_index_unchecked(file as u8 + rank as u8 * BOARD_WIDTH) }
     }
 
     /// Returns file (column) on which the square is located.
     #[must_use]
     pub const fn file(self) -> File {
-        unsafe { mem::transmute(self as u8 % BOARD_WIDTH) }
+        // SAFETY: `square % 8` is always a valid file index (0..8).
+        unsafe { File::from_index_unchecked(self as u8 % BOARD_WIDTH) }
     }
 
     /// Returns rank (row) on which the square is located.
     #[must_use]
     pub const fn rank(self) -> Rank {
-        unsafe { mem::transmute(self as u8 / BOARD_WIDTH) }
+        // SAFETY: `square / 8` is always a valid rank index (0..8).
+        unsafe { Rank::from_index_unchecked(self as u8 / BOARD_WIDTH) }
     }
 
     #[must_use]
@@ -313,16 +373,13 @@ impl Square {
     /// ```
     #[must_use]
     pub fn flip_perspective(self) -> Self {
-        unsafe { mem::transmute(56 ^ self as u8) }
+        // SAFETY: `56 ^ square` keeps the value within 0..64 (it only flips the
+        // rank bits), so it is a valid square index.
+        unsafe { Self::from_index_unchecked(56 ^ self as u8) }
     }
 
     fn next(self) -> Option<Self> {
-        let next = self as u8 + 1;
-        if next == BOARD_SIZE {
-            None
-        } else {
-            Some(unsafe { mem::transmute(next) })
-        }
+        Self::from_index(self as u8 + 1)
     }
 
     /// Creates an iterator over all squares, starting from A1 (0) to H8 (63).
@@ -343,9 +400,9 @@ impl TryFrom<u8> for Square {
     ///
     /// If given square index is outside 0..[`BOARD_SIZE`] range.
     fn try_from(square_index: u8) -> anyhow::Result<Self> {
-        match square_index {
-            0..BOARD_SIZE => Ok(unsafe { mem::transmute(square_index) }),
-            _ => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
+        match Self::from_index(square_index) {
+            Some(square) => Ok(square),
+            None => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
         }
     }
 }
@@ -359,10 +416,9 @@ impl TryFrom<i8> for Square {
     ///
     /// If given square index is outside 0..[`BOARD_SIZE`] range.
     fn try_from(square_index: i8) -> anyhow::Result<Self> {
-        const MAX_INDEX: i8 = BOARD_SIZE as i8;
-        match square_index {
-            0..MAX_INDEX => Ok(unsafe { mem::transmute(square_index) }),
-            _ => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
+        match u8::try_from(square_index).ok().and_then(Self::from_index) {
+            Some(square) => Ok(square),
+            None => bail!("square index should be in 0..BOARD_SIZE, got {square_index}"),
         }
     }
 }
@@ -404,20 +460,21 @@ impl fmt::Display for Square {
     }
 }
 
-/// Represents a column (vertical row) of the chessboard. In chess notation, it
-/// is normally represented with a lowercase letter.
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
-pub enum File {
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
+index_enum! {
+    /// Represents a column (vertical row) of the chessboard. In chess notation,
+    /// it is normally represented with a lowercase letter.
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
+    pub enum File {
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+    }
 }
 
 impl fmt::Display for File {
@@ -431,7 +488,7 @@ impl TryFrom<char> for File {
 
     fn try_from(file: char) -> anyhow::Result<Self> {
         match file {
-            'a'..='h' => Ok(unsafe { mem::transmute(file as u8 - b'a') }),
+            'a'..='h' => Ok(Self::ALL[(file as u8 - b'a') as usize]),
             _ => bail!("file should be within 'a'..='h', got '{file}'"),
         }
     }
@@ -441,28 +498,29 @@ impl TryFrom<u8> for File {
     type Error = anyhow::Error;
 
     fn try_from(column: u8) -> anyhow::Result<Self> {
-        match column {
-            0..=7 => Ok(unsafe { mem::transmute(column) }),
-            _ => bail!("file should be within 0..BOARD_WIDTH, got {column}"),
+        match Self::from_index(column) {
+            Some(file) => Ok(file),
+            None => bail!("file should be within 0..BOARD_WIDTH, got {column}"),
         }
     }
 }
 
-/// Represents a horizontal row of the chessboard. In chess notation, it is
-/// represented with a number. The implementation assumes zero-based values
-/// (i.e. rank 1 would be 0).
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(missing_docs, reason = "Enum variants are self-explanatory")]
-pub enum Rank {
-    Rank1,
-    Rank2,
-    Rank3,
-    Rank4,
-    Rank5,
-    Rank6,
-    Rank7,
-    Rank8,
+index_enum! {
+    /// Represents a horizontal row of the chessboard. In chess notation, it is
+    /// represented with a number. The implementation assumes zero-based values
+    /// (i.e. rank 1 would be 0).
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[allow(missing_docs, reason = "Enum variants are self-explanatory")]
+    pub enum Rank {
+        Rank1,
+        Rank2,
+        Rank3,
+        Rank4,
+        Rank5,
+        Rank6,
+        Rank7,
+        Rank8,
+    }
 }
 
 impl Rank {
@@ -501,7 +559,7 @@ impl TryFrom<char> for Rank {
 
     fn try_from(rank: char) -> anyhow::Result<Self> {
         match rank {
-            '1'..='8' => Ok(unsafe { mem::transmute(rank as u8 - b'1') }),
+            '1'..='8' => Ok(Self::ALL[(rank as u8 - b'1') as usize]),
             _ => bail!("rank should be within '1'..='8', got '{rank}'"),
         }
     }
@@ -511,9 +569,9 @@ impl TryFrom<u8> for Rank {
     type Error = anyhow::Error;
 
     fn try_from(row: u8) -> anyhow::Result<Self> {
-        match row {
-            0..=7 => Ok(unsafe { mem::transmute(row) }),
-            _ => bail!("rank should be within 0..BOARD_WIDTH, got {row}"),
+        match Self::from_index(row) {
+            Some(rank) => Ok(rank),
+            None => bail!("rank should be within 0..BOARD_WIDTH, got {row}"),
         }
     }
 }
