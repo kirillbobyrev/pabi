@@ -34,7 +34,7 @@ jobs:
             experimental: true
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install ${{ matrix.toolchain }} toolchain
         uses: dtolnay/rust-toolchain@master
         with:
